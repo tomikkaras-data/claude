@@ -75,6 +75,8 @@ class AIController {
         } else if (--this.timer <= 0) {
           if (w.kind === 'target') g.fireAt(p.target.x, p.target.y);
           else g.fire(1);
+          // a second shot is left (shotgun): look again, without walking
+          if (g.lockedWeapon) { this.phase = 'think'; this.timer = 35; this.walked = true; }
         }
         return;
       }
@@ -139,68 +141,83 @@ class AIController {
   computePlan() {
     const g = this.g, c = this.c;
     const ammo = g.teams[c.team].ammo;
+    const has = id => !g.lockedWeapon ? ammo[id] > 0 : g.lockedWeapon === id;
     const enemies = g.chars.filter(o => o.alive && o.team !== c.team);
     const friends = g.chars.filter(o => o.alive && o.team === c.team);
     const noise = DIFFICULTY[g.settings.difficulty] || DIFFICULTY.normal;
     let best = { score: -Infinity };
+    const killBonus = (dmg, e) => Math.min(dmg, e.hp) * 10 + (dmg >= e.hp ? 300 : 0);
 
-    // Ballistic weapons
-    for (const id of ['bazooka', 'grenade']) {
-      if (!(ammo[id] > 0)) continue;
+    // Ballistic weapons: simulate the real flight for many angles and powers
+    for (const id of ['bazooka', 'grenade', 'nuke']) {
+      if (!has(id)) continue;
       const w = WEAPON[id];
       for (const facing of [-1, 1]) {
         for (let angle = -60; angle <= 85; angle += 3) {
           for (let power = 0.2; power <= 1.0001; power += 0.05) {
             const pt = this.simulate(w, angle, facing, power);
             if (!pt) continue;
-            const s = this.scoreBlast(pt.x, pt.y, w.radius, w.damage, enemies, friends);
+            const s = this.scoreBlast(pt.x, pt.y, w.radius, w.damage, enemies, friends) + (w.crate ? 10 : 0);
             if (s > best.score) best = { score: s, weapon: id, angle, facing, power };
           }
         }
       }
     }
 
-    // Shotgun: direct line of sight
-    if (ammo.shotgun > 0) {
+    // Guns: need a clear line of sight to an enemy
+    for (const id of ['shotgun', 'deagle', 'sniper', 'gatling']) {
+      if (!has(id)) continue;
+      const w = WEAPON[id];
       for (const e of enemies) {
-        const dx = e.x - c.x, dy = e.y - c.y;
-        if (Math.hypot(dx, dy) > WEAPON.shotgun.range - 20) continue;
+        const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);
+        if (d > w.range - 20) continue;
         const facing = dx >= 0 ? 1 : -1;
         const angle = Math.atan2(-dy, Math.abs(dx)) * 180 / Math.PI;
         if (Math.abs(angle) > 85) continue;
         const a = angle * Math.PI / 180;
-        const hit = traceRay(this.env(), c.x, c.y, Math.cos(a) * facing, -Math.sin(a), WEAPON.shotgun.range, c.id);
-        if (hit.hit === e) {
-          const dmg = WEAPON.shotgun.damage;
-          const s = Math.min(dmg, e.hp) * 10 + (dmg >= e.hp ? 300 : 0) + 15;
-          if (s > best.score) best = { score: s, weapon: 'shotgun', angle, facing, power: 1 };
-        }
+        const hit = traceRay(this.env(), c.x, c.y, Math.cos(a) * facing, -Math.sin(a), w.range, c.id);
+        if (hit.hit !== e) continue;
+        let expected = w.damage;
+        if (id === 'shotgun') expected = w.pellets * w.damage * clamp(110 / d, 0.25, 1);
+        if (id === 'gatling') expected = w.bullets * w.damage * clamp(160 / d, 0.15, 0.7);
+        const s = killBonus(expected, e) + 15 + (w.crate ? 10 : 0);
+        if (s > best.score) best = { score: s, weapon: id, angle, facing, power: 1 };
       }
     }
 
-    // Air strike on an enemy with open sky above
-    if (ammo.airstrike > 0) {
+    // Things that fall from the sky need open sky above the target
+    for (const id of ['airstrike', 'anvil', 'napalm']) {
+      if (!has(id)) continue;
+      const w = WEAPON[id];
       for (const e of enemies) {
         let open = true;
         for (let y = 0; y < e.y - CHAR_R - 2; y += 3) {
           if (g.terrain.isSolid(e.x, y)) { open = false; break; }
         }
         if (!open) continue;
-        const s = Math.min(45, e.hp) * 10 + (45 >= e.hp ? 300 : 0) - 50;
-        if (s > best.score) best = { score: s, weapon: 'airstrike', angle: null, target: { x: e.x, y: e.y } };
+        const expected = id === 'airstrike' ? w.damage * 1.5 : id === 'napalm' ? w.damage * 12 : w.damage * 0.9;
+        const s = killBonus(expected, e) - (id === 'airstrike' ? 50 : 20);
+        if (s > best.score) best = { score: s, weapon: id, angle: null, target: { x: e.x, y: e.y } };
       }
     }
 
     let nearest = enemies[0];
     for (const e of enemies) if (dist(e.x, e.y, c.x, c.y) < dist(nearest.x, nearest.y, c.x, c.y)) nearest = e;
 
-    // Nothing worth shooting at: walk towards the nearest enemy first
-    if ((best.score < 50 || !best.weapon) && !this.walked && nearest) {
-      best.walkDir = nearest.x >= c.x ? 1 : -1;
-    }
-    // Still nothing after walking and the enemy is far away: teleport closer (big maps)
-    else if (best.score < 0 && this.walked && nearest && ammo.teleport > 0 &&
+    if (g.lockedWeapon) {
+      // second shotgun shot with nothing in sight: fire towards the nearest enemy anyway
+      if (best.weapon !== g.lockedWeapon && nearest) {
+        const dx = nearest.x - c.x, dy = nearest.y - c.y;
+        best = { score: 0, weapon: g.lockedWeapon, facing: dx >= 0 ? 1 : -1, angle: clamp(Math.atan2(-dy, Math.abs(dx)) * 180 / Math.PI, -85, 85), power: 1 };
+      }
+    } else if ((best.score < 50 || !best.weapon) && !this.walked && nearest) {
+      // Nothing worth shooting at: walk to a nearby crate, or towards the nearest enemy
+      const crate = g.crates.filter(k => !k.airborne && Math.abs(k.x - c.x) < 450 && Math.abs(k.y - c.y) < 120)
+        .sort((a, b) => Math.abs(a.x - c.x) - Math.abs(b.x - c.x))[0];
+      best.walkDir = (crate ? crate.x : nearest.x) >= c.x ? 1 : -1;
+    } else if (best.score < 0 && this.walked && nearest && ammo.teleport > 0 &&
              Math.abs(nearest.x - c.x) > 700) {
+      // Still nothing after walking and the enemy is far away: teleport closer (big maps)
       const spot = this.findTeleportSpot(nearest);
       if (spot) best = { score: 0, weapon: 'teleport', angle: null, target: spot };
     }
@@ -208,9 +225,10 @@ class AIController {
       best = { ...best, weapon: 'bazooka', angle: 45, facing: c.facing, power: 0.6 };
     }
 
-    // Human-like aiming error
-    if (best.angle != null && best.weapon !== 'airstrike') {
-      best.angle = clamp(best.angle + rand(-noise.angle, noise.angle), -85, 85);
+    // Human-like aiming error (the sniper scope helps a lot)
+    if (best.angle != null) {
+      const k = WEAPON[best.weapon].scope ? 0.3 : 1;
+      best.angle = clamp(best.angle + rand(-noise.angle, noise.angle) * k, -85, 85);
       best.power = clamp(best.power + rand(-noise.power, noise.power), 0.1, 1);
     }
     return best;

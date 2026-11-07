@@ -19,6 +19,8 @@ const App = {
       mapSize: 'medium',
       mines: 'few',
       friendlyFire: false,
+      crates: 'normal',
+      weapons: {},
       players: DEFAULT_NAMES.map((name, i) => ({ name, cpu: i !== 0, team: i % 2 })),
     };
   },
@@ -55,12 +57,17 @@ const App = {
     bindRange('turnTime', 'turnTime', v => `${v}s`);
     bindRange('health', 'health', v => `${v} HP`);
 
-    for (const id of ['difficulty', 'theme', 'mapSize', 'mines']) {
+    for (const id of ['difficulty', 'theme', 'mapSize', 'mines', 'crates']) {
       $(id).value = s[id];
       $(id).onchange = () => { s[id] = $(id).value; this.save(); };
     }
     $('friendlyFire').value = s.friendlyFire ? 'on' : 'off';
     $('friendlyFire').onchange = () => { s.friendlyFire = $('friendlyFire').value === 'on'; this.save(); };
+    $('weaponsBtn').onclick = () => this.showWeaponConfig(true);
+    $('weaponsDone').onclick = () => this.showWeaponConfig(false);
+    $('weaponsReset').onclick = () => { s.weapons = {}; this.save(); this.renderWeaponConfig(); };
+    $('optBtn').onclick = () => { if (this.game) this.game.cycleOption(); $('optBtn').blur(); };
+    this.updateWeaponsSummary();
     $('skipBtn').onclick = () => {
       if (!this.game) return;
       this.game.skipToEnd();
@@ -167,6 +174,8 @@ const App = {
       mapSize: s.mapSize,
       mines: s.mines,
       friendlyFire: s.friendlyFire,
+      crates: s.crates,
+      weapons: s.weapons,
     }, {
       onWeaponsChanged: () => this.renderWeapons(),
       onPause: paused => this.showPause(paused),
@@ -177,6 +186,84 @@ const App = {
     window.__game = this.game; // handy for debugging from the console
     this.renderWeapons();
     this.game.start();
+  },
+
+  showWeaponConfig(show) {
+    $('menu').hidden = show;
+    $('weaponsScreen').hidden = !show;
+    if (show) this.renderWeaponConfig();
+    else this.updateWeaponsSummary();
+    window.scrollTo(0, 0);
+  },
+
+  updateWeaponsSummary() {
+    const n = Object.keys(this.settings.weapons || {}).length;
+    $('weaponsSummary').textContent = n ? `${n} weapon${n > 1 ? 's' : ''} changed` : 'All weapons at default values';
+  },
+
+  renderWeaponConfig() {
+    const s = this.settings;
+    s.weapons = s.weapons || {};
+    const body = $('weaponRows');
+    body.innerHTML = '';
+    const LIMITS = { damage: 500, radius: 300, ammo: 99, bombletDamage: 500 };
+
+    const input = (w, field) => {
+      const d = WEAPON_DEFAULTS[w.id][field];
+      const o = (s.weapons[w.id] || {})[field];
+      const el = document.createElement('input');
+      el.type = 'number';
+      el.inputMode = 'numeric';
+      el.min = 0;
+      el.max = LIMITS[field];
+      el.id = `cfg-${w.id}-${field}`;
+      el.setAttribute('aria-label', `${w.name} ${field === 'bombletDamage' ? 'bomblet damage' : field}`);
+      if (field === 'ammo') el.placeholder = '∞';
+      const show = v => (v === Infinity || v < 0 ? '' : String(v));
+      el.value = show(o != null ? o : d);
+      const mark = () => el.classList.toggle('changed', o != null || (s.weapons[w.id] || {})[field] != null);
+      el.onchange = () => {
+        const raw = el.value.trim();
+        let v;
+        if (raw === '' && field === 'ammo') v = -1;
+        else {
+          v = parseInt(raw, 10);
+          if (!isFinite(v)) { el.value = show(d); v = null; } else v = clamp(v, 0, LIMITS[field]);
+        }
+        const isDefault = v == null || v === d || (v === -1 && d === Infinity);
+        const entry = s.weapons[w.id] || {};
+        if (isDefault) delete entry[field]; else entry[field] = v;
+        if (Object.keys(entry).length) s.weapons[w.id] = entry; else delete s.weapons[w.id];
+        if (v != null) el.value = show(v);
+        el.classList.toggle('changed', !isDefault);
+        this.save();
+      };
+      mark();
+      return el;
+    };
+
+    const addRow = (w, label, note, fields, sub) => {
+      const tr = document.createElement('tr');
+      if (sub) tr.className = 'sub';
+      const name = document.createElement('td');
+      name.className = 'name';
+      name.innerHTML = `<span class="wname">${sub ? '' : w.icon} ${label}${w.crate && !sub ? ' <span class="badge">crate</span>' : ''}</span>` +
+        (note ? `<span class="wnote">${note}</span>` : '');
+      tr.appendChild(name);
+      for (const f of fields) {
+        const td = document.createElement('td');
+        if (f && f in WEAPON_DEFAULTS[w.id]) td.appendChild(input(w, f));
+        else { td.textContent = '—'; td.className = 'na'; }
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    };
+
+    for (const w of WEAPONS) {
+      if (w.kind === 'skip' || w.kind === 'rope') continue;
+      addRow(w, w.name, w.note || '', ['damage', 'radius', 'ammo']);
+      if (w.cluster) addRow(w, 'Bomblets', `${w.cluster} bomblets after the main blast`, ['bombletDamage', null, null], true);
+    }
   },
 
   showSkip(show) {
@@ -191,6 +278,7 @@ const App = {
     this.game = null;
     $('overlay').hidden = true;
     this.showSkip(false);
+    $('optBtn').hidden = true;
     $('gameScreen').hidden = true;
     $('menu').hidden = false;
   },
@@ -202,21 +290,29 @@ const App = {
     const c = g.active;
     const team = g.teams[c.team];
     Touch.update(g);
-    const humanCanPick = !c.isCPU && !g.hasFired && (g.state === 'turn' || g.state === 'banner');
+    const humanCanPick = !c.isCPU && !g.hasFired && !g.lockedWeapon && (g.state === 'turn' || g.state === 'banner');
     bar.innerHTML = '';
     for (const w of WEAPONS) {
+      if (w.crate && !(team.ammo[w.id] > 0)) continue; // special weapons appear once found
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'weapon' + (c.weapon === w.id ? ' on' : '');
       const ammo = team.ammo[w.id];
       b.disabled = !humanCanPick || !(ammo > 0);
-      b.title = `${w.name} (${w.key})`;
-      b.innerHTML = `<span class="key">${w.key}</span>` +
+      b.title = w.key ? `${w.name} (${w.key})` : w.name;
+      b.innerHTML = (w.key ? `<span class="key">${w.key}</span>` : '') +
         (ammo !== Infinity ? `<span class="ammo">×${ammo}</span>` : '') +
         `<span class="icon">${w.icon}</span><span>${w.name}</span>`;
       b.onclick = () => { g.selectWeapon(w.id); b.blur(); };
       bar.appendChild(b);
     }
+    // timer / rotate button for the active human
+    const opt = $('optBtn');
+    const cw = WEAPON[c.weapon];
+    const showOpt = !c.isCPU && !g.hasFired && !g.over && (g.state === 'turn' || g.state === 'banner') && (cw.fuseSelect || cw.id === 'concrete');
+    opt.hidden = !showOpt;
+    if (showOpt) opt.textContent = cw.fuseSelect ? `⏱ Timer ${c.fuse} s` : `↻ Rotate (${c.buildAngle}°)`;
+
     const on = bar.querySelector('.weapon.on');
     if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   },
@@ -235,6 +331,7 @@ const App = {
   showGameOver({ team, survivors, turns }) {
     const game = this.game;
     this.showSkip(false);
+    $('optBtn').hidden = true;
     setTimeout(() => {
       if (this.game !== game) return; // a new match already started
       $('overlay').hidden = false;

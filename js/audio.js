@@ -65,6 +65,13 @@ const Sound = {
         case 'beep': this._tone('square', 1200, 1200, 0.18, 0.1); break;
         case 'dig': this._noise(0.08, 900, 0.18); break;
         case 'thud': this._tone('sine', 140, 60, 0.18, 0.25); break;
+        case 'sniper': this._noise(0.3, 5000, 0.6); this._tone('sawtooth', 1800, 200, 0.2, 0.06); break;
+        case 'pistol': this._noise(0.18, 4000, 0.55); break;
+        case 'bullet': this._noise(0.05, 3500, 0.2); break;
+        case 'pickup': this._tone('triangle', 660, 1320, 0.25, 0.14); break;
+        case 'drop': this._tone('sine', 500, 300, 0.4, 0.1); break;
+        case 'croak': this._tone('square', 220, 150, 0.12, 0.08); break;
+        case 'build': this._tone('square', 180, 120, 0.15, 0.14); break;
         case 'win': this._tone('triangle', 400, 1200, 0.9, 0.18); break;
       }
     } catch (e) { /* ignore audio errors */ }

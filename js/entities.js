@@ -21,6 +21,10 @@ class Character {
     this.alive = true;
     this.grave = false;     // show a gravestone after death
     this.weapon = 'bazooka';
+    this.fuse = 3;          // grenade timer in seconds (1-5)
+    this.buildAngle = 0;    // concrete block rotation
+    this.armor = 0;         // absorbs half of incoming damage until used up
+    this.powerUp = false;   // next attack does +50% damage
     this.blink = Math.random() * 200;
   }
 
@@ -31,7 +35,7 @@ class Character {
 }
 
 // Build a projectile for a weapon fired by `shooter` (needs x, y, aim, facing, id, team)
-function launchProjectile(weapon, shooter, power) {
+function launchProjectile(weapon, shooter, power, fuseTicks) {
   const a = shooter.aim * Math.PI / 180;
   const dx = Math.cos(a) * shooter.facing;
   const dy = -Math.sin(a);
@@ -44,7 +48,7 @@ function launchProjectile(weapon, shooter, power) {
     vy: dy * speed,
     wind: !!weapon.wind,
     bounce: !!weapon.bounce,
-    fuse: weapon.fuse != null ? weapon.fuse : null,
+    fuse: fuseTicks != null ? fuseTicks : weapon.fuse != null ? weapon.fuse : null,
     radius: weapon.radius,
     damage: weapon.damage,
     cluster: weapon.cluster || 0,

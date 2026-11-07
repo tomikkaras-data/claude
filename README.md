@@ -26,6 +26,8 @@ python3 -m http.server 8000
 | CPU skill | Easy / Normal / Hard (how accurately CPU players aim) |
 | Map size | Small (1600×900), Medium (2400×1100) or Large (3200×1300) |
 | Mines | None, A few or Lots (scattered around the map at the start) |
+| Crates | None, Normal (supply drop every 3 turns) or Lots (every 2 turns) |
+| Weapon settings | Damage, blast radius and starting ammo for every weapon (see below) |
 | Friendly fire | Off (teammates and yourself are safe) or On (anyone can be hurt) |
 | Theme | Random, Grassland, Desert or Snow |
 
@@ -45,6 +47,32 @@ You need at least two different teams to start. The menu remembers your setup.
 * Mines go off about a second after an enemy gets close. Mines that were on the map from the start hurt everyone. Mines laid by a team only react to (and hurt) the other teams. Explosions set off nearby mines.
 * The **last team with living characters wins**.
 
+## Weapon settings
+
+The **Weapon settings** button in the menu opens a table of every weapon. You can change its damage, blast radius and how much ammo each team starts with (leave ammo empty for unlimited). Changed values are highlighted and remembered. **Reset all to defaults** undoes everything. Special weapons normally start at 0 because they come from steel crates, but you can give teams some from the start here.
+
+## Crates
+
+* Wooden and steel crates lie around the map at the start. Supply drops parachute in more crates every few turns.
+* Walk into a crate to open it. Explosions destroy crates.
+* **Wooden crates** hold one of:
+  * +35 health
+  * ⚡ a power-up (your next attack does +50% damage)
+  * 🛡 armor (halves incoming damage until it has absorbed 40)
+  * more ammo for a weapon your team already has
+* **Steel crates** hold a special weapon:
+
+| Weapon | Per crate | What it does |
+|---|---|---|
+| ⚙️ Gatling Gun | 1 | 24 rapid bullets over about a second; you can keep aiming while it fires |
+| 🎯 Sniper Rifle | 2 | Scoped aim with a laser sight and fine aiming; long range, high damage |
+| 🦅 Desert Eagle | 2 | Single high-damage pistol shot with strong knockback |
+| ☢️ Nuka Bomb | 1 | Launched like the bazooka; enormous blast |
+| 🐸 Robot Frog | 2 | Hops forward, turns at walls, explodes after 5 seconds or when it reaches an enemy |
+| 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
+| 🔨 Anvil Drop | 2 | Click a target; a heavy anvil drops straight down |
+| 🧱 Concrete Block | 3 | Click to place a slab of new ground; `R` rotates it. It's a tool, so it doesn't use up your attack |
+
 ## Controls (human players)
 
 | Key | Action |
@@ -59,6 +87,8 @@ You need at least two different teams to start. The menu remembers your setup.
 | Drag the map | Look around |
 | Mouse wheel or `+` / `−` | Zoom |
 | `C` | Re-centre the camera |
+| `F` | Grenade / Cluster Bomb timer: 1–5 seconds |
+| `R` | Rotate the Concrete Block |
 | `Esc` / `P` | Pause |
 | `M` | Mute sound |
 
@@ -72,6 +102,7 @@ Several human players share one keyboard (hot-seat).
 * Pick weapons from the scrollable bar at the bottom.
 * Drag one finger to look around and pinch to zoom.
 * For Air Strike and Teleport, tap the spot on the map.
+* The ⏱ button sets the grenade timer and ↻ rotates the Concrete Block. Special weapons from crates appear in the weapon bar once found.
 * The game switches to fullscreen when a match starts, where the browser allows it. Landscape works best; in portrait a small hint suggests rotating.
 * **❚❚** (top left) pauses the game. The pause menu has a fullscreen toggle.
 
@@ -80,9 +111,9 @@ Several human players share one keyboard (hot-seat).
 | # | Weapon | Ammo | Notes |
 |---|---|---|---|
 | 1 | Bazooka | ∞ | Explodes on impact, affected by wind |
-| 2 | Grenade | ∞ | Bounces, explodes after 3 seconds |
-| 3 | Cluster Bomb | 3 | Bounces, then bursts into 5 bomblets |
-| 4 | Shotgun | ∞ | Instant shot along the aim line |
+| 2 | Grenade | ∞ | Bounces, explodes when its timer runs out (1–5 s, set with `F`) |
+| 3 | Cluster Bomb | 3 | Like the grenade, then bursts into 6 bomblets |
+| 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
 | 5 | Dynamite | 2 | Dropped at your feet, huge blast after 5 seconds |
 | 6 | Mine | 3 | Drops a proximity mine (only enemies set it off) |
 | 7 | Air Strike | 1 | Click or tap a target, 5 missiles rain down |

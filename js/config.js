@@ -17,14 +17,10 @@ const WALK_SPEED = 1.1;
 const MAX_CLIMB = 5;
 const ROPE_MAX = 380;                // max ninja rope length
 const ROPE_SHOTS = 6;                // rope shots per turn
-const MINE_RADIUS = 40;
-const MINE_DAMAGE = 45;
 const MINE_TRIGGER = 34;             // proximity distance
 const MINE_FUSE = 70;                // ticks between trigger and blast
 
 const DIG_TICKS = 300;               // how long each digging tool can run per turn
-const DIG_RADIUS = 14;
-const DIG_DAMAGE = 15;               // when a digging tool hits a character
 const FALL_SAFE_SPEED = 6.8;         // landing faster than this hurts
 const FALL_DAMAGE_PER_SPEED = 7;
 
@@ -56,21 +52,63 @@ const TEAMS = [
 //   mine       - lay a proximity mine
 //   rope       - ninja rope (movement tool, does not use up the attack)
 //   dig        - drill / pickaxe: hold to dig (tool, does not use up the attack)
+//   burst      - automatic fire over about a second
+//   walker     - hops along the ground and explodes
+// tool: true   - does not use up the turn's attack
+// crate: n     - comes in steel crates, n uses per crate
 //   skip       - pass the turn
 const WEAPONS = [
-  { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', kind: 'projectile', charge: true,  wind: true,  bounce: false, radius: 42, damage: 50, ammo: Infinity },
-  { id: 'grenade',   name: 'Grenade',      icon: '💣', key: '2', kind: 'projectile', charge: true,  wind: false, bounce: true,  fuse: 180, radius: 42, damage: 50, ammo: Infinity },
-  { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', kind: 'projectile', charge: true,  wind: false, bounce: true,  fuse: 180, radius: 28, damage: 25, ammo: 3, cluster: 5 },
-  { id: 'shotgun',   name: 'Shotgun',      icon: '🔫', key: '4', kind: 'hitscan',    charge: false, range: 700, damage: 25, radius: 12, ammo: Infinity },
-  { id: 'dynamite',  name: 'Dynamite',     icon: '🧨', key: '5', kind: 'drop',       charge: false, bounce: true,  fuse: 300, radius: 70, damage: 75, ammo: 2 },
-  { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', kind: 'mine',       charge: false, ammo: 3 },
-  { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', kind: 'target',     charge: false, radius: 30, damage: 30, ammo: 1, missiles: 5 },
-  { id: 'rope',      name: 'Ninja Rope',   icon: '🪝', key: '8', kind: 'rope',       charge: false, ammo: Infinity, tool: true },
-  { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', kind: 'dig',        charge: false, ammo: Infinity, tool: true, dig: 'down' },
-  { id: 'pickaxe',   name: 'Pickaxe',      icon: '⛏️', key: '0', kind: 'dig',        charge: false, ammo: Infinity, tool: true, dig: 'aim' },
-  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: 'T', kind: 'target',     charge: false, ammo: 2 },
-  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: 'K', kind: 'skip',       charge: false, ammo: Infinity },
+  // --- standard arsenal ---------------------------------------------------
+  { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', kind: 'projectile', charge: true, wind: true, radius: 42, damage: 50, ammo: Infinity },
+  { id: 'grenade',   name: 'Grenade',      icon: '💣', key: '2', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 48, damage: 65, ammo: Infinity },
+  { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 34, damage: 40, ammo: 3,
+    cluster: 6, bombletDamage: 30, bombletRadius: 26 },
+  { id: 'shotgun',   name: 'Shotgun',      icon: '🔫', key: '4', kind: 'hitscan', range: 650, damage: 10, radius: 8, pellets: 6, spread: 5, shots: 2, knock: 1.3, ammo: Infinity,
+    note: 'per pellet · 6 pellets · 2 shots' },
+  { id: 'dynamite',  name: 'Dynamite',     icon: '🧨', key: '5', kind: 'drop', bounce: true, fuse: 300, radius: 70, damage: 75, ammo: 2 },
+  { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', kind: 'mine', radius: 40, damage: 45, ammo: 3 },
+  { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
+  { id: 'rope',      name: 'Ninja Rope',   icon: '🪝', key: '8', kind: 'rope', tool: true, ammo: Infinity },
+  { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', kind: 'dig', dig: 'down', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
+  { id: 'pickaxe',   name: 'Pickaxe',      icon: '⛏️', key: '0', kind: 'dig', dig: 'aim', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
+  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: 'T', kind: 'target', ammo: 2 },
+  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: 'K', kind: 'skip', ammo: Infinity },
+
+  // --- found in steel crates (start with 0 unless changed in Weapon settings)
+  { id: 'gatling',   name: 'Gatling Gun',  icon: '⚙️', kind: 'burst', bullets: 24, spread: 3, range: 900, damage: 4, radius: 5, ammo: 0, crate: 1, note: 'per bullet · 24 bullets' },
+  { id: 'sniper',    name: 'Sniper Rifle', icon: '🎯', kind: 'hitscan', scope: true, range: 3200, damage: 60, radius: 6, knock: 3, ammo: 0, crate: 2 },
+  { id: 'deagle',    name: 'Desert Eagle', icon: '🦅', kind: 'hitscan', range: 1000, damage: 45, radius: 7, knock: 4.5, ammo: 0, crate: 2 },
+  { id: 'nuke',      name: 'Nuka Bomb',    icon: '☢️', kind: 'projectile', charge: true, wind: true, radius: 125, damage: 100, ammo: 0, crate: 1 },
+  { id: 'frog',      name: 'Robot Frog',   icon: '🐸', kind: 'walker', fuse: 300, radius: 50, damage: 60, ammo: 0, crate: 2 },
+  { id: 'napalm',    name: 'Napalm Strike', icon: '🔥', kind: 'target', radius: 16, damage: 3, canisters: 4, ammo: 0, crate: 1, note: 'burn damage, 6 times a second' },
+  { id: 'anvil',     name: 'Anvil Drop',   icon: '🔨', kind: 'target', radius: 24, damage: 55, ammo: 0, crate: 2 },
+  { id: 'concrete',  name: 'Concrete Block', icon: '🧱', kind: 'target', tool: true, ammo: 0, crate: 3 },
 ];
+
+// Defaults kept aside so the Weapon settings screen can reset and compare
+const WEAPON_DEFAULTS = Object.fromEntries(WEAPONS.map(w => [w.id, { ...w }]));
+const WEAPON_FIELDS = ['damage', 'radius', 'ammo', 'bombletDamage'];
+
+// overrides = { weaponId: { damage, radius, ammo (-1 = unlimited), bombletDamage } }
+function applyWeaponConfig(overrides) {
+  const over = overrides || {};
+  for (const w of WEAPONS) {
+    const d = WEAPON_DEFAULTS[w.id];
+    for (const f of WEAPON_FIELDS) if (f in d) w[f] = d[f];
+    const o = over[w.id];
+    if (!o) continue;
+    for (const f of WEAPON_FIELDS) {
+      if (!(f in d) || o[f] == null || !isFinite(o[f])) continue;
+      w[f] = f === 'ammo' && o[f] < 0 ? Infinity : o[f];
+    }
+  }
+}
+
+const CRATE_AMOUNTS = {
+  off:    { wood: 0, steel: 0, every: 0 },
+  normal: { wood: 1 / 700, steel: 1 / 1400, every: 3 },   // per horizontal pixel; airdrop every N turns
+  lots:   { wood: 1 / 380, steel: 1 / 700, every: 2 },
+};
 const WEAPON = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
 // Aim error applied by CPU players
