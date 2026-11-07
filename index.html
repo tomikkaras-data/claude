@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crater Clash</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ===================== MAIN MENU ===================== -->
+  <main id="menu" class="screen">
+    <div class="panel">
+      <header class="title">
+        <h1>Crater Clash</h1>
+        <p>Turn-based artillery battle for 2&ndash;8 players</p>
+      </header>
+
+      <section class="settings">
+        <label>
+          <span>Characters</span>
+          <select id="countSelect"></select>
+        </label>
+        <label>
+          <span>Turn time <b id="turnTimeValue"></b></span>
+          <input id="turnTime" type="range" min="15" max="120" step="5">
+        </label>
+        <label>
+          <span>Health <b id="healthValue"></b></span>
+          <input id="health" type="range" min="25" max="300" step="25">
+        </label>
+        <label>
+          <span>CPU skill</span>
+          <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+        <label>
+          <span>Map</span>
+          <select id="theme">
+            <option value="random">Random</option>
+            <option value="grassland">Grassland</option>
+            <option value="desert">Desert</option>
+            <option value="snow">Snow</option>
+          </select>
+        </label>
+      </section>
+
+      <section>
+        <div class="players-head">
+          <span>#</span><span>Name</span><span>Controlled by</span><span>Team</span>
+        </div>
+        <div id="playerList"></div>
+      </section>
+
+      <p id="menuError" class="error" role="alert"></p>
+      <button id="startBtn" class="primary">Start battle</button>
+
+      <details class="help">
+        <summary>How to play</summary>
+        <ul>
+          <li>Players take turns. Each turn one character moves and attacks once before the timer runs out.</li>
+          <li>After attacking you get a few seconds to retreat.</li>
+          <li>Characters on the same team can't hurt each other. Water is deadly for everyone.</li>
+          <li>The last team with characters standing wins.</li>
+          <li><kbd>←</kbd><kbd>→</kbd> walk &middot; <kbd>↑</kbd><kbd>↓</kbd> aim &middot; <kbd>Enter</kbd> jump &middot; <kbd>Backspace</kbd> backflip</li>
+          <li><kbd>Space</kbd> hold to charge, release to fire &middot; <kbd>1</kbd>&ndash;<kbd>8</kbd> or <kbd>Tab</kbd> pick weapon</li>
+          <li>Air Strike and Teleport: click on the map. <kbd>Esc</kbd> pause &middot; <kbd>M</kbd> mute</li>
+          <li>Wind pushes the bazooka and air strike missiles, but not grenades.</li>
+        </ul>
+      </details>
+    </div>
+  </main>
+
+  <!-- ===================== GAME ===================== -->
+  <div id="gameScreen" class="screen" hidden>
+    <canvas id="canvas" width="1600" height="900"></canvas>
+    <div id="weaponBar"></div>
+
+    <div id="overlay" class="overlay" hidden>
+      <div class="panel small">
+        <h2 id="overlayTitle"></h2>
+        <p id="overlayText"></p>
+        <div class="buttons">
+          <button id="resumeBtn" class="primary">Resume</button>
+          <button id="rematchBtn" class="primary">Rematch</button>
+          <button id="menuBtn">Main menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/terrain.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/menu.js"></script>
+</body>
+</html>
