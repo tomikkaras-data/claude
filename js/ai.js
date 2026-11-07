@@ -111,8 +111,15 @@ class AIController {
         if (dmg >= e.hp) score += 300;
       }
     }
-    // Avoid blowing the ground away under our own team
-    for (const f of friends) if (dist(x, y, f.x, f.y) < reach) score -= 40;
+    // Avoid our own team: with friendly fire on, count the damage we'd do to them (and to ourselves)
+    for (const f of friends) {
+      const d = dist(x, y, f.x, f.y);
+      if (d >= reach) continue;
+      if (this.g.friendlyFire) {
+        const dmg = damage * (1 - d / reach);
+        score -= Math.min(dmg, f.hp) * 14 + (dmg >= f.hp ? 400 : 0);
+      } else score -= 40; // still blows the ground away under them
+    }
     return score - minD * 0.05;
   }
 

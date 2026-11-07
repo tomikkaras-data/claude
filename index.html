@@ -56,6 +56,13 @@
           </select>
         </label>
         <label>
+          <span>Friendly fire</span>
+          <select id="friendlyFire">
+            <option value="off">Off (teammates safe)</option>
+            <option value="on">On (anyone can be hurt)</option>
+          </select>
+        </label>
+        <label>
           <span>Theme</span>
           <select id="theme">
             <option value="random">Random</option>
@@ -81,14 +88,17 @@
         <ul>
           <li>Players take turns. Each turn one character moves and attacks once before the timer runs out.</li>
           <li>After attacking you get a few seconds to retreat.</li>
-          <li>Characters on the same team can't hurt each other. Water is deadly for everyone.</li>
+          <li>With friendly fire off, characters on the same team can't hurt each other. Turn it on and anyone can be hurt, including yourself.</li>
+          <li>Water is deadly for everyone, and falling from a height hurts.</li>
           <li>The last team with characters standing wins.</li>
           <li><kbd>←</kbd><kbd>→</kbd> walk &middot; <kbd>↑</kbd><kbd>↓</kbd> aim &middot; <kbd>Enter</kbd> jump &middot; <kbd>Backspace</kbd> backflip</li>
-          <li><kbd>Space</kbd> hold to charge, release to fire &middot; <kbd>1</kbd>&ndash;<kbd>9</kbd>, <kbd>0</kbd> or <kbd>Tab</kbd> pick weapon</li>
+          <li><kbd>Space</kbd> hold to charge, release to fire &middot; <kbd>1</kbd>&ndash;<kbd>9</kbd>, <kbd>0</kbd>, <kbd>T</kbd>, <kbd>K</kbd> or <kbd>Tab</kbd> pick weapon</li>
           <li>Air Strike and Teleport: click on the map. <kbd>Esc</kbd> pause &middot; <kbd>M</kbd> mute</li>
           <li>Drag the map to look around, mouse wheel or <kbd>+</kbd>/<kbd>&minus;</kbd> to zoom, <kbd>C</kbd> to re-centre.</li>
           <li><b>Ninja Rope:</b> shoot it at the ceiling or a wall, swing with <kbd>←</kbd><kbd>→</kbd>, climb with <kbd>↑</kbd><kbd>↓</kbd>, let go with <kbd>Space</kbd> or <kbd>Enter</kbd>. It doesn't use up your attack.</li>
+          <li><b>Drill</b> and <b>Pickaxe:</b> hold <kbd>Space</kbd> to dig down or in the aim direction. Like the rope, they don't use up your attack.</li>
           <li><b>Mines</b> go off shortly after an enemy gets close. Mines placed on the map at the start hurt everyone.</li>
+          <li>When only CPU players are left, press <b>Skip to end</b> to see who wins.</li>
           <li><b>Touch screens:</b> use the on-screen buttons, drag to look around, pinch to zoom, and tap the map for Air Strike and Teleport.</li>
           <li>Wind pushes the bazooka and air strike missiles, but not grenades.</li>
         </ul>
@@ -101,6 +111,7 @@
     <div id="stage">
       <canvas id="canvas"></canvas>
       <button id="pauseBtn" class="hud-btn" type="button" aria-label="Pause">❚❚</button>
+      <button id="skipBtn" class="skip-btn" type="button" hidden>⏩ Skip to end</button>
       <div id="touchControls" hidden>
         <div class="pad left">
           <button type="button" data-key="ArrowUp" class="tc up" aria-label="Aim up">▲</button>

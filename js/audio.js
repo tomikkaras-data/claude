@@ -5,6 +5,7 @@
 const Sound = {
   ctx: null,
   muted: false,
+  quiet: false,   // silenced while fast-forwarding
 
   init() {
     if (this.ctx) return;
@@ -47,7 +48,7 @@ const Sound = {
   },
 
   play(name, size = 1) {
-    if (this.muted || !this.ctx) return;
+    if (this.muted || this.quiet || !this.ctx) return;
     try {
       switch (name) {
         case 'explosion': this._noise(0.35 + size * 0.5, 600 + size * 500, 0.5 + size * 0.3); break;
@@ -62,6 +63,8 @@ const Sound = {
         case 'rope': this._tone('sawtooth', 900, 300, 0.12, 0.06); break;
         case 'hook': this._tone('square', 1400, 1200, 0.05, 0.08); break;
         case 'beep': this._tone('square', 1200, 1200, 0.18, 0.1); break;
+        case 'dig': this._noise(0.08, 900, 0.18); break;
+        case 'thud': this._tone('sine', 140, 60, 0.18, 0.25); break;
         case 'win': this._tone('triangle', 400, 1200, 0.9, 0.18); break;
       }
     } catch (e) { /* ignore audio errors */ }

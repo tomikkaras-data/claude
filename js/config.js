@@ -22,6 +22,12 @@ const MINE_DAMAGE = 45;
 const MINE_TRIGGER = 34;             // proximity distance
 const MINE_FUSE = 70;                // ticks between trigger and blast
 
+const DIG_TICKS = 300;               // how long each digging tool can run per turn
+const DIG_RADIUS = 14;
+const DIG_DAMAGE = 15;               // when a digging tool hits a character
+const FALL_SAFE_SPEED = 6.8;         // landing faster than this hurts
+const FALL_DAMAGE_PER_SPEED = 7;
+
 const MAP_SIZES = {
   small:  { w: 1600, h: 900,  label: 'Small' },
   medium: { w: 2400, h: 1100, label: 'Medium' },
@@ -49,6 +55,7 @@ const TEAMS = [
 //   target     - click a spot on the map
 //   mine       - lay a proximity mine
 //   rope       - ninja rope (movement tool, does not use up the attack)
+//   dig        - drill / pickaxe: hold to dig (tool, does not use up the attack)
 //   skip       - pass the turn
 const WEAPONS = [
   { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', kind: 'projectile', charge: true,  wind: true,  bounce: false, radius: 42, damage: 50, ammo: Infinity },
@@ -59,8 +66,10 @@ const WEAPONS = [
   { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', kind: 'mine',       charge: false, ammo: 3 },
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', kind: 'target',     charge: false, radius: 30, damage: 30, ammo: 1, missiles: 5 },
   { id: 'rope',      name: 'Ninja Rope',   icon: '🪝', key: '8', kind: 'rope',       charge: false, ammo: Infinity, tool: true },
-  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: '9', kind: 'target',     charge: false, ammo: 2 },
-  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: '0', kind: 'skip',       charge: false, ammo: Infinity },
+  { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', kind: 'dig',        charge: false, ammo: Infinity, tool: true, dig: 'down' },
+  { id: 'pickaxe',   name: 'Pickaxe',      icon: '⛏️', key: '0', kind: 'dig',        charge: false, ammo: Infinity, tool: true, dig: 'aim' },
+  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: 'T', kind: 'target',     charge: false, ammo: 2 },
+  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: 'K', kind: 'skip',       charge: false, ammo: Infinity },
 ];
 const WEAPON = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 

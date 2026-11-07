@@ -61,6 +61,10 @@ class Game {
     this.rope = null;
     this.state = 'start';
     this.turnNumber = 0;
+    this.friendlyFire = !!settings.friendlyFire;
+    this.fastForward = false;
+    this.skipAvailable = false;
+    this.hadHumans = this.chars.some(c => !c.isCPU);
 
     this.cam = { x: WORLD_W / 2, y: WORLD_H / 2 };
     this.zoom = 0;
@@ -72,6 +76,13 @@ class Game {
     this.nextTurn();
     this.snapCamera = true;
     this.updateCamera();
+  }
+
+  // Run the rest of an all-CPU match as fast as the device allows
+  skipToEnd() {
+    if (!this.skipAvailable || this.over) return;
+    this.fastForward = true;
+    Sound.quiet = true;
   }
 
   // --- setup -------------------------------------------------------------
@@ -152,6 +163,9 @@ class Game {
     this.chargePower = 0;
     this.rope = null;
     this.ropeShots = ROPE_SHOTS;
+    this.digLeft = { drill: DIG_TICKS, pickaxe: DIG_TICKS };
+    this.digging = false;
+    this.digHit = new Set();
     this.state = 'banner';
     this.bannerTimer = 80;
     this.camManual = false;
@@ -164,6 +178,7 @@ class Game {
   endTurn() {
     if (this.state !== 'turn') return;
     this.releaseRope();
+    this.digging = false;
     this.state = 'settle';
     this.charging = false;
     this.settleTimer = 0;
@@ -172,6 +187,8 @@ class Game {
 
   finish(team) {
     this.over = true;
+    this.fastForward = false;
+    Sound.quiet = false;
     this.state = 'over';
     Sound.play('win');
     this.hooks.onGameOver && this.hooks.onGameOver({
@@ -189,7 +206,7 @@ class Game {
 
   selectWeapon(id) {
     if (this.state !== 'turn' && this.state !== 'banner') return;
-    if (this.hasFired || this.charging) return;
+    if (this.hasFired || this.charging || this.digging) return;
     const team = this.teams[this.active.team];
     if (!(team.ammo[id] > 0)) return;
     this.active.weapon = id;
@@ -228,6 +245,11 @@ class Game {
     this.camManual = false;
     if (w.kind === 'rope') { this.fireRope(); return; }
     if (this.hasFired) return;
+    if (w.kind === 'dig') {
+      if (this.digLeft[w.id] > 0) { this.releaseRope(); this.digging = true; }
+      else this.texts.push({ x: c.x, y: c.y - 50, text: `${w.name} is worn out this turn`, color: '#fff', life: 80 });
+      return;
+    }
     if (w.charge) { this.charging = true; this.chargePower = 0; }
     else if (w.kind === 'target') {
       if (this.mouse.inside && !this.isTouch) this.fireAt(this.mouse.x, this.mouse.y);
@@ -241,7 +263,7 @@ class Game {
     const w = WEAPON[c.weapon];
     const team = this.teams[c.team];
     if (!(team.ammo[w.id] > 0)) return;
-    if (w.kind === 'target' || w.kind === 'rope') return;
+    if (w.kind === 'target' || w.kind === 'rope' || w.kind === 'dig') return;
 
     this.releaseRope();
     this.charging = false;
@@ -387,6 +409,62 @@ class Game {
     if (c.vx > 0.3) c.facing = 1; else if (c.vx < -0.3) c.facing = -1;
   }
 
+  // --- digging tools ---------------------------------------------------------
+
+  // Called every tick while a human (or script) holds FIRE with the drill or pickaxe
+  dig(c) {
+    const w = WEAPON[c.weapon];
+    if (!this.digging || w.kind !== 'dig' || this.hasFired) { this.digging = false; return; }
+    if (this.digLeft[w.id] <= 0) {
+      this.digging = false;
+      this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
+      return;
+    }
+    this.digLeft[w.id]--;
+    this.camManual = false;
+    let dx, dy;
+    if (w.dig === 'down') { dx = 0; dy = 1; } else ({ dx, dy } = c.aimVector());
+
+    // shake and push forward through the hole we just made
+    c.shake = (c.shake || 0) + 1;
+    if (w.dig === 'aim' && !c.airborne) {
+      const nx = c.x + dx * 0.8, ny = c.y + dy * 0.8;
+      if (!this.terrain.collides(nx, ny)) { c.x = nx; c.y = ny; }
+    }
+    if (this.digLeft[w.id] % 7 !== 0) return;
+
+    const px = c.x + dx * (w.dig === 'down' ? 6 : 10);
+    const py = c.y + dy * (w.dig === 'down' ? 8 : 10) - (w.dig === 'down' ? 0 : 2);
+    this.terrain.carve(px, py, DIG_RADIUS);
+    Sound.play('dig');
+    for (let i = 0; i < 4; i++) {
+      this.particles.push({
+        x: px + rand(-6, 6), y: py + rand(-6, 6), vx: rand(-1.5, 1.5) - dx, vy: rand(-2.5, -0.5),
+        life: randInt(15, 30), max: 30, color: this.theme.burn, size: rand(2, 3.5), grav: 0.15,
+      });
+    }
+    // hit characters right in front of the tool (once per character per turn)
+    for (const o of this.chars) {
+      if (!o.alive || o === c || this.digHit.has(o.id)) continue;
+      if (dist(o.x, o.y, px + dx * 6, py + dy * 6) < CHAR_R + DIG_RADIUS * 0.7) {
+        if (o.team === c.team && !this.friendlyFire) continue;
+        this.digHit.add(o.id);
+        this.damageChar(o, DIG_DAMAGE, dx * 3 + (dx === 0 ? c.facing * 2 : 0), -2.5, c.team);
+      }
+    }
+    // mines in the way go off
+    for (const m of this.mines) if (dist(m.x, m.y, px, py) < DIG_RADIUS + 4) m.fuse = Math.min(m.fuse == null ? 99 : m.fuse, 30);
+  }
+
+  fallDamage(c, speed) {
+    const amount = Math.round((speed - FALL_SAFE_SPEED) * FALL_DAMAGE_PER_SPEED);
+    if (amount <= 0) return;
+    Sound.play('thud');
+    c.hp -= amount;
+    this.texts.push({ x: c.x, y: c.y - 30, text: `-${amount}`, color: TEAMS[c.team].color, life: 80 });
+    if (c.hp <= 0) this.kill(c, false);
+  }
+
   // --- damage ----------------------------------------------------------------
 
   explode(x, y, radius, damage, ownerTeam) {
@@ -397,7 +475,7 @@ class Game {
         if (!c.alive) continue;
         const d = dist(x, y, c.x, c.y);
         if (d >= reach) continue;
-        if (c.team === ownerTeam) continue; // teammates (and yourself) are never hurt
+        if (c.team === ownerTeam && !this.friendlyFire) continue; // teammates (and yourself) are safe unless friendly fire is on
         const f = 1 - d / reach;
         const force = f * damage * 0.09;
         const ang = d < 1 ? -Math.PI / 2 : Math.atan2(c.y - y, c.x - x);
@@ -435,7 +513,7 @@ class Game {
   }
 
   damageChar(c, amount, kx, ky, ownerTeam) {
-    if (!c.alive || c.team === ownerTeam) return;
+    if (!c.alive || (c.team === ownerTeam && !this.friendlyFire)) return;
     c.hp -= amount;
     c.vx += kx;
     c.vy += ky;
@@ -482,6 +560,7 @@ class Game {
           const ny = c.y + c.vy / steps;
           if (t.collides(c.x, ny)) {
             if (c.vy > 0) {
+              if (c.alive && c.vy > FALL_SAFE_SPEED) this.fallDamage(c, c.vy);
               c.vy = 0; c.vx = 0; c.airborne = false;
               break;
             }
@@ -635,6 +714,12 @@ class Game {
         break;
     }
     this.updateCamera();
+
+    const skip = !this.over && !this.chars.some(c => c.alive && !c.isCPU) && this.aliveTeams().length > 1;
+    if (skip !== this.skipAvailable) {
+      this.skipAvailable = skip;
+      this.hooks.onSkipAvailable && this.hooks.onSkipAvailable(skip);
+    }
   }
 
   // --- camera ------------------------------------------------------------------
@@ -714,6 +799,13 @@ class Game {
       if (left || right || up || down) this.camManual = false;
       return;
     }
+    if (this.digging) {
+      if (left && !right) c.facing = -1; else if (right && !left) c.facing = 1;
+      if (up) c.aim = Math.min(85, c.aim + 1.2);
+      if (down) c.aim = Math.max(-85, c.aim - 1.2);
+      this.dig(c);
+      return;
+    }
     if (!this.charging && !this.rope) {
       if (left && !right) { this.walk(c, -1); this.camManual = false; }
       else if (right && !left) { this.walk(c, 1); this.camManual = false; }
@@ -748,6 +840,8 @@ class Game {
       if (w) this.selectWeapon(w.id);
       return;
     }
+    const letterWeapon = code.startsWith('Key') && WEAPONS.find(x => x.key === code.slice(3));
+    if (letterWeapon) { this.selectWeapon(letterWeapon.id); return; }
     if (code === 'Tab') {
       const team = this.teams[c.team];
       const avail = WEAPONS.filter(w => team.ammo[w.id] > 0);
@@ -766,6 +860,7 @@ class Game {
 
   release(code) {
     this.keys[code] = false;
+    if (code === 'Space') this.digging = false;
     if (code === 'Space' && this.charging && this.isHumanTurn() && !this.paused) this.fire(this.chargePower);
   }
 
@@ -856,6 +951,7 @@ class Game {
 
   destroy() {
     this.destroyed = true;
+    Sound.quiet = false;
     cancelAnimationFrame(this.raf);
     window.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('keyup', this._onKeyUp);
@@ -882,6 +978,10 @@ class Game {
       while (acc >= stepMs) {
         if (!this.paused && !this.over) this.update();
         acc -= stepMs;
+      }
+      if (this.fastForward && !this.paused) {
+        const t0 = performance.now();
+        while (!this.over && performance.now() - t0 < 24) this.update();
       }
       this.render();
       this.raf = requestAnimationFrame(loop);
@@ -1127,6 +1227,7 @@ class Game {
       this.outlinedText(ctx, c.name, W / 2 + 22, 34, 'bold 20px system-ui, sans-serif', team.color);
       let sub = this.retreating ? 'Retreat!' : this.hasFired ? 'Fired' : WEAPON[c.weapon].name;
       if (this.rope && this.rope.state === 'attached') sub = 'Swinging on rope';
+      if (this.digging) sub = 'Digging…';
       if (this.state === 'settle') sub = 'Waiting…';
       if (c.isCPU && this.state === 'turn' && !this.hasFired) sub = 'CPU thinking…';
       this.outlinedText(ctx, sub, W / 2 + 22, 58, '14px system-ui, sans-serif', '#dfe6f3');
@@ -1183,6 +1284,11 @@ class Game {
       else if (w.kind === 'rope') hint = this.rope && this.rope.state === 'attached'
         ? (this.isTouch ? '◀ ▶ swing · ▲ ▼ climb · FIRE or JUMP to let go' : '←/→ swing · ↑/↓ climb · Space or Enter to let go')
         : `Aim and ${this.isTouch ? 'press FIRE' : 'press Space'} to shoot the rope (${this.ropeShots} left)`;
+      else if (w.kind === 'dig') {
+        const secs = (this.digLeft[w.id] / TICK_RATE).toFixed(1);
+        const how = w.dig === 'down' ? 'dig straight down' : 'dig in the aim direction';
+        hint = `Hold ${this.isTouch ? 'FIRE' : 'Space'} to ${how} (${secs}s left) · you can still attack after`;
+      }
       if (hint) {
         ctx.font = 'bold 15px system-ui, sans-serif';
         const tw = ctx.measureText(hint).width + 28;
@@ -1196,7 +1302,7 @@ class Game {
     // Keyboard controls (desktop only)
     if (this.isHumanTurn() && !this.isTouch) {
       const lines = ['←/→ walk   ↑/↓ aim   Enter jump   Backspace backflip',
-        'Space: hold to charge, release to fire   1-9, 0 / Tab: weapon',
+        'Space: hold to charge, release to fire   1-9, 0, T, K / Tab: weapon',
         'Drag: look around   Wheel or +/−: zoom   C: re-centre',
         'Esc: pause   M: mute'];
       ctx.fillStyle = 'rgba(15,18,28,0.6)';
@@ -1228,7 +1334,8 @@ class Game {
     const team = TEAMS[c.team];
     const bob = !c.airborne && c === this.active && this.state === 'turn' ? Math.sin(this.tick * 0.15) * 0.6 : 0;
     ctx.save();
-    ctx.translate(c.x, c.y + bob);
+    const shake = c === this.active && this.digging ? rand(-1, 1) : 0;
+    ctx.translate(c.x + shake, c.y + bob);
     // feet
     ctx.fillStyle = team.dark;
     ctx.beginPath();
@@ -1289,7 +1396,7 @@ class Game {
 
   drawAim(ctx, c) {
     const w = WEAPON[c.weapon];
-    if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'drop' || w.kind === 'mine') return;
+    if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'drop' || w.kind === 'mine' || w.dig === 'down') return;
     if (this.rope && this.rope.state === 'attached') return;
     const { dx, dy } = c.aimVector();
     const cx = c.x + dx * 48, cy = c.y + dy * 48;

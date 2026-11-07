@@ -26,6 +26,7 @@ python3 -m http.server 8000
 | CPU skill | Easy / Normal / Hard (how accurately CPU players aim) |
 | Map size | Small (1600×900), Medium (2400×1100) or Large (3200×1300) |
 | Mines | None, A few or Lots (scattered around the map at the start) |
+| Friendly fire | Off (teammates and yourself are safe) or On (anyone can be hurt) |
 | Theme | Random, Grassland, Desert or Snow |
 
 You need at least two different teams to start. The menu remembers your setup.
@@ -35,8 +36,11 @@ You need at least two different teams to start. The menu remembers your setup.
 * Every match gets a randomly generated, fully destructible map with hills, caves, floating islands and sometimes a water channel. Characters spawn at random spots.
 * The game is **turn-based**. Teams take turns in rotation, and inside a team the characters take turns too. Only one character acts at a time.
 * Each turn has a time limit. You can move around, but you can **attack only once**. After the attack you get 3 seconds to retreat, then the next player's turn starts.
-* **Characters on the same team can't hurt each other**, and you can't hurt yourself. Explosions still destroy the ground under anyone, though.
+* With **friendly fire off** (the default), characters on the same team can't hurt each other and you can't hurt yourself. Explosions still destroy the ground under anyone, though. With friendly fire **on**, every blast hurts everyone in range, including yourself.
 * Falling into the water knocks a character out instantly.
+* **Fall damage:** a drop of more than about 100 pixels hurts, and higher falls hurt more. This also counts when an explosion throws you or you let go of the rope too high.
+* The **rope, drill and pickaxe** are tools. Using them doesn't use up your attack, so you can dig or swing into position and then still shoot.
+* When every human player is out and only CPU players are left, a **Skip to end** button appears. It fast-forwards the rest of the match silently and shows the winner.
 * Wind changes every turn. It pushes the bazooka and air strike missiles.
 * Mines go off about a second after an enemy gets close. Mines that were on the map from the start hurt everyone. Mines laid by a team only react to (and hurt) the other teams. Explosions set off nearby mines.
 * The **last team with living characters wins**.
@@ -50,7 +54,7 @@ You need at least two different teams to start. The menu remembers your setup.
 | `Space` | Hold to charge power, release to fire (instant for Shotgun and Dynamite) |
 | `Enter` | Jump forward |
 | `Backspace` | Backflip (high jump) |
-| `1`–`9`, `0`, `Tab`, or click the weapon bar | Pick a weapon |
+| `1`–`9`, `0`, `T`, `K`, `Tab`, or click the weapon bar | Pick a weapon |
 | Mouse click | Pick the target for Air Strike or Teleport |
 | Drag the map | Look around |
 | Mouse wheel or `+` / `−` | Zoom |
@@ -82,9 +86,13 @@ Several human players share one keyboard (hot-seat).
 | 5 | Dynamite | 2 | Dropped at your feet, huge blast after 5 seconds |
 | 6 | Mine | 3 | Drops a proximity mine (only enemies set it off) |
 | 7 | Air Strike | 1 | Click or tap a target, 5 missiles rain down |
-| 8 | Ninja Rope | ∞ | Movement tool, swing around the map (doesn't use up your attack) |
-| 9 | Teleport | 2 | Click or tap any open spot to move there |
-| 0 | Skip Turn | ∞ | Pass the turn |
+| 8 | Ninja Rope | ∞ | Tool: swing around the map |
+| 9 | Drill | ∞ | Tool: hold FIRE/Space to dig straight down (5 s per turn) |
+| 0 | Pickaxe | ∞ | Tool: hold FIRE/Space to tunnel in the aim direction (5 s per turn) |
+| T | Teleport | 2 | Click or tap any open spot to move there |
+| K | Skip Turn | ∞ | Pass the turn |
+
+Tools don't use up your attack. The drill and pickaxe also do 15 damage to a character they dig into, and they set off mines in their way.
 
 Ammo is shared by the whole team.
 

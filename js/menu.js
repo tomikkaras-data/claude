@@ -18,6 +18,7 @@ const App = {
       theme: 'random',
       mapSize: 'medium',
       mines: 'few',
+      friendlyFire: false,
       players: DEFAULT_NAMES.map((name, i) => ({ name, cpu: i !== 0, team: i % 2 })),
     };
   },
@@ -58,6 +59,14 @@ const App = {
       $(id).value = s[id];
       $(id).onchange = () => { s[id] = $(id).value; this.save(); };
     }
+    $('friendlyFire').value = s.friendlyFire ? 'on' : 'off';
+    $('friendlyFire').onchange = () => { s.friendlyFire = $('friendlyFire').value === 'on'; this.save(); };
+    $('skipBtn').onclick = () => {
+      if (!this.game) return;
+      this.game.skipToEnd();
+      $('skipBtn').disabled = true;
+      $('skipBtn').textContent = 'Fast-forwarding…';
+    };
 
     $('startBtn').onclick = () => this.start();
     $('resumeBtn').onclick = () => this.game && this.game.setPaused(false);
@@ -147,6 +156,7 @@ const App = {
     $('menu').hidden = true;
     $('gameScreen').hidden = false;
     $('overlay').hidden = true;
+    this.showSkip(false);
 
     this.game = new Game($('canvas'), {
       players,
@@ -156,10 +166,12 @@ const App = {
       theme: s.theme,
       mapSize: s.mapSize,
       mines: s.mines,
+      friendlyFire: s.friendlyFire,
     }, {
       onWeaponsChanged: () => this.renderWeapons(),
       onPause: paused => this.showPause(paused),
       onGameOver: result => this.showGameOver(result),
+      onSkipAvailable: show => this.showSkip(show),
     });
     if (Touch.enabled) this.game.isTouch = true;
     window.__game = this.game; // handy for debugging from the console
@@ -167,10 +179,18 @@ const App = {
     this.game.start();
   },
 
+  showSkip(show) {
+    const b = $('skipBtn');
+    b.hidden = !show;
+    b.disabled = false;
+    b.textContent = '⏩ Skip to end';
+  },
+
   toMenu() {
     if (this.game) this.game.destroy();
     this.game = null;
     $('overlay').hidden = true;
+    this.showSkip(false);
     $('gameScreen').hidden = true;
     $('menu').hidden = false;
   },
@@ -214,6 +234,7 @@ const App = {
 
   showGameOver({ team, survivors, turns }) {
     const game = this.game;
+    this.showSkip(false);
     setTimeout(() => {
       if (this.game !== game) return; // a new match already started
       $('overlay').hidden = false;
