@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#12151f">
   <title>Crater Clash</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -37,7 +40,23 @@
           </select>
         </label>
         <label>
-          <span>Map</span>
+          <span>Map size</span>
+          <select id="mapSize">
+            <option value="small">Small</option>
+            <option value="medium">Medium</option>
+            <option value="large">Large</option>
+          </select>
+        </label>
+        <label>
+          <span>Mines</span>
+          <select id="mines">
+            <option value="off">None</option>
+            <option value="few">A few</option>
+            <option value="many">Lots</option>
+          </select>
+        </label>
+        <label>
+          <span>Theme</span>
           <select id="theme">
             <option value="random">Random</option>
             <option value="grassland">Grassland</option>
@@ -65,8 +84,12 @@
           <li>Characters on the same team can't hurt each other. Water is deadly for everyone.</li>
           <li>The last team with characters standing wins.</li>
           <li><kbd>←</kbd><kbd>→</kbd> walk &middot; <kbd>↑</kbd><kbd>↓</kbd> aim &middot; <kbd>Enter</kbd> jump &middot; <kbd>Backspace</kbd> backflip</li>
-          <li><kbd>Space</kbd> hold to charge, release to fire &middot; <kbd>1</kbd>&ndash;<kbd>8</kbd> or <kbd>Tab</kbd> pick weapon</li>
+          <li><kbd>Space</kbd> hold to charge, release to fire &middot; <kbd>1</kbd>&ndash;<kbd>9</kbd>, <kbd>0</kbd> or <kbd>Tab</kbd> pick weapon</li>
           <li>Air Strike and Teleport: click on the map. <kbd>Esc</kbd> pause &middot; <kbd>M</kbd> mute</li>
+          <li>Drag the map to look around, mouse wheel or <kbd>+</kbd>/<kbd>&minus;</kbd> to zoom, <kbd>C</kbd> to re-centre.</li>
+          <li><b>Ninja Rope:</b> shoot it at the ceiling or a wall, swing with <kbd>←</kbd><kbd>→</kbd>, climb with <kbd>↑</kbd><kbd>↓</kbd>, let go with <kbd>Space</kbd> or <kbd>Enter</kbd>. It doesn't use up your attack.</li>
+          <li><b>Mines</b> go off shortly after an enemy gets close. Mines placed on the map at the start hurt everyone.</li>
+          <li><b>Touch screens:</b> use the on-screen buttons, drag to look around, pinch to zoom, and tap the map for Air Strike and Teleport.</li>
           <li>Wind pushes the bazooka and air strike missiles, but not grenades.</li>
         </ul>
       </details>
@@ -75,7 +98,27 @@
 
   <!-- ===================== GAME ===================== -->
   <div id="gameScreen" class="screen" hidden>
-    <canvas id="canvas" width="1600" height="900"></canvas>
+    <div id="stage">
+      <canvas id="canvas"></canvas>
+      <button id="pauseBtn" class="hud-btn" type="button" aria-label="Pause">❚❚</button>
+      <div id="touchControls" hidden>
+        <div class="pad left">
+          <button type="button" data-key="ArrowUp" class="tc up" aria-label="Aim up">▲</button>
+          <button type="button" data-key="ArrowLeft" class="tc lt" aria-label="Walk left">◀</button>
+          <button type="button" data-key="ArrowRight" class="tc rt" aria-label="Walk right">▶</button>
+          <button type="button" data-key="ArrowDown" class="tc dn" aria-label="Aim down">▼</button>
+        </div>
+        <div class="pad right">
+          <button type="button" data-key="Backspace" class="tc small" aria-label="Backflip">↶</button>
+          <button type="button" data-key="Enter" class="tc small" aria-label="Jump">JUMP</button>
+          <button type="button" data-key="Space" class="tc fire" aria-label="Fire">FIRE</button>
+        </div>
+      </div>
+      <div id="rotateHint" class="rotate-hint">
+        <span>Turn your device sideways for the best view</span>
+        <button type="button" id="rotateClose" aria-label="Dismiss">✕</button>
+      </div>
+    </div>
     <div id="weaponBar"></div>
 
     <div id="overlay" class="overlay" hidden>
@@ -84,6 +127,7 @@
         <p id="overlayText"></p>
         <div class="buttons">
           <button id="resumeBtn" class="primary">Resume</button>
+          <button id="fullscreenBtn">Fullscreen</button>
           <button id="rematchBtn" class="primary">Rematch</button>
           <button id="menuBtn">Main menu</button>
         </div>
@@ -97,6 +141,7 @@
   <script src="js/entities.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/touch.js"></script>
   <script src="js/menu.js"></script>
 </body>
 </html>

@@ -2,9 +2,10 @@
 // Crater Clash - global configuration and constants
 // ---------------------------------------------------------------------------
 
-const WORLD_W = 1600;
-const WORLD_H = 900;
-const WATER_Y = WORLD_H - 46;        // anything below this line drowns
+// World size depends on the chosen map size (see setWorldSize)
+let WORLD_W = 1600;
+let WORLD_H = 900;
+let WATER_Y = WORLD_H - 46;          // anything below this line drowns
 const TICK_RATE = 60;                // fixed simulation steps per second
 const GRAVITY = 0.22;                // px / tick^2
 const CHAR_R = 10;                   // character body radius
@@ -14,6 +15,25 @@ const RETREAT_TIME = 3;              // seconds to run away after attacking
 const CHARGE_TICKS = 75;             // ticks to charge from 0 to full power
 const WALK_SPEED = 1.1;
 const MAX_CLIMB = 5;
+const ROPE_MAX = 380;                // max ninja rope length
+const ROPE_SHOTS = 6;                // rope shots per turn
+const MINE_RADIUS = 40;
+const MINE_DAMAGE = 45;
+const MINE_TRIGGER = 34;             // proximity distance
+const MINE_FUSE = 70;                // ticks between trigger and blast
+
+const MAP_SIZES = {
+  small:  { w: 1600, h: 900,  label: 'Small' },
+  medium: { w: 2400, h: 1100, label: 'Medium' },
+  large:  { w: 3200, h: 1300, label: 'Large' },
+};
+const MINE_AMOUNTS = { off: 0, few: 1 / 420, many: 1 / 180 }; // mines per horizontal pixel
+
+function setWorldSize(w, h) {
+  WORLD_W = w;
+  WORLD_H = h;
+  WATER_Y = h - 46;
+}
 
 const TEAMS = [
   { id: 0, name: 'Red Team',    color: '#e5484d', dark: '#8c1d22' },
@@ -27,6 +47,8 @@ const TEAMS = [
 //   hitscan    - instant shot along the aim line
 //   drop       - placed at the character's feet, explodes after fuse
 //   target     - click a spot on the map
+//   mine       - lay a proximity mine
+//   rope       - ninja rope (movement tool, does not use up the attack)
 //   skip       - pass the turn
 const WEAPONS = [
   { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', kind: 'projectile', charge: true,  wind: true,  bounce: false, radius: 42, damage: 50, ammo: Infinity },
@@ -34,9 +56,11 @@ const WEAPONS = [
   { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', kind: 'projectile', charge: true,  wind: false, bounce: true,  fuse: 180, radius: 28, damage: 25, ammo: 3, cluster: 5 },
   { id: 'shotgun',   name: 'Shotgun',      icon: '🔫', key: '4', kind: 'hitscan',    charge: false, range: 700, damage: 25, radius: 12, ammo: Infinity },
   { id: 'dynamite',  name: 'Dynamite',     icon: '🧨', key: '5', kind: 'drop',       charge: false, bounce: true,  fuse: 300, radius: 70, damage: 75, ammo: 2 },
-  { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '6', kind: 'target',     charge: false, radius: 30, damage: 30, ammo: 1, missiles: 5 },
-  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: '7', kind: 'target',     charge: false, ammo: 2 },
-  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: '8', kind: 'skip',       charge: false, ammo: Infinity },
+  { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', kind: 'mine',       charge: false, ammo: 3 },
+  { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', kind: 'target',     charge: false, radius: 30, damage: 30, ammo: 1, missiles: 5 },
+  { id: 'rope',      name: 'Ninja Rope',   icon: '🪝', key: '8', kind: 'rope',       charge: false, ammo: Infinity, tool: true },
+  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: '9', kind: 'target',     charge: false, ammo: 2 },
+  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: '0', kind: 'skip',       charge: false, ammo: Infinity },
 ];
 const WEAPON = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 

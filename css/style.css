@@ -144,34 +144,134 @@ kbd {
 
 /* ---------- game ---------- */
 #gameScreen {
+  position: fixed;
+  inset: 0;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   background: #000;
   overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  touch-action: none;
 }
 #canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   display: block;
-  width: min(100vw, calc((100vh - 60px) * 16 / 9));
-  aspect-ratio: 16 / 9;
-  height: auto;
   cursor: crosshair;
+  touch-action: none;
+}
+
+.hud-btn {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  left: calc(8px + env(safe-area-inset-left));
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 0;
+  background: rgba(15, 18, 28, 0.72);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+/* on-screen controls */
+#touchControls {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 calc(12px + env(safe-area-inset-right)) 12px calc(12px + env(safe-area-inset-left));
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+#touchControls.inactive { opacity: 0.25; }
+.pad { pointer-events: auto; display: grid; gap: 8px; }
+.pad.left {
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 48px);
+  grid-template-areas: ". up ." "lt . rt" ". dn .";
+}
+.pad.left .up { grid-area: up; }
+.pad.left .lt { grid-area: lt; }
+.pad.left .rt { grid-area: rt; }
+.pad.left .dn { grid-area: dn; }
+.pad.right {
+  grid-template-columns: 64px 84px;
+  grid-template-rows: 48px 84px;
+  grid-template-areas: "back jump" "fire fire";
+  align-items: end;
+}
+.pad.right .tc:nth-child(1) { grid-area: back; }
+.pad.right .tc:nth-child(2) { grid-area: jump; }
+.pad.right .fire { grid-area: fire; justify-self: end; width: 96px; height: 84px; border-radius: 50%; }
+.tc {
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(15, 18, 28, 0.55);
+  color: #fff;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.1rem;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  backdrop-filter: blur(2px);
+}
+.tc.small { font-size: 0.85rem; }
+.tc.fire { background: rgba(229, 72, 77, 0.75); font-size: 1.1rem; letter-spacing: 1px; }
+.tc.held { background: rgba(255, 176, 32, 0.85); color: var(--accent-text); }
+
+.rotate-hint {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translate(-50%, -50%);
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 18, 28, 0.88);
+  padding: 10px 12px 10px 16px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  max-width: calc(100% - 32px);
+}
+.rotate-hint button {
+  border: 0; background: var(--panel-2); color: var(--text);
+  width: 32px; height: 32px; border-radius: 8px; flex: none;
+}
+@media (orientation: portrait) and (max-width: 700px) {
+  body.touch .rotate-hint:not(.dismissed) { display: flex; }
 }
 
 #weaponBar {
+  flex: none;
   height: 60px;
   display: flex;
   gap: 6px;
   align-items: center;
-  justify-content: center;
-  padding: 6px;
-  max-width: 100vw;
+  padding: 6px max(6px, env(safe-area-inset-right)) 6px max(6px, env(safe-area-inset-left));
   overflow-x: auto;
+  overflow-y: hidden;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  justify-content: safe center;
 }
+#weaponBar::-webkit-scrollbar { display: none; }
 .weapon {
   position: relative;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -186,6 +286,7 @@ kbd {
   font: inherit;
   font-size: 0.72rem;
   padding: 2px 6px;
+  -webkit-tap-highlight-color: transparent;
 }
 .weapon .icon { font-size: 1.15rem; line-height: 1.2; }
 .weapon .key {
@@ -198,6 +299,16 @@ kbd {
 }
 .weapon.on { border-color: var(--accent); background: var(--panel-2); }
 .weapon:disabled { opacity: 0.35; cursor: default; }
+body.touch .weapon .key { display: none; }
+
+/* small screens (phones) */
+@media (max-height: 500px), (max-width: 700px) {
+  #weaponBar { height: 52px; padding-top: 4px; padding-bottom: 4px; }
+  .weapon { min-width: 62px; height: 44px; font-size: 0.62rem; }
+  .pad.left { grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 42px); gap: 6px; }
+  .pad.right { grid-template-columns: 56px 72px; grid-template-rows: 42px 74px; gap: 6px; }
+  .pad.right .fire { width: 82px; height: 74px; }
+}
 
 .overlay {
   position: fixed;

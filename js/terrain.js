@@ -61,17 +61,18 @@ class Terrain {
       { amp: rand(15, 30),  freq: rand(7, 11) },
       { amp: rand(4, 9),    freq: rand(20, 30) },
     ].map(wv => ({ ...wv, phase: rand(0, Math.PI * 2) }));
-    const base = h * 0.55 + rand(-40, 30);
+    const base = h - 400 + rand(-40, 30);
     const heights = new Float32Array(w);
     for (let x = 0; x < w; x++) {
       let y = base;
-      for (const wv of waves) y += wv.amp * Math.sin((x / w) * Math.PI * 2 * wv.freq + wv.phase);
+      for (const wv of waves) y += wv.amp * Math.sin((x / 1600) * Math.PI * 2 * wv.freq + wv.phase);
       heights[x] = Math.max(140, y);
     }
 
-    // Sometimes cut a watery channel through the land
-    if (Math.random() < 0.5) {
-      const cx = rand(w * 0.3, w * 0.7);
+    // Sometimes cut watery channels through the land
+    const channels = (Math.random() < 0.5 ? 1 : 0) + (w > 2000 && Math.random() < 0.6 ? 1 : 0);
+    for (let ch = 0; ch < channels; ch++) {
+      const cx = rand(w * 0.2, w * 0.8);
       const half = rand(25, 45);
       for (let x = Math.floor(cx - half * 2); x < cx + half * 2; x++) {
         if (x < 0 || x >= w) continue;
@@ -86,7 +87,8 @@ class Terrain {
     }
 
     // Caves
-    const caves = randInt(4, 8);
+    const scale = w / 1600;
+    const caves = Math.round(randInt(4, 8) * scale);
     for (let i = 0; i < caves; i++) {
       const cx = rand(60, w - 60);
       const cy = heights[Math.floor(cx)] + rand(70, 220);
@@ -98,13 +100,13 @@ class Terrain {
     }
 
     // Floating islands
-    const islands = randInt(1, 3);
+    const islands = Math.round(randInt(1, 3) * scale);
     for (let i = 0; i < islands; i++) {
       const rx = rand(55, 110), ry = rand(16, 28);
       const cx = rand(rx + 20, w - rx - 20);
       let ground = Infinity;
       for (let x = Math.floor(cx - rx); x < cx + rx; x++) ground = Math.min(ground, heights[x]);
-      const cy = Math.min(ground - 90, rand(170, 330));
+      const cy = Math.min(ground - 90, rand(h - 730, h - 570));
       if (cy < 120) continue;
       this.fillEllipse(cx, cy, rx, ry, 1, true);
       this.fillEllipse(cx + rand(-rx, rx) * 0.4, cy + ry * 0.3, rx * 0.55, ry * 1.1, 1, true);
@@ -198,25 +200,16 @@ function paintBackground(theme) {
   c.width = WORLD_W;
   c.height = WORLD_H;
   const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 0, 0, WORLD_H);
-  g.addColorStop(0, theme.skyTop);
-  g.addColorStop(1, theme.skyBottom);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, WORLD_W, WORLD_H);
-
-  ctx.fillStyle = 'rgba(255,255,230,0.55)';
-  ctx.beginPath();
-  ctx.arc(rand(200, WORLD_W - 200), rand(90, 160), 46, 0, Math.PI * 2);
-  ctx.fill();
+  // (the sky gradient and sun are painted in screen space by the game)
 
   theme.hills.forEach((col, layer) => {
-    const base = WORLD_H * (0.45 + layer * 0.1);
+    const base = WORLD_H - 495 + layer * 90;
     const ph1 = rand(0, 6), ph2 = rand(0, 6);
     ctx.fillStyle = col;
     ctx.globalAlpha = 0.55 + layer * 0.15;
     ctx.beginPath();
     ctx.moveTo(0, WORLD_H);
-    for (let x = 0; x <= WORLD_W; x += 8) {
+    for (let x = 0; x <= WORLD_W + 8; x += 8) {
       const y = base + Math.sin(x * 0.004 + ph1) * 60 + Math.sin(x * 0.011 + ph2) * 25;
       ctx.lineTo(x, y);
     }

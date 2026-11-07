@@ -59,6 +59,9 @@ const Sound = {
         case 'teleport': this._tone('sine', 300, 1600, 0.4, 0.15); break;
         case 'tick': this._tone('square', 900, 880, 0.05, 0.05); break;
         case 'turn': this._tone('triangle', 520, 780, 0.2, 0.12); break;
+        case 'rope': this._tone('sawtooth', 900, 300, 0.12, 0.06); break;
+        case 'hook': this._tone('square', 1400, 1200, 0.05, 0.08); break;
+        case 'beep': this._tone('square', 1200, 1200, 0.18, 0.1); break;
         case 'win': this._tone('triangle', 400, 1200, 0.9, 0.18); break;
       }
     } catch (e) { /* ignore audio errors */ }

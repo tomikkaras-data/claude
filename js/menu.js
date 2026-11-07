@@ -16,6 +16,8 @@ const App = {
       health: 100,
       difficulty: 'normal',
       theme: 'random',
+      mapSize: 'medium',
+      mines: 'few',
       players: DEFAULT_NAMES.map((name, i) => ({ name, cpu: i !== 0, team: i % 2 })),
     };
   },
@@ -52,7 +54,7 @@ const App = {
     bindRange('turnTime', 'turnTime', v => `${v}s`);
     bindRange('health', 'health', v => `${v} HP`);
 
-    for (const id of ['difficulty', 'theme']) {
+    for (const id of ['difficulty', 'theme', 'mapSize', 'mines']) {
       $(id).value = s[id];
       $(id).onchange = () => { s[id] = $(id).value; this.save(); };
     }
@@ -61,6 +63,11 @@ const App = {
     $('resumeBtn').onclick = () => this.game && this.game.setPaused(false);
     $('rematchBtn').onclick = () => this.start();
     $('menuBtn').onclick = () => this.toMenu();
+    $('pauseBtn').onclick = () => this.game && !this.game.over && this.game.setPaused(true);
+    $('fullscreenBtn').onclick = () => Fullscreen.toggle();
+    $('fullscreenBtn').hidden = !Fullscreen.supported();
+    $('rotateClose').onclick = () => $('rotateHint').classList.add('dismissed');
+    Touch.init(() => this.game);
 
     this.renderPlayers();
   },
@@ -135,6 +142,8 @@ const App = {
       team: p.team,
     }));
     if (this.game) this.game.destroy();
+    // On phones and tablets go fullscreen (also hides the browser bars)
+    if (Touch.enabled && !Fullscreen.active() && Fullscreen.supported()) Fullscreen.enter();
     $('menu').hidden = true;
     $('gameScreen').hidden = false;
     $('overlay').hidden = true;
@@ -145,11 +154,14 @@ const App = {
       health: s.health,
       difficulty: s.difficulty,
       theme: s.theme,
+      mapSize: s.mapSize,
+      mines: s.mines,
     }, {
       onWeaponsChanged: () => this.renderWeapons(),
       onPause: paused => this.showPause(paused),
       onGameOver: result => this.showGameOver(result),
     });
+    if (Touch.enabled) this.game.isTouch = true;
     window.__game = this.game; // handy for debugging from the console
     this.renderWeapons();
     this.game.start();
@@ -169,6 +181,7 @@ const App = {
     if (!g || !g.active) return;
     const c = g.active;
     const team = g.teams[c.team];
+    Touch.update(g);
     const humanCanPick = !c.isCPU && !g.hasFired && (g.state === 'turn' || g.state === 'banner');
     bar.innerHTML = '';
     for (const w of WEAPONS) {
@@ -184,6 +197,8 @@ const App = {
       b.onclick = () => { g.selectWeapon(w.id); b.blur(); };
       bar.appendChild(b);
     }
+    const on = bar.querySelector('.weapon.on');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   },
 
   showPause(paused) {
@@ -193,13 +208,17 @@ const App = {
     $('overlayTitle').style.color = '';
     $('overlayText').textContent = 'Take a breather.';
     $('resumeBtn').hidden = false;
+    $('fullscreenBtn').hidden = !Fullscreen.supported();
     $('rematchBtn').hidden = true;
   },
 
   showGameOver({ team, survivors, turns }) {
+    const game = this.game;
     setTimeout(() => {
+      if (this.game !== game) return; // a new match already started
       $('overlay').hidden = false;
       $('resumeBtn').hidden = true;
+      $('fullscreenBtn').hidden = true;
       $('rematchBtn').hidden = false;
       if (team) {
         $('overlayTitle').textContent = `${team.name} wins!`;

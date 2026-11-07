@@ -116,6 +116,19 @@ class AIController {
     return score - minD * 0.05;
   }
 
+  findTeleportSpot(enemy) {
+    const g = this.g;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const x = clamp(enemy.x + (Math.random() < 0.5 ? -1 : 1) * rand(160, 320), 20, WORLD_W - 20);
+      const spots = g.terrain.standSpots(x);
+      if (!spots.length) continue;
+      const y = spots[0];
+      if (g.mines.some(m => dist(m.x, m.y, x, y) < 50)) continue;
+      return { x, y: y - 4 };
+    }
+    return null;
+  }
+
   computePlan() {
     const g = this.g, c = this.c;
     const ammo = g.teams[c.team].ammo;
@@ -171,11 +184,18 @@ class AIController {
       }
     }
 
+    let nearest = enemies[0];
+    for (const e of enemies) if (dist(e.x, e.y, c.x, c.y) < dist(nearest.x, nearest.y, c.x, c.y)) nearest = e;
+
     // Nothing worth shooting at: walk towards the nearest enemy first
-    if ((best.score < 50 || !best.weapon) && !this.walked && enemies.length) {
-      let nearest = enemies[0];
-      for (const e of enemies) if (Math.abs(e.x - c.x) < Math.abs(nearest.x - c.x)) nearest = e;
+    if ((best.score < 50 || !best.weapon) && !this.walked && nearest) {
       best.walkDir = nearest.x >= c.x ? 1 : -1;
+    }
+    // Still nothing after walking and the enemy is far away: teleport closer (big maps)
+    else if (best.score < 0 && this.walked && nearest && ammo.teleport > 0 &&
+             Math.abs(nearest.x - c.x) > 700) {
+      const spot = this.findTeleportSpot(nearest);
+      if (spot) best = { score: 0, weapon: 'teleport', angle: null, target: spot };
     }
     if (!best.weapon) {
       best = { ...best, weapon: 'bazooka', angle: 45, facing: c.facing, power: 0.6 };
