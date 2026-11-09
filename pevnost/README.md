@@ -1,0 +1,24 @@
+# Pevnost hrdinů 🏰
+
+Mobilní hra v češtině pro děti (6–9 a 10+ let): plň dobré skutky jako v aplikaci typu Duolingo, sbírej XP a zlaťáky a za ně stav a bráň vlastní pevnost.
+
+## Jak spustit
+Otevři `index.html` v prohlížeči nebo spusť `python3 -m http.server` ve složce `pevnost/` a otevři ji v mobilu. Na telefonu jde přidat na plochu (PWA manifest).
+
+## Části hry
+- **Úkoly**: 34 aktivit v kategoriích Pohyb, Hlava, Domácnost, Rodina a Venku. Rychlovky (30 s), krátké (2–5 min) i velké výzvy (15 min až 1 h+). Krátké mají odpočet, velké potvrzuje rodič. Nabídka se řídí věkem.
+- **Odměny**: XP a zlaťáky. Denní série (🔥) dává bonus +5 % za den (max +50 %), denní bonus a každých 7 dní truhlu. Je tu 17 úspěchů se zlatou odměnou. Když dítě dělá stejný úkol víc než 3× za den, dostane za něj méně.
+- **Pevnost**: dvě království, Ledové království (sníh, smrky, ledový palác, útočí skřeti) a Pustina (písek, plechové boudy, bunkr s plotem, útočí zombie). Na 10 místech u cesty se dají stavět věže (střelecká, zpomalující, plošná) a zátarasy, které zastaví nepřátele na cestě. Hlavní budovy se vylepšují: Palác/Bunkr přidává životy, Kovárna/Dílna odemyká vybavení, Krčma/Bar přidává místa pro hrdiny, Důl/Šrotiště dává víc zlata.
+- **Hrdinové**: 6 hrdinů (tank, střelec, kouzelník, bojovník, léčitel, zvíře) se najímá za zlaťáky. Odemykají se podle úrovně. Každý má 3 sloty (zbraň, oblečení, doplněk) a v obchodě je 10 předmětů.
+- **Vlny**: nepřátelé jdou po cestě. Každá 5. vlna má bosse. Za výhru jsou XP a zlaťáky. Za prohru se ztratí 15 % zlata a trochu XP, ale nikdy pod začátek aktuální úrovně. Boj jde zrychlit na 2×.
+
+## Ukládání
+- **Host**: postup se ukládá jen ručně, tlačítkem 💾 Uložit (do zařízení) nebo jako soubor se zálohou v Profilu.
+- **Google účet**: přes Firebase. Vyplň `js/firebase-config.js`, zapni Google ve Firebase Authentication a vytvoř Firestore s pravidly:
+```
+rules_version = '2';
+service cloud.firestore { match /databases/{db}/documents {
+  match /players/{uid} { allow read, write: if request.auth != null && request.auth.uid == uid; }
+}}
+```
+Doménu, ze které hru provozuješ, přidej do Authentication → Settings → Authorized domains.

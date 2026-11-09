@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1b2440">
+<link rel="manifest" href="manifest.json">
+<title>Pevnost hrdinů</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <!-- přihlášení -->
+  <section id="screen-login" class="screen active">
+    <div class="login-box">
+      <div class="logo">🏰</div>
+      <h1>Pevnost hrdinů</h1>
+      <p class="sub">Plň dobré skutky, sbírej zlaťáky a bran svou pevnost!</p>
+      <button id="btn-google" class="btn big google">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+        Přihlásit přes Google
+      </button>
+      <div class="or">nebo hraj jako host</div>
+      <input id="guest-name" placeholder="Jak se jmenuješ?" maxlength="16">
+      <div class="age-pick">
+        <label><input type="radio" name="age" value="6"> Je mi 6–9</label>
+        <label><input type="radio" name="age" value="10" checked> Je mi 10+</label>
+      </div>
+      <button id="btn-guest" class="btn big">Hrát jako host</button>
+      <button id="btn-guest-load" class="btn ghost hidden">Pokračovat v uložené hře</button>
+      <label class="btn ghost file">Načíst hru ze souboru<input type="file" id="file-load-login" accept=".json" hidden></label>
+      <p class="hint">Host: postup se ukládá jen tlačítkem 💾 Uložit (do zařízení nebo do souboru).</p>
+    </div>
+  </section>
+
+  <!-- výběr království -->
+  <section id="screen-kingdom" class="screen">
+    <h2 class="center">Vyber si své království</h2>
+    <div class="kingdom-cards">
+      <button class="kcard fantasy" data-k="fantasy">
+        <div class="kart">🏰❄️</div><h3>Ledové království</h3><p>Zasněžené město s ledovým palácem. Útočí skřeti!</p>
+      </button>
+      <button class="kcard apocalypse" data-k="apocalypse">
+        <div class="kart">🏚️☢️</div><h3>Pustina</h3><p>Písečná osada za plotem z pletiva. Útočí zombie!</p>
+      </button>
+    </div>
+    <p class="hint center">Druhé království si můžeš kdykoli přepnout v profilu.</p>
+  </section>
+
+  <!-- hlavní hra -->
+  <section id="screen-main" class="screen">
+    <header class="topbar">
+      <div class="pill" title="Série">🔥 <b id="hud-streak">0</b></div>
+      <div class="pill" title="Zlaťáky">💰 <b id="hud-gold">0</b></div>
+      <div class="lvl">
+        <span>Úr. <b id="hud-level">1</b></span>
+        <div class="xpbar"><div id="hud-xp"></div></div>
+      </div>
+      <button id="btn-save" class="pill save hidden">💾 <span>Uložit</span></button>
+    </header>
+
+    <main>
+      <div id="tab-activities" class="tab active"></div>
+      <div id="tab-base" class="tab">
+        <div class="base-head">
+          <div><b id="base-title"></b><div class="small" id="base-wave"></div></div>
+          <div class="base-btns">
+            <button id="btn-speed" class="btn small ghost">1×</button>
+            <button id="btn-attack" class="btn small danger">⚔️ Spustit vlnu</button>
+          </div>
+        </div>
+        <div class="map-wrap"><canvas id="map"></canvas></div>
+        <div id="base-panel"></div>
+      </div>
+      <div id="tab-heroes" class="tab"></div>
+      <div id="tab-achievements" class="tab"></div>
+      <div id="tab-profile" class="tab"></div>
+    </main>
+
+    <nav class="tabbar">
+      <button data-tab="activities" class="active"><span>✅</span>Úkoly</button>
+      <button data-tab="base"><span>🏰</span>Pevnost</button>
+      <button data-tab="heroes"><span>🦸</span>Hrdinové</button>
+      <button data-tab="achievements"><span>🏆</span>Úspěchy</button>
+      <button data-tab="profile"><span>👤</span>Profil</button>
+    </nav>
+  </section>
+
+  <div id="modal" class="modal hidden"><div class="modal-box"><div id="modal-body"></div></div></div>
+  <div id="toast"></div>
+</div>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
