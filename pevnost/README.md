@@ -13,28 +13,36 @@ Otevři `index.html` v prohlížeči nebo spusť `python3 -m http.server` ve slo
 - **Vlny**: nepřátelé jdou po cestě. Každá 5. vlna má bosse. Za výhru jsou XP a zlaťáky. Za prohru se ztratí 15 % zlata a trochu XP, ale nikdy pod začátek aktuální úrovně. Boj jde zrychlit na 2×.
 
 ## Izometrická základna (Pustina) 🏗️
-Stavění funguje stejně jako ve vesnici v Cave Man RPG, jen v izometrickém pohledu a v moderní pustině.
-Výchozí mapa je vyprahlá pustina: písek, popraskaná zem, chomáče suché trávy, štěrk, asfalt u velitelství, suché stromy, kaktusy, kameny, kosti, vraky aut a rezavé sudy.
+Základna je ostrov uprostřed kalné řeky (mapa 32×32), inspirovaný protáhlým říčním ostrovem s vilou. Přes střed ostrova vede poškozený silniční most.
+**Zombie přicházejí z obou konců mostu**, uprostřed sejdou na ostrov a jdou po prašné cestě k velitelství na severní špičce. Zátaras na mostě blokuje obě strany.
+Ostrov je po jaderné válce: popel, vyprahlá zem, suchá tráva, písečné a kamenité břehy, spálené stromy, krátery, kosti, vraky aut, vyhořelá vila s propadlou červenou střechou a trosky domů.
 
+Stavění funguje jako ve vesnici v Cave Man RPG:
 - **Záložky Stavby / Dekorace / Malování** pod mapou.
-- **Pokládání:** vybraná věc se objeví na nejbližším volném místě. Přetáhni ji prstem nebo klepni jinam, pak potvrď ✔. Okénko nad ní má ✔ Postavit, ⇋ Otočit (zrcadlo), ✖ Zrušit.
-- **Úpravy:** klepnutí na věc na mapě ji zvedne. Můžeš ji posunout, otočit, ⬆️ vylepšit (hlavní budovy) nebo 🗑️ odstranit.
-- **Malování:** štětce Písek, Vyprahlá zem, Suchá tráva, Štěrk, Asfalt, Beton ve velikosti 1×1 až 3×3. Cestu zombíků přemalovat nejde.
-- **Pohyb po mapě:** táhnutí, dva prsty nebo kolečko = zoom, tlačítka + / −, klávesy WASD a šipky. Minimapu v rohu jde klepnutím použít ke skoku.
-- **Útok:** zombie jdou po prašné cestě až k velitelství (HQ). Barikády stojí jen na cestě.
+- **Pokládání:** vybraná věc se objeví na nejbližším volném místě. Přetáhni ji nebo klepni jinam, pak potvrď ✔. ⇋ Otočit ji zrcadlí, ✖ zruší.
+- **Úpravy:** klepnutím na věc na mapě ji zvedneš. Pak ji můžeš posunout, otočit, ⬆️ vylepšit (hlavní budovy) nebo 🗑️ odstranit.
+- **Malování:** Prašná cesta a Silnice (napojují se samy, silnice má středovou čáru), Písek, Vyprahlá zem, Suchá tráva, Popel, Štěrk, Asfalt, Beton; velikost 1×1 až 3×3. Vodu a cestu zombíků přemalovat nejde. Namalované cesty jsou jen pro krásu, zombie chodí pořád po své.
+- **Pohyb:** táhnutí, dva prsty nebo kolečko = zoom, + / −, WASD a šipky. Klepnutím na minimapu skočíš na dané místo.
 
-| id | budova | velikost |
-|---|---|---|
-| hall | Velitelství / bunkr (HQ) | 3×2 |
-| tavern | Kasárna (Bar) | 3×2 |
-| forge | Hangár (Dílna) | 3×2 |
-| mine | Šrotiště | 2×2 |
-| archer | Kulometné hnízdo | 1×1 |
-| mage | Tesla cívka | 1×1 |
-| cannon | Minomet | 1×1 |
-| barrier | Barikáda (na cestě) | 1×1 |
+### Budovy
+| id | budova | velikost | co umí |
+|---|---|---|---|
+| hall | Velitelství / bunkr (HQ) | 3×2 | srdce pevnosti |
+| tavern | Kasárna (Bar) | 3×2 | +1 hrdina za úroveň |
+| forge | Hangár (Dílna) | 3×2 | lepší zbraně |
+| mine | Šrotiště | 2×2 | +10 % zlata za úroveň |
+| archer / mage / cannon | Kulometné hnízdo / Tesla / Minomet | 1×1 | věže |
+| barrier | Barikáda (jen na cestu nebo most) | 1×1 | zastaví zombie |
+| guardtower | Dřevěná strážní věž | 1×1 | věž, dostřel 150 (od úr. 2) |
+| windmill | Větrník z harampádí (max 2) | 1×1 | věže střílí o 10 % rychleji |
+| tent | Malý stan (max 3) | 1×1 | +1 místo pro hrdinu |
+| armytent | Vojenský stan (max 2) | 2×2 | +2 místa pro hrdiny |
+| house | Opravený dům (max 3) | 2×2 | +1 hrdina, +40 životů základny |
+| ruin | Zničený dům | 2×2 | ozdoba |
+| lookout | Pískovcová vyhlídka (max 1, od úr. 3) | 1×1 | hrdinové +20 % dostřel |
+| containers | Kontejnery z doků (max 3) | 2×1 | +10 % zlata za vlny |
 
-Dekorace (id): deadtree, bush, cactus, tuft, rock, boulder, rubble, bones, car (2×1), barrel, tires, crates, scrap, watertower, fence, sandbags, concrete, sign, lamp.
+Dekorace (id): deadtree, bush, cactus, tuft, rock, boulder, rubble, bones, ruinvilla (3×2), ruinhouse (2×2), ruinwall, crater, car (2×1), barrel, tires, crates, scrap, watertower, fence, sandbags, concrete, sign, lamp.
 
 **Vlastní grafika:** ulož obrázek jako `img/buildings/<id>.png` (např. `img/buildings/forge.png` nebo `img/buildings/car.png`). Hra ho použije místo kreslené budovy nebo dekorace.
 Obrázek má být izometrický (úhel 2:1), s průhledným pozadím. Jeho šířka se roztáhne na šířku půdorysu a spodní okraj sedí na přední roh půdorysu.

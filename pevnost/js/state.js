@@ -227,13 +227,14 @@ const Game = {
     return st;
   },
 
-  heroCap() { return 2 + this.kd().base.tavern; }, // hlavní hrdina + parta
+  heroCap() { return 2 + this.kd().base.tavern + this.isoBonus().heroSlots; }, // hlavní hrdina + parta + stany a domy
+  isoBonus() { return Store.state.kingdom === 'apocalypse' && typeof IsoMap !== 'undefined' ? IsoMap.bonus(this.kd()) : NO_BONUS; },
 
   battleResult(win, wave, earned) {
     const s = Store.state, kd = this.kd();
     const notes = [];
     if (win) {
-      const mine = 1 + kd.base.mine * 0.1;
+      const mine = 1 + kd.base.mine * 0.1 + this.isoBonus().gold;
       const gold = Math.round((20 + wave * 6 + earned) * mine), xp = 15 + wave * 4;
       s.gold += gold; s.xp += xp; s.stats.wins++;
       if (wave % 5 === 0) s.stats.bosses++;

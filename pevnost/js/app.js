@@ -268,6 +268,11 @@ const UI = {
         const info = b.type === 'tower' ? `⚔️${b.dmg} 🎯${b.range}` : `❤️${b.hp} · jen na cestu`;
         html += `<button class="bcard" data-it="${id}" ${locked || s.gold < b.cost ? 'disabled' : ''}><div class="bi">${ic}</div><b>${n}</b><small>${info}</small><br>${locked ? '🔒 úr. ' + b.lvl : b.cost + ' 💰'}</button>`;
       }
+      for (const [id, e] of Object.entries(ISO_EXTRA)) {
+        const n = IsoMap.count(kd, id), locked = (e.lvl || 1) > lvl, full = e.max && n >= e.max;
+        const info = e.type === 'tower' ? `⚔️${e.dmg} 🎯${e.range}` : e.desc;
+        html += `<button class="bcard" data-ix="${id}" ${locked || full || s.gold < e.cost ? 'disabled' : ''}><div class="bi">${e.icon}</div><b>${e.name}</b><small>${info}</small><br>${locked ? '🔒 úr. ' + e.lvl : full ? `✔ ${n}/${e.max}` : e.cost + ' 💰' + (e.max ? ` · ${n}/${e.max}` : '')}</button>`;
+      }
       html += '</div><p class="small hint-line">Vyber stavbu – objeví se na volném místě. Přetáhni ji nebo klepni jinam, pak ✔. Klepnutím na stavbu na mapě ji posuneš, otočíš, vylepšíš nebo zbouráš.</p>';
     } else if (IsoMap.tab === 'decor') {
       const f = IsoMap.decorFilter;
@@ -282,7 +287,7 @@ const UI = {
         <div class="paint-row">${[1, 2, 3].map(n => `<button class="size ${IsoMap.brushSize === n ? 'on' : ''}" data-bs="${n}">${n}×${n}</button>`).join('')}
           <button class="size ${IsoMap.paintMode ? 'on' : ''}" id="pm-toggle">${IsoMap.paintMode ? '🖌️ Maluju' : '✋ Posouvám mapu'}</button>
           <button class="size danger" id="pm-clear">Smazat malování</button></div>
-        <p class="small hint-line">Táhni prstem po zemi a maluj. Cestu zombíků přemalovat nejde. Mapu posuneš přepínačem ✋ nebo dvěma prsty.</p>`;
+        <p class="small hint-line">Táhni prstem po zemi a maluj – i cesty a silnice, které se samy napojí. Cestu zombíků a vodu přemalovat nejde. Mapu posuneš přepínačem ✋ nebo dvěma prsty.</p>`;
     }
     $('#base-panel').innerHTML = html;
     document.querySelectorAll('[data-itab]').forEach(b => b.onclick = () => { IsoMap.tab = b.dataset.itab; IsoMap.placing = null; IsoMap.updatePlaceBox(); this.renderBase(); });
@@ -292,6 +297,7 @@ const UI = {
       else IsoMap.startNew('build', id, BASE_BUILDINGS[id].baseCost);
     });
     document.querySelectorAll('[data-it]').forEach(c => c.onclick = () => IsoMap.startNew('build', c.dataset.it, BUILDINGS[c.dataset.it].cost));
+    document.querySelectorAll('[data-ix]').forEach(c => c.onclick = () => IsoMap.startNew('build', c.dataset.ix, ISO_EXTRA[c.dataset.ix].cost));
     document.querySelectorAll('[data-dc]').forEach(c => c.onclick = () => IsoMap.startNew('decor', c.dataset.dc, ISO_DECOR[c.dataset.dc].cost));
     document.querySelectorAll('[data-df]').forEach(b => b.onclick = () => { IsoMap.decorFilter = b.dataset.df; this.renderBase(); });
     document.querySelectorAll('[data-br]').forEach(b => b.onclick = () => { IsoMap.brush = b.dataset.br; IsoMap.paintMode = true; this.renderBase(); });

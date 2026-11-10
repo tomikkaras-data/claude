@@ -26,6 +26,8 @@ function nearestPathDist(x, y) {
 // Rozvržení mapy, se kterým pracuje herní logika (shora, ve „světových“ souřadnicích).
 // Ledové království používá pevnou mapu níže, Pustina izometrickou mapu z iso.js.
 const FLAT_LAYOUT = { at: pathAt, len: PATH_LEN, start: PATH[0], base: BASE_POS, nearest: nearestPathDist, heroOff: 16 };
+FLAT_LAYOUT.paths = [FLAT_LAYOUT];
+const NO_BONUS = { heroSlots: 0, baseHp: 0, rate: 0, heroRange: 0, gold: 0 };
 
 // pseudo-náhoda se semínkem, aby dekorace byly vždy stejné
 function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
@@ -86,10 +88,12 @@ const Battle = {
       }
       this.towers.push({ slot: i, id, b, x, y, cd: 0 });
     });
-    this.baseMax = 100 + kd.base.hall * 50; this.baseHp = this.baseMax;
+    this.bonus = this.iso ? IsoMap.bonus(kd) : NO_BONUS;
+    this.baseMax = 100 + kd.base.hall * 50 + this.bonus.baseHp; this.baseHp = this.baseMax;
     this.heroes = kd.deployed.filter(id => Store.state.heroes[id]).map((id, i) => {
       const st = Game.heroStats(id), def = HEROES.find(h => h.id === id);
-      const [x, y] = L.at(L.len * RALLY[i % RALLY.length]);
+      if (st.range > 40) st.range = Math.round(st.range * (1 + this.bonus.heroRange));
+      const [x, y] = L.rally ? L.rally(i) : L.at(L.len * RALLY[i % RALLY.length]);
       const off = i % 2 ? L.heroOff : -L.heroOff;
       return { id, def, st, hx: x + off, hy: y + off, x: x + off, y: y + off, hp: st.hp, max: st.hp, cd: 0, dead: false };
     });
@@ -115,7 +119,8 @@ const Battle = {
     const e = ENEMIES[t];
     const bossScale = e.boss ? 1 + (this.wave / 5 - 1) * 0.6 : 1;
     const hp = e.hp * this.hpScale * bossScale;
-    this.enemies.push({ t, e, d: 0, hp, max: hp, slow: 0, cd: 0, x: this.L.start[0], y: this.L.start[1], wob: Math.random() * 6 });
+    const paths = this.L.paths, p = paths[(this.spawned = (this.spawned || 0) + 1) % paths.length];
+    this.enemies.push({ t, e, p, d: 0, hp, max: hp, slow: 0, cd: 0, x: p.start[0], y: p.start[1], wob: Math.random() * 6 });
   },
 
   update(dt) {
@@ -128,7 +133,10 @@ const Battle = {
     for (const en of this.enemies) {
       en.cd -= dt; en.slow = Math.max(0, en.slow - dt);
       let blocked = null;
-      for (const b of this.barriers) if (b.hp > 0 && b.d > en.d && b.d - en.d < 14) blocked = b;
+      for (const b of this.barriers) {
+        const bd = b.ds ? b.ds.get(en.p) : b.d;
+        if (b.hp > 0 && bd !== undefined && bd > en.d && bd - en.d < 14) blocked = b;
+      }
       if (!blocked) for (const h of this.heroes)
         if (!h.dead && h.st.range <= 40 && Math.hypot(h.x - en.x, h.y - en.y) < 20) blocked = h;
       if (blocked) {
@@ -137,8 +145,8 @@ const Battle = {
       } else {
         en.d += en.e.speed * (en.slow > 0 ? 0.5 : 1) * dt;
       }
-      [en.x, en.y] = L.at(en.d);
-      if (en.d >= L.len) { this.baseHp -= en.e.dmg; en.hp = 0; en.reached = true; this.fx.push({ x: L.base[0], y: L.base[1] - 20, txt: '-' + en.e.dmg, t: 0.8, c: '#ff4040' }); }
+      [en.x, en.y] = en.p.at(en.d);
+      if (en.d >= en.p.len) { this.baseHp -= en.e.dmg; en.hp = 0; en.reached = true; this.fx.push({ x: L.base[0], y: L.base[1] - 20, txt: '-' + en.e.dmg, t: 0.8, c: '#ff4040' }); }
     }
 
     const target = (x, y, r) => {
@@ -152,7 +160,7 @@ const Battle = {
       if (t.b.type !== 'tower') continue;
       t.cd -= dt;
       const en = target(t.x, t.y, t.b.range);
-      if (en && t.cd <= 0) { t.cd = t.b.rate; this.shoot(t.x, t.y - 14, en, t.b.dmg, t.b.splash, t.b.slow, t.id); }
+      if (en && t.cd <= 0) { t.cd = t.b.rate * (1 - this.bonus.rate); this.shoot(t.x, t.y - 14, en, t.b.dmg, t.b.splash, t.b.slow, t.id); }
     }
 
     // hrdinové
