@@ -13,9 +13,15 @@ Otevři `index.html` v prohlížeči nebo spusť `python3 -m http.server` ve slo
 - **Vlny**: nepřátelé jdou po cestě. Každá 5. vlna má bosse. Za výhru jsou XP a zlaťáky. Za prohru se ztratí 15 % zlata a trochu XP, ale nikdy pod začátek aktuální úrovně. Boj jde zrychlit na 2×.
 
 ## Izometrická základna (Pustina) 🏗️
-Pustina má izometrickou mapu 18×18 políček: olivová tráva, prašná cesta, stromy. Budovy se stavějí kamkoli mimo cestu, barikády jen na cestu.
-Táhnutím se mapa posouvá, dvěma prsty (nebo kolečkem myši) se přibližuje. Klepnutím na budovu ji můžeš vylepšit, přesunout nebo zbourat.
-Zombie jdou po cestě až k velitelství (HQ).
+Stavění funguje stejně jako ve vesnici v Cave Man RPG, jen v izometrickém pohledu a v moderní pustině.
+Výchozí mapa je vyprahlá pustina: písek, popraskaná zem, chomáče suché trávy, štěrk, asfalt u velitelství, suché stromy, kaktusy, kameny, kosti, vraky aut a rezavé sudy.
+
+- **Záložky Stavby / Dekorace / Malování** pod mapou.
+- **Pokládání:** vybraná věc se objeví na nejbližším volném místě. Přetáhni ji prstem nebo klepni jinam, pak potvrď ✔. Okénko nad ní má ✔ Postavit, ⇋ Otočit (zrcadlo), ✖ Zrušit.
+- **Úpravy:** klepnutí na věc na mapě ji zvedne. Můžeš ji posunout, otočit, ⬆️ vylepšit (hlavní budovy) nebo 🗑️ odstranit.
+- **Malování:** štětce Písek, Vyprahlá zem, Suchá tráva, Štěrk, Asfalt, Beton ve velikosti 1×1 až 3×3. Cestu zombíků přemalovat nejde.
+- **Pohyb po mapě:** táhnutí, dva prsty nebo kolečko = zoom, tlačítka + / −, klávesy WASD a šipky. Minimapu v rohu jde klepnutím použít ke skoku.
+- **Útok:** zombie jdou po prašné cestě až k velitelství (HQ). Barikády stojí jen na cestě.
 
 | id | budova | velikost |
 |---|---|---|
@@ -27,12 +33,12 @@ Zombie jdou po cestě až k velitelství (HQ).
 | mage | Tesla cívka | 1×1 |
 | cannon | Minomet | 1×1 |
 | barrier | Barikáda (na cestě) | 1×1 |
-| fence | Plot z pletiva (napojuje se na sousední) | 1×1 |
-| sandbags | Pytle s pískem | 1×1 |
 
-**Vlastní grafika budov:** ulož obrázek jako `img/buildings/<id>.png` (např. `img/buildings/forge.png`). Hra ho použije místo kreslené budovy.
-Obrázek má být izometrický (úhel 2:1), s průhledným pozadím. Jeho šířka se roztáhne na šířku půdorysu budovy a spodní okraj sedí na přední roh půdorysu.
-Rozměry a styl kreslení jsou v `ISO_DEFS` v `js/iso.js`.
+Dekorace (id): deadtree, bush, cactus, tuft, rock, boulder, rubble, bones, car (2×1), barrel, tires, crates, scrap, watertower, fence, sandbags, concrete, sign, lamp.
+
+**Vlastní grafika:** ulož obrázek jako `img/buildings/<id>.png` (např. `img/buildings/forge.png` nebo `img/buildings/car.png`). Hra ho použije místo kreslené budovy nebo dekorace.
+Obrázek má být izometrický (úhel 2:1), s průhledným pozadím. Jeho šířka se roztáhne na šířku půdorysu a spodní okraj sedí na přední roh půdorysu.
+Rozměry jsou v `ISO_DEFS` a `ISO_DECOR` v `js/iso.js`.
 
 ## Zbrojnice 🎒
 Nová záložka s obchodem a batohem. Koupené věci jdou do batohu a odtud se nasazují hlavnímu hrdinovi („Ty“) nebo komukoli z party.

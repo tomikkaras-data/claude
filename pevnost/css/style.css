@@ -195,3 +195,40 @@ body.k-apocalypse canvas#map { border-radius: 0; box-shadow: none; touch-action:
 body.k-apocalypse .bcard { background: linear-gradient(180deg, #343828, #2a2d21); border: 2px solid #0d0f0b; outline: 1px solid #4d5340; outline-offset: -4px; border-radius: 6px; color: #e7e9da; }
 body.k-apocalypse .bcard:disabled { opacity: .45; }
 .iso-place { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: linear-gradient(180deg, #343828, #2a2d21); border: 2px solid #0d0f0b; border-radius: 6px; padding: 10px; }
+
+/* stavění jako v Cave Man RPG */
+.map-wrap { position: relative; }
+#zoomBox { position: absolute; left: 8px; top: 8px; display: none; flex-direction: column; align-items: center; gap: 2px; background: rgba(13,15,11,.75); border: 1px solid #4d5340; border-radius: 6px; padding: 3px; }
+body.k-apocalypse #zoomBox { display: flex; }
+#zoomBox button { width: 32px; height: 30px; border: 1px solid #50563f; background: #2e3226; color: #e7e9da; border-radius: 4px; font-size: 18px; font-weight: 700; cursor: pointer; }
+#zoomBox span { font-size: 10px; color: #c9cdb3; }
+#placeBox { position: absolute; display: none; flex-wrap: wrap; gap: 4px; align-items: center; justify-content: center; max-width: 290px;
+  background: rgba(20,22,16,.92); border: 2px solid #0d0f0b; outline: 1px solid #6b7344; outline-offset: -4px; border-radius: 6px; padding: 7px; z-index: 3; }
+#placeBox b { width: 100%; text-align: center; font-size: 12px; color: #e7e9da; }
+#placeBox button { border: 1px solid #50563f; background: #2e3226; color: #e7e9da; border-radius: 4px; padding: 6px 8px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; }
+#placeBox button.buy { background: linear-gradient(180deg, #e6c65e, #b8912c); color: #1f1a08; }
+#placeBox button.buy:disabled { opacity: .45; }
+#placeBox button.sell { background: #6e2a20; border-color: #a0453a; }
+#placeHint { width: 100%; text-align: center; color: #ff8a70; font-size: 11px; font-weight: 700; }
+#placeHint:empty { display: none; }
+.iso-tabs { display: flex; gap: 4px; margin-bottom: 6px; }
+.iso-tabs button { flex: 1; background: #2e3226; border: 1px solid #50563f; color: #d8dcc6; border-radius: 6px; padding: 8px 4px; font-weight: 700; font-size: 13px; font-family: inherit; cursor: pointer; }
+.iso-tabs button.on { background: #6b7344; border-color: #a3ad6c; color: #fff; }
+.iso-bar .bcard small { display: block; font-size: 10px; color: #aab08f; margin: 2px 0; }
+.iso-filters button { background: #2e3226 !important; border: 1px solid #50563f !important; border-radius: 6px !important; }
+.iso-filters button.on { background: #6b7344 !important; }
+.decor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; max-height: 150px; overflow-y: auto; }
+.dcard { background: linear-gradient(180deg, #343828, #2a2d21); border: 2px solid #0d0f0b; outline: 1px solid #4d5340; outline-offset: -4px; border-radius: 6px; color: #e7e9da; padding: 6px 2px; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+.dcard span { font-size: 22px; }
+.dcard small { font-size: 10px; line-height: 1.1; text-align: center; }
+.dcard em { font-style: normal; font-size: 10px; color: #ffd34d; }
+.dcard:disabled { opacity: .45; }
+.paint-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.brush, .size { background: #2e3226; border: 1px solid #50563f; color: #e7e9da; border-radius: 6px; padding: 5px 7px; font-family: inherit; font-size: 11px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.brush span { width: 30px; height: 18px; border-radius: 3px; border: 1px solid #0d0f0b; display: block; }
+.brush.on, .size.on { background: #6b7344; border-color: #ffd34d; }
+.size { flex-direction: row; padding: 8px 10px; font-weight: 700; }
+.size.danger { background: #6e2a20; border-color: #a0453a; }
+.hint-line { margin: 6px 4px 0; }
+
+#zoomBox, #placeBox, .map-wrap { user-select: none; -webkit-user-select: none; }

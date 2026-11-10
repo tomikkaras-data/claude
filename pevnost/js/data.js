@@ -107,8 +107,6 @@ const BUILDINGS = {
   archer:  { f: ['Lukostřelecká věž', '🏹'], a: ['Kulometné hnízdo', '🔫'], type: 'tower', cost: 60, dmg: 8, range: 110, rate: 0.7, desc: 'Rychlé střely' },
   mage:    { f: ['Ledová věž mága', '🔮'], a: ['Tesla cívka', '⚡'], type: 'tower', cost: 120, dmg: 6, range: 100, rate: 1.0, slow: 0.5, desc: 'Zpomaluje nepřátele', lvl: 3 },
   cannon:  { f: ['Katapult', '🪨'], a: ['Minomet', '💣'], type: 'tower', cost: 160, dmg: 30, range: 130, rate: 2.2, splash: 40, desc: 'Plošné poškození', lvl: 5 },
-  fence:   { f: ['Plůtek', '🪵'], a: ['Plot z pletiva', '🔗'], type: 'decor', cost: 5, desc: 'Ozdobný plot, napojuje se na sousední' },
-  sandbags:{ f: ['Sněhový val', '⛄'], a: ['Pytle s pískem', '🟫'], type: 'decor', cost: 10, desc: 'Ozdoba základny' },
   barrier: { f: ['Ledová hradba', '🧊'], a: ['Barikáda z vraků', '🚧'], type: 'barrier', cost: 40, hp: 150, desc: 'Zastaví nepřátele na cestě' },
 };
 const BASE_BUILDINGS = {

@@ -33,6 +33,8 @@ const UI = {
     window.addEventListener('beforeunload', e => { if (Store.state && Store.isGuest && Store.dirty) { e.preventDefault(); e.returnValue = ''; } });
 
     Battle.init($('#map'));
+    // mapa se přizpůsobí, když se změní výška panelu pod ní
+    if (window.ResizeObserver) new ResizeObserver(() => { if (this.current === 'base') Battle.resize(); }).observe($('.map-wrap'));
     Battle.onSlot = i => this.slotMenu(i);
     Battle.onEnd = (win, wave, earned) => this.attackEnded(win, wave, earned);
 
@@ -69,6 +71,7 @@ const UI = {
     document.querySelectorAll('.tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
     if (name === 'base') { Battle.show(Store.state.kingdom); requestAnimationFrame(() => Battle.resize()); }
+    if (typeof IsoMap !== 'undefined') IsoMap.updatePlaceBox();
     else if (Battle.mode !== 'fight') Battle.stop();
     this.render(name);
   },
@@ -246,94 +249,67 @@ const UI = {
   },
 
   // ---------------- Izometrická základna (Pustina) ----------------
+  // Záložky Stavby / Dekorace / Malování jako ve vesnici Cave Man RPG.
   renderIsoPanel() {
-    const K = Store.state.kingdom, kd = Game.kd(), lvl = Game.level(), fight = Battle.mode === 'fight', pl = IsoMap.placing;
-    let html;
-    if (pl) {
-      const isBase = pl.id in BASE_BUILDINGS, name = skin(isBase ? BASE_BUILDINGS[pl.id] : BUILDINGS[pl.id], K)[0];
-      const hint = pl.gx === undefined ? 'Klepni na mapu, kam ji chceš postavit.' : pl.ok ? 'Tady to jde ✅ Můžeš ještě posunout.' :
-        ISO_DEFS[pl.id].road ? 'Barikáda musí stát na cestě ❌' : 'Sem to nejde ❌ (cesta nebo jiná stavba)';
-      html = `<div class="iso-place"><div><b>${pl.move ? 'Přesunout' : 'Postavit'}: ${name}</b><div class="small">${hint}</div></div>
-        <div class="base-btns"><button class="btn small ghost" id="ip-x">✖</button>
-        <button class="btn small gold" id="ip-ok" ${pl.ok ? '' : 'disabled'}>✔ ${pl.move ? 'Sem' : pl.cost + ' 💰'}</button></div></div>`;
-    } else {
-      html = '<div class="row-scroll iso-bar">';
+    const K = Store.state.kingdom, kd = Game.kd(), lvl = Game.level(), fight = Battle.mode === 'fight', s = Store.state;
+    const tabs = [['build', '🏗️ Stavby'], ['decor', '🌵 Dekorace'], ['paint', '🖌️ Malování']];
+    let html = `<div class="iso-tabs">${tabs.map(([k, n]) => `<button data-itab="${k}" class="${IsoMap.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    if (fight) html += '<p class="small">Probíhá útok! Stavět můžeš, až bude po boji. ⚔️</p>';
+    else if (IsoMap.tab === 'build') {
+      html += '<div class="row-scroll iso-bar">';
       for (const [id, b] of Object.entries(BASE_BUILDINGS)) {
         const lv = kd.base[id], [n, ic] = skin(b, K), onMap = kd.iso.placed.some(p => p.id === id);
-        const label = !onMap ? `🔨 ${b.baseCost} 💰` : lv >= 5 ? 'MAX' : `⬆️ ${b.baseCost * (lv + 1)} 💰`;
-        html += `<button class="bcard" data-ib="${id}" ${fight ? 'disabled' : ''}><div class="bi">${ic}</div><b>${n}</b>${onMap ? 'úr. ' + lv : 'nepostaveno'}<br>${label}</button>`;
+        const label = onMap ? `✔ úr. ${lv}` : `${b.baseCost} 💰`;
+        html += `<button class="bcard" data-ib="${id}" ${!onMap && s.gold < b.baseCost ? 'disabled' : ''}><div class="bi">${ic}</div><b>${n}</b><small>${b.desc.split('.')[0]}</small><br>${label}</button>`;
       }
       for (const [id, b] of Object.entries(BUILDINGS)) {
         const [n, ic] = skin(b, K), locked = (b.lvl || 1) > lvl;
-        html += `<button class="bcard" data-it="${id}" ${fight || locked ? 'disabled' : ''}><div class="bi">${ic}</div><b>${n}</b>${locked ? '🔒 úr. ' + b.lvl : b.cost + ' 💰'}</button>`;
+        const info = b.type === 'tower' ? `⚔️${b.dmg} 🎯${b.range}` : `❤️${b.hp} · jen na cestu`;
+        html += `<button class="bcard" data-it="${id}" ${locked || s.gold < b.cost ? 'disabled' : ''}><div class="bi">${ic}</div><b>${n}</b><small>${info}</small><br>${locked ? '🔒 úr. ' + b.lvl : b.cost + ' 💰'}</button>`;
       }
-      html += '</div><p class="small" style="margin:6px 4px">Táhni prstem = posun mapy, dvěma prsty = zoom. Klepni na budovu = vylepšit, přesunout nebo zbourat.</p>';
+      html += '</div><p class="small hint-line">Vyber stavbu – objeví se na volném místě. Přetáhni ji nebo klepni jinam, pak ✔. Klepnutím na stavbu na mapě ji posuneš, otočíš, vylepšíš nebo zbouráš.</p>';
+    } else if (IsoMap.tab === 'decor') {
+      const f = IsoMap.decorFilter;
+      html += `<div class="filters iso-filters">${[['all', 'Vše'], ...ISO_DECOR_GROUPS].map(([k, n]) => `<button data-df="${k}" class="${f === k ? 'on' : ''}">${n}</button>`).join('')}</div><div class="decor-grid">`;
+      for (const [id, d] of Object.entries(ISO_DECOR)) {
+        if (f !== 'all' && d.group !== f) continue;
+        html += `<button class="dcard" data-dc="${id}" ${s.gold < d.cost ? 'disabled' : ''} title="${d.name}"><span>${d.icon}</span><small>${d.name}</small><em>${d.cost} 💰</em></button>`;
+      }
+      html += '</div>';
+    } else {
+      html += `<div class="paint-row">${Object.entries(ISO_BRUSHES).map(([k, b]) => `<button class="brush ${IsoMap.brush === k ? 'on' : ''}" data-br="${k}"><span style="background:${b.color}"></span><small>${b.name}</small></button>`).join('')}</div>
+        <div class="paint-row">${[1, 2, 3].map(n => `<button class="size ${IsoMap.brushSize === n ? 'on' : ''}" data-bs="${n}">${n}×${n}</button>`).join('')}
+          <button class="size ${IsoMap.paintMode ? 'on' : ''}" id="pm-toggle">${IsoMap.paintMode ? '🖌️ Maluju' : '✋ Posouvám mapu'}</button>
+          <button class="size danger" id="pm-clear">Smazat malování</button></div>
+        <p class="small hint-line">Táhni prstem po zemi a maluj. Cestu zombíků přemalovat nejde. Mapu posuneš přepínačem ✋ nebo dvěma prsty.</p>`;
     }
     $('#base-panel').innerHTML = html;
-    if (pl) {
-      $('#ip-x').onclick = () => { IsoMap.placing = null; this.renderBase(); };
-      $('#ip-ok').onclick = () => this.isoConfirm();
-      return;
-    }
+    document.querySelectorAll('[data-itab]').forEach(b => b.onclick = () => { IsoMap.tab = b.dataset.itab; IsoMap.placing = null; IsoMap.updatePlaceBox(); this.renderBase(); });
     document.querySelectorAll('[data-ib]').forEach(c => c.onclick = () => {
-      const id = c.dataset.ib, p = kd.iso.placed.findIndex(q => q.id === id);
-      if (p >= 0) this.baseBuildingMenu(id);
-      else this.isoStartPlacing(id, BASE_BUILDINGS[id].baseCost);
+      const id = c.dataset.ib, p = kd.iso.placed.find(q => q.id === id);
+      if (p) IsoMap.pickUp({ kind: 'build', o: p });
+      else IsoMap.startNew('build', id, BASE_BUILDINGS[id].baseCost);
     });
-    document.querySelectorAll('[data-it]').forEach(c => c.onclick = () => this.isoStartPlacing(c.dataset.it, BUILDINGS[c.dataset.it].cost));
+    document.querySelectorAll('[data-it]').forEach(c => c.onclick = () => IsoMap.startNew('build', c.dataset.it, BUILDINGS[c.dataset.it].cost));
+    document.querySelectorAll('[data-dc]').forEach(c => c.onclick = () => IsoMap.startNew('decor', c.dataset.dc, ISO_DECOR[c.dataset.dc].cost));
+    document.querySelectorAll('[data-df]').forEach(b => b.onclick = () => { IsoMap.decorFilter = b.dataset.df; this.renderBase(); });
+    document.querySelectorAll('[data-br]').forEach(b => b.onclick = () => { IsoMap.brush = b.dataset.br; IsoMap.paintMode = true; this.renderBase(); });
+    document.querySelectorAll('[data-bs]').forEach(b => b.onclick = () => { IsoMap.brushSize = +b.dataset.bs; this.renderBase(); });
+    const tg = $('#pm-toggle'); if (tg) tg.onclick = () => { IsoMap.paintMode = !IsoMap.paintMode; this.renderBase(); };
+    const cl = $('#pm-clear'); if (cl) cl.onclick = () => { if (confirm('Smazat všechno, co jsi namaloval(a)?')) IsoMap.clearPaint(); };
   },
 
-  isoStartPlacing(id, cost, move) {
-    if (!move && Store.state.gold < cost) return this.toast('Nemáš dost zlaťáků 💰 — splň nějakou aktivitu!');
-    IsoMap.selected = null;
-    IsoMap.placing = { id, cost, move };
-    this.renderBase();
-  },
-
-  isoPlacingChanged() { this.renderBase(); },
-
-  isoConfirm() {
-    const pl = IsoMap.placing, kd = Game.kd();
-    if (!pl || !IsoMap.canPlace(kd, pl.id, pl.gx, pl.gy, pl.move)) return;
-    if (pl.move) { pl.move.gx = pl.gx; pl.move.gy = pl.gy; }
-    else {
-      if (!Game.spend(pl.cost)) return;
-      kd.iso.placed.push({ id: pl.id, gx: pl.gx, gy: pl.gy });
-      if (pl.id in BASE_BUILDINGS) kd.base[pl.id] = Math.max(1, kd.base[pl.id]);
-    }
-    IsoMap.placing = null;
-    Store.changed(); this.refresh(); Battle.setupDefenders(); this.renderBase();
-  },
-
-  isoBuildingMenu(i) {
-    const s = Store.state, K = s.kingdom, kd = Game.kd(), p = kd.iso.placed[i];
-    const isBase = p.id in BASE_BUILDINGS, def = isBase ? BASE_BUILDINGS[p.id] : BUILDINGS[p.id], [n, ic] = skin(def, K);
-    const lv = kd.base[p.id], cost = isBase ? def.baseCost * (lv + 1) : 0;
-    const refund = isBase ? Math.round(def.baseCost * lv / 2) : Math.round(def.cost / 2);
-    const info = def.type === 'tower' ? `⚔️ ${def.dmg} · ⏱️ ${def.rate} s · 🎯 ${def.range}` : def.hp ? `❤️ ${def.hp}` : '';
-    this.modal(`<h3>${ic} ${n}${isBase ? ` (úroveň ${lv})` : ''}</h3><p class="small">${def.desc} ${info}</p>
-      ${isBase && lv < 5 ? `<button class="btn big gold" id="ib-up">Vylepšit za ${cost} 💰</button>` : ''}
-      <button class="btn big" id="ib-move">↔️ Přesunout</button>
-      ${p.id !== 'hall' ? `<button class="btn danger big" id="ib-sell">Zbourat (+${refund} 💰)</button>` : ''}
-      <button class="btn ghost big" id="ib-x">Zavřít</button>`);
-    const done = () => { this.closeModal(); IsoMap.selected = null; Store.changed(); this.refresh(); Battle.setupDefenders(); this.renderBase(); };
-    $('#ib-x').onclick = () => { IsoMap.selected = null; this.closeModal(); };
-    $('#ib-move').onclick = () => { this.closeModal(); this.isoStartPlacing(p.id, 0, p); };
-    const up = $('#ib-up');
-    if (up) up.onclick = () => { if (!Game.spend(cost)) return; kd.base[p.id]++; this.toast(`${n} vylepšeno na úroveň ${kd.base[p.id]}!`); done(); };
-    const sell = $('#ib-sell');
-    if (sell) sell.onclick = () => {
-      kd.iso.placed.splice(i, 1); s.gold += refund;
-      if (isBase) kd.base[p.id] = 0;
-      done();
-    };
+  isoUpgrade() {
+    const p = IsoMap.placing; if (!p) return;
+    IsoMap.cancel();
+    this.baseBuildingMenu(p.id);
   },
 
   afterBuild() { this.closeModal(); this.refresh(); Battle.setupDefenders(); },
 
   startAttack() {
     const kd = Game.kd();
-    if (Battle.iso) { IsoMap.placing = null; IsoMap.selected = null; }
+    if (Battle.iso) { IsoMap.placing = null; IsoMap.updatePlaceBox(); }
     const built = Battle.iso ? kd.iso.placed.some(p => BUILDINGS[p.id]) : kd.slots.some(Boolean);
     if (!built && !kd.deployed.length) { this.toast('Nejdřív postav aspoň jednu věž! 🏹'); return; }
     Battle.startWave(kd.wave);

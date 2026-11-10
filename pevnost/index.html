@@ -69,7 +69,22 @@
             <button id="btn-attack" class="btn small danger">⚔️ Spustit vlnu</button>
           </div>
         </div>
-        <div class="map-wrap"><canvas id="map"></canvas></div>
+        <div class="map-wrap"><canvas id="map"></canvas>
+          <div id="zoomBox" class="iso-only">
+            <button onclick="IsoMap.zoomStep(1)" title="Přiblížit">+</button>
+            <span id="zoomLevel">100%</span>
+            <button onclick="IsoMap.zoomStep(-1)" title="Oddálit">−</button>
+          </div>
+          <div id="placeBox">
+            <b id="placeName"></b>
+            <button id="placeOk" class="buy" onclick="IsoMap.confirm()">✔ Postavit</button>
+            <button onclick="IsoMap.flip()" title="Otočit (zrcadlo)">⇋ Otočit</button>
+            <button id="placeUpgrade" onclick="UI.isoUpgrade()">⬆️ Vylepšit</button>
+            <button id="placeRemove" class="sell" onclick="IsoMap.remove()">🗑️ Odstranit</button>
+            <button onclick="IsoMap.cancel()">✖</button>
+            <span id="placeHint"></span>
+          </div>
+        </div>
         <div id="base-panel"></div>
       </div>
       <div id="tab-heroes" class="tab"></div>
