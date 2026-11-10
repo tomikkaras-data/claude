@@ -126,14 +126,14 @@ const UI = {
       .map(([k, n]) => `<button data-f="${k}" class="${this.filter === k ? 'on' : ''}">${n}</button>`).join('') + '</div>';
 
     const list = ACTIVITIES.filter(a => a.age <= s.age && (this.filter === 'all' || a.cat === this.filter));
-    const groups = [['⚡ Rychlovky (do 1 min)', a => a.sec < 60], ['⏱️ Krátké (2–5 min)', a => a.sec >= 60 && a.sec < 600], ['🏅 Velké výzvy (10 min+)', a => a.sec >= 600]];
+    const groups = [['⭐ Hlavní úkoly', a => a.key], ['⚡ Rychlovky (do 1 min)', a => !a.key && a.sec < 60], ['⏱️ Krátké (2–5 min)', a => !a.key && a.sec >= 60 && a.sec < 600], ['🏅 Velké výzvy (10 min+)', a => !a.key && a.sec >= 600]];
     for (const [title, f] of groups) {
       const g = list.filter(f); if (!g.length) continue;
       html += `<div class="group-title">${title}</div>`;
       for (const a of g) {
         const r = activityReward(a), done = s.today.ids.includes(a.id);
         html += `<div class="act ${done ? 'done' : ''}" data-id="${a.id}"><div class="ic">${CATEGORIES[a.cat].icon}</div>
-          <div class="nm">${esc(a.name)}<div class="meta">⏱ ${durationLabel(a.sec)}</div></div>
+          <div class="nm">${esc(a.name)}<div class="meta">${a.label || (a.daily ? '📅 celý den · 1× denně' : '⏱ ' + durationLabel(a.sec))}</div></div>
           <div class="rw">+${r.xp} XP<br>+${r.gold} 💰</div></div>`;
       }
     }
@@ -143,7 +143,8 @@ const UI = {
   },
 
   openActivity(a) {
-    const r = activityReward(a), withTimer = a.sec <= 300;
+    if (a.daily && Store.state.today.ids.includes(a.id)) return this.toast('Tohle už máš dnes splněné ✅ Zítra znovu!');
+    const r = activityReward(a), withTimer = !a.daily && a.sec <= 600 && a.cat === 'fitness' || a.sec <= 300;
     const C = 2 * Math.PI * 80;
     this.modal(`<h3>${CATEGORIES[a.cat].icon} ${esc(a.name)}</h3>
       <p class="small">Odměna: +${r.xp} XP, +${r.gold} 💰 (+ bonus série)</p>
@@ -151,7 +152,7 @@ const UI = {
         <circle id="ring" cx="90" cy="90" r="80" stroke="var(--accent)" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg>
         <div class="timer" id="timer">${this.fmt(a.sec)}</div></div>
         <button class="btn big" id="act-start">▶️ Start</button>`
-      : `<p>Tohle je velká výzva! Až ji splníš, ať ti to potvrdí rodič 👨‍👩‍👧.</p>
+      : `<p>${a.daily ? 'Tohle platí na celý den – potvrď to večer s rodičem 🌙.' : 'Tohle je velká výzva! Až ji splníš, ať ti to potvrdí rodič 👨‍👩‍👧.'}</p>
         <label style="display:block;margin:10px 0"><input type="checkbox" id="parent-ok"> Rodič potvrzuje, že je splněno</label>`}
       <button class="btn big ${withTimer ? 'hidden' : ''}" id="act-done" ${withTimer ? '' : 'disabled'}>✅ Splněno!</button>
       <button class="btn ghost big" id="act-cancel">Zpět</button>`);

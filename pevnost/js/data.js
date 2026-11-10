@@ -7,10 +7,25 @@ const CATEGORIES = {
   home:    { name: 'Domácnost', icon: '🏠' },
   family:  { name: 'Rodina', icon: '💝' },
   nature:  { name: 'Venku', icon: '🌳' },
+  health:  { name: 'Zdraví', icon: '🍎' },
 };
 
 // sec = délka v sekundách; age = minimální věk (6 nebo 10)
 const ACTIVITIES = [
+  // ⭐ hlavní úkoly (key: zobrazí se nahoře; daily: jen jednou za den, potvrzuje rodič)
+  { id: 'rope', cat: 'fitness', name: 'Skákání přes švihadlo 10×', sec: 30, age: 6, key: true },
+  { id: 'ex3', cat: 'fitness', name: 'Cvičení 3 minuty', sec: 180, age: 6, key: true },
+  { id: 'ex5', cat: 'fitness', name: 'Cvičení 5 minut', sec: 300, age: 6, key: true },
+  { id: 'ex10', cat: 'fitness', name: 'Cvičení 10 minut', sec: 600, age: 6, key: true },
+  { id: 'healthyfood', cat: 'health', name: 'Zdravé jídlo (salát, masíčko, rýže)', sec: 900, age: 6, key: true, label: '🍽️ 1 jídlo' },
+  { id: 'nosugardrink', cat: 'health', name: 'Den bez sladkého pití', sec: 2400, age: 6, key: true, daily: true },
+  { id: 'nosweets', cat: 'health', name: 'Den bez sladkostí', sec: 2400, age: 6, key: true, daily: true },
+  { id: 'walk', cat: 'nature', name: 'Procházka', sec: 1800, age: 6, key: true },
+  { id: 'bike', cat: 'nature', name: 'Jízda na kole', sec: 1800, age: 6, key: true },
+  { id: 'sportschool', cat: 'fitness', name: 'Sport ve škole / kroužek', sec: 2700, age: 6, key: true },
+  { id: 'badminton', cat: 'fitness', name: 'Badminton', sec: 1800, age: 6, key: true },
+  { id: 'bedtime', cat: 'health', name: 'Včas v postýlce', sec: 600, age: 6, key: true, daily: true, label: '🌙 večer · 1× denně' },
+  { id: 'room', cat: 'home', name: 'Úklid (pokoj, hračky, stůl)', sec: 900, age: 6, key: true },
   // krátké (~30 s)
   { id: 'jacks20', cat: 'fitness', name: '20 skákacích panáků', sec: 30, age: 6 },
   { id: 'squat10', cat: 'fitness', name: '10 dřepů', sec: 30, age: 6 },
@@ -18,7 +33,7 @@ const ACTIVITIES = [
   { id: 'flamingo', cat: 'fitness', name: 'Plameňák: stůj na 1 noze 30 s', sec: 30, age: 6 },
   { id: 'pushup10', cat: 'fitness', name: '10 kliků', sec: 30, age: 10 },
   { id: 'breath', cat: 'mind', name: '5 hlubokých nádechů', sec: 30, age: 6 },
-  { id: 'water', cat: 'home', name: 'Vypij sklenici vody', sec: 30, age: 6 },
+  { id: 'water', cat: 'health', name: 'Vypij sklenici vody', sec: 30, age: 6 },
   { id: 'hug', cat: 'family', name: 'Obejmi někoho z rodiny', sec: 30, age: 6 },
   { id: 'thanks', cat: 'family', name: 'Řekni někomu, za co mu děkuješ', sec: 30, age: 6 },
   { id: 'shoes', cat: 'home', name: 'Srovnej boty v předsíni', sec: 30, age: 6 },
@@ -30,7 +45,7 @@ const ACTIVITIES = [
   { id: 'teeth', cat: 'home', name: 'Pořádně si vyčisti zuby (2 min)', sec: 120, age: 6 },
   { id: 'stretch', cat: 'fitness', name: 'Protahování celého těla', sec: 120, age: 6 },
   { id: 'dance', cat: 'fitness', name: 'Zatancuj si na 1 písničku', sec: 180, age: 6 },
-  { id: 'rope', cat: 'fitness', name: 'Skákání přes švihadlo', sec: 120, age: 6 },
+
   { id: 'math', cat: 'mind', name: '10 příkladů z hlavy', sec: 120, age: 6 },
   { id: 'words', cat: 'mind', name: 'Nauč se 5 anglických slovíček', sec: 180, age: 10 },
   { id: 'poem', cat: 'mind', name: 'Nauč se kousek básničky', sec: 180, age: 6 },
@@ -41,11 +56,11 @@ const ACTIVITIES = [
   // dlouhé (10–30+ min)
   { id: 'read', cat: 'mind', name: 'Čti knížku 15 minut', sec: 900, age: 6 },
   { id: 'puzzle', cat: 'mind', name: 'Skládej puzzle nebo stavebnici', sec: 900, age: 6 },
-  { id: 'room', cat: 'home', name: 'Ukliď celý pokoj', sec: 900, age: 6 },
+
   { id: 'cook', cat: 'family', name: 'Pomoz s vařením', sec: 1200, age: 6 },
   { id: 'surprise', cat: 'family', name: 'Překvap rodiče (snídaně, úklid…)', sec: 900, age: 10 },
-  { id: 'walk', cat: 'nature', name: 'Procházka 30 minut', sec: 1800, age: 6 },
-  { id: 'bike', cat: 'nature', name: 'Jízda na kole 30 minut', sec: 1800, age: 6 },
+
+
   { id: 'football', cat: 'fitness', name: 'Hraj míčovou hru venku', sec: 1800, age: 6 },
   { id: 'trip', cat: 'nature', name: 'Výlet s rodinou (1 h+)', sec: 3600, age: 6 },
 ];
@@ -75,6 +90,8 @@ const ACHIEVEMENTS = [
   { id: 'fit10', name: 'Sportovec', desc: '10× pohyb', icon: '💪', gold: 50, cond: s => (s.stats.cat.fitness || 0) >= 10 },
   { id: 'mind10', name: 'Chytrá hlava', desc: '10× hlava', icon: '🧠', gold: 50, cond: s => (s.stats.cat.mind || 0) >= 10 },
   { id: 'home10', name: 'Pan/Paní domácí', desc: '10× domácnost', icon: '🧹', gold: 50, cond: s => (s.stats.cat.home || 0) >= 10 },
+  { id: 'health10', name: 'Zdravý jako řípa', desc: '10× zdraví', icon: '🍎', gold: 50, cond: s => (s.stats.cat.health || 0) >= 10 },
+  { id: 'nosweet7', name: 'Mlsná pusa na dietě', desc: '7× den bez sladkostí', icon: '🍬', gold: 80, cond: s => (s.stats.ids && s.stats.ids.nosweets || 0) >= 7 },
   { id: 'fam10', name: 'Srdcař', desc: '10× pro rodinu', icon: '💝', gold: 50, cond: s => (s.stats.cat.family || 0) >= 10 },
   { id: 'nat5', name: 'Průzkumník', desc: '5× venku', icon: '🧭', gold: 50, cond: s => (s.stats.cat.nature || 0) >= 5 },
   { id: 'day5', name: 'Super den', desc: '5 aktivit za jeden den', icon: '⭐', gold: 40, cond: s => s.today.count >= 5 },

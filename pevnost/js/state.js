@@ -177,6 +177,7 @@ const Game = {
     s.xp += xp; s.gold += gold;
     s.today.count++; s.today.ids.push(act.id);
     s.stats.done++; s.stats.cat[act.cat] = (s.stats.cat[act.cat] || 0) + 1;
+    s.stats.ids = s.stats.ids || {}; s.stats.ids[act.id] = (s.stats.ids[act.id] || 0) + 1;
     s.history.unshift({ id: act.id, t: Date.now(), xp, gold });
     s.history.length = Math.min(s.history.length, 100);
 
