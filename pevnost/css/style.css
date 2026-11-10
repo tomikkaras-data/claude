@@ -188,3 +188,10 @@ canvas#map { border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.4); touch-a
 .tabbar button { font-size: 10px; }
 .gun-act .btn.gold { background: linear-gradient(180deg, #e6c65e, #b8912c); color: #1f1a08; box-shadow: 0 4px 0 #7a5d16; border-radius: 6px; text-transform: uppercase; letter-spacing: .05em; }
 .gun-act .btn.gold:disabled { opacity: .4; }
+
+/* izometrická základna */
+body.k-apocalypse .map-wrap { background: #23261d; border: 3px solid #0d0f0b; outline: 1px solid #4d5340; outline-offset: -5px; border-radius: 6px; align-items: stretch; justify-content: stretch; }
+body.k-apocalypse canvas#map { border-radius: 0; box-shadow: none; touch-action: none; }
+body.k-apocalypse .bcard { background: linear-gradient(180deg, #343828, #2a2d21); border: 2px solid #0d0f0b; outline: 1px solid #4d5340; outline-offset: -4px; border-radius: 6px; color: #e7e9da; }
+body.k-apocalypse .bcard:disabled { opacity: .45; }
+.iso-place { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: linear-gradient(180deg, #343828, #2a2d21); border: 2px solid #0d0f0b; border-radius: 6px; padding: 10px; }

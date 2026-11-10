@@ -23,6 +23,10 @@ function nearestPathDist(x, y) {
   return best;
 }
 
+// Rozvržení mapy, se kterým pracuje herní logika (shora, ve „světových“ souřadnicích).
+// Ledové království používá pevnou mapu níže, Pustina izometrickou mapu z iso.js.
+const FLAT_LAYOUT = { at: pathAt, len: PATH_LEN, start: PATH[0], base: BASE_POS, nearest: nearestPathDist, heroOff: 16 };
+
 // pseudo-náhoda se semínkem, aby dekorace byly vždy stejné
 function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
 
@@ -39,6 +43,7 @@ const Battle = {
 
   resize() {
     const c = this.canvas, r = c.parentElement.getBoundingClientRect();
+    if (this.iso) { IsoMap.resize(this, r); return; }
     const scale = Math.min(r.width / W, r.height / H) || 1, dpr = window.devicePixelRatio || 1;
     c.style.width = W * scale + 'px'; c.style.height = H * scale + 'px';
     c.width = W * scale * dpr; c.height = H * scale * dpr;
@@ -46,7 +51,10 @@ const Battle = {
     this.decor = null; this.draw();
   },
 
+  get L() { return this.iso ? IsoMap.layout : FLAT_LAYOUT; },
+
   tap(e) {
+    if (this.iso) return; // izometrická mapa má vlastní ovládání (posun, zoom)
     const r = this.canvas.getBoundingClientRect();
     const x = (e.clientX - r.left) / this.cssScale, y = (e.clientY - r.top) / this.cssScale;
     if (this.mode !== 'idle') return;
@@ -55,6 +63,9 @@ const Battle = {
 
   show(kingdom) {
     this.kingdom = kingdom; this.mode = 'idle'; this.decor = null;
+    this.iso = kingdom === 'apocalypse';
+    if (this.iso) IsoMap.attach(this);
+    this.resize();
     this.setupDefenders();
     this.enemies = []; this.shots = []; this.fx = [];
     if (!this.running) { this.running = true; this.last = performance.now(); requestAnimationFrame(t => this.loop(t)); }
@@ -63,9 +74,10 @@ const Battle = {
   stop() { this.running = false; },
 
   setupDefenders() {
-    const kd = Game.kd();
+    const kd = Game.kd(), L = this.L;
     this.towers = []; this.barriers = [];
-    kd.slots.forEach((id, i) => {
+    if (this.iso) IsoMap.defenders(kd, this.towers, this.barriers);
+    else kd.slots.forEach((id, i) => {
       if (!id) return;
       const b = BUILDINGS[id], [x, y] = SLOTS_POS[i];
       if (b.type === 'barrier') {
@@ -77,8 +89,8 @@ const Battle = {
     this.baseMax = 100 + kd.base.hall * 50; this.baseHp = this.baseMax;
     this.heroes = kd.deployed.filter(id => Store.state.heroes[id]).map((id, i) => {
       const st = Game.heroStats(id), def = HEROES.find(h => h.id === id);
-      const [x, y] = pathAt(PATH_LEN * RALLY[i % RALLY.length]);
-      const off = i % 2 ? 16 : -16;
+      const [x, y] = L.at(L.len * RALLY[i % RALLY.length]);
+      const off = i % 2 ? L.heroOff : -L.heroOff;
       return { id, def, st, hx: x + off, hy: y + off, x: x + off, y: y + off, hp: st.hp, max: st.hp, cd: 0, dead: false };
     });
   },
@@ -103,7 +115,7 @@ const Battle = {
     const e = ENEMIES[t];
     const bossScale = e.boss ? 1 + (this.wave / 5 - 1) * 0.6 : 1;
     const hp = e.hp * this.hpScale * bossScale;
-    this.enemies.push({ t, e, d: 0, hp, max: hp, slow: 0, cd: 0, x: PATH[0][0], y: PATH[0][1], wob: Math.random() * 6 });
+    this.enemies.push({ t, e, d: 0, hp, max: hp, slow: 0, cd: 0, x: this.L.start[0], y: this.L.start[1], wob: Math.random() * 6 });
   },
 
   update(dt) {
@@ -112,6 +124,7 @@ const Battle = {
     while (this.queue.length && this.queue[0].delay <= this.clock) this.spawn(this.queue.shift().t);
 
     // nepřátelé
+    const L = this.L;
     for (const en of this.enemies) {
       en.cd -= dt; en.slow = Math.max(0, en.slow - dt);
       let blocked = null;
@@ -124,8 +137,8 @@ const Battle = {
       } else {
         en.d += en.e.speed * (en.slow > 0 ? 0.5 : 1) * dt;
       }
-      [en.x, en.y] = pathAt(en.d);
-      if (en.d >= PATH_LEN) { this.baseHp -= en.e.dmg; en.hp = 0; en.reached = true; this.fx.push({ x: BASE_POS[0], y: BASE_POS[1] - 20, txt: '-' + en.e.dmg, t: 0.8, c: '#ff4040' }); }
+      [en.x, en.y] = L.at(en.d);
+      if (en.d >= L.len) { this.baseHp -= en.e.dmg; en.hp = 0; en.reached = true; this.fx.push({ x: L.base[0], y: L.base[1] - 20, txt: '-' + en.e.dmg, t: 0.8, c: '#ff4040' }); }
     }
 
     const target = (x, y, r) => {
@@ -222,6 +235,7 @@ const Battle = {
 
   draw(time = 0) {
     const c = this.ctx, K = this.kingdom; if (!K) return;
+    if (this.iso) { IsoMap.draw(this, time); return; }
     const col = KINGDOMS[K].colors;
     if (!this.decor) this.buildDecor();
     c.setTransform(this.scale, 0, 0, this.scale, 0, 0);

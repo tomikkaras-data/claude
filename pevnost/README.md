@@ -12,6 +12,28 @@ Otevři `index.html` v prohlížeči nebo spusť `python3 -m http.server` ve slo
 - **Hrdinové**: 6 hrdinů (tank, střelec, kouzelník, bojovník, léčitel, zvíře) se najímá za zlaťáky. Odemykají se podle úrovně. Každý má 3 sloty (zbraň, oblečení, doplněk) a v obchodě je 10 předmětů.
 - **Vlny**: nepřátelé jdou po cestě. Každá 5. vlna má bosse. Za výhru jsou XP a zlaťáky. Za prohru se ztratí 15 % zlata a trochu XP, ale nikdy pod začátek aktuální úrovně. Boj jde zrychlit na 2×.
 
+## Izometrická základna (Pustina) 🏗️
+Pustina má izometrickou mapu 18×18 políček: olivová tráva, prašná cesta, stromy. Budovy se stavějí kamkoli mimo cestu, barikády jen na cestu.
+Táhnutím se mapa posouvá, dvěma prsty (nebo kolečkem myši) se přibližuje. Klepnutím na budovu ji můžeš vylepšit, přesunout nebo zbourat.
+Zombie jdou po cestě až k velitelství (HQ).
+
+| id | budova | velikost |
+|---|---|---|
+| hall | Velitelství / bunkr (HQ) | 3×2 |
+| tavern | Kasárna (Bar) | 3×2 |
+| forge | Hangár (Dílna) | 3×2 |
+| mine | Šrotiště | 2×2 |
+| archer | Kulometné hnízdo | 1×1 |
+| mage | Tesla cívka | 1×1 |
+| cannon | Minomet | 1×1 |
+| barrier | Barikáda (na cestě) | 1×1 |
+| fence | Plot z pletiva (napojuje se na sousední) | 1×1 |
+| sandbags | Pytle s pískem | 1×1 |
+
+**Vlastní grafika budov:** ulož obrázek jako `img/buildings/<id>.png` (např. `img/buildings/forge.png`). Hra ho použije místo kreslené budovy.
+Obrázek má být izometrický (úhel 2:1), s průhledným pozadím. Jeho šířka se roztáhne na šířku půdorysu budovy a spodní okraj sedí na přední roh půdorysu.
+Rozměry a styl kreslení jsou v `ISO_DEFS` v `js/iso.js`.
+
 ## Zbrojnice 🎒
 Nová záložka s obchodem a batohem. Koupené věci jdou do batohu a odtud se nasazují hlavnímu hrdinovi („Ty“) nebo komukoli z party.
 V Pustině je 40 skutečných zbraní (obrázky v `img/guns/`). Každá má reálnou ráži, kadenci a účinný dostřel a z nich se počítají herní hodnoty:
