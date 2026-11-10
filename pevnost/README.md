@@ -12,6 +12,17 @@ Otevři `index.html` v prohlížeči nebo spusť `python3 -m http.server` ve slo
 - **Hrdinové**: 6 hrdinů (tank, střelec, kouzelník, bojovník, léčitel, zvíře) se najímá za zlaťáky. Odemykají se podle úrovně. Každý má 3 sloty (zbraň, oblečení, doplněk) a v obchodě je 10 předmětů.
 - **Vlny**: nepřátelé jdou po cestě. Každá 5. vlna má bosse. Za výhru jsou XP a zlaťáky. Za prohru se ztratí 15 % zlata a trochu XP, ale nikdy pod začátek aktuální úrovně. Boj jde zrychlit na 2×.
 
+## Zbrojnice 🎒
+Nová záložka s obchodem a batohem. Koupené věci jdou do batohu a odtud se nasazují hlavnímu hrdinovi („Ty“) nebo komukoli z party.
+V Pustině je 40 skutečných zbraní (obrázky v `img/guns/`). Každá má reálnou ráži, kadenci a účinný dostřel a z nich se počítají herní hodnoty:
+- interval mezi výstřely = 40 / kadence s (samonabíjecí a opakovací) nebo 0,12 + 100 / kadence s (automatické zbraně střílí dávky),
+- herní dostřel = 60 + dostřel v m / 5 px (max 260),
+- poškození podle síly náboje (9 mm ≈ 7, 5,56 ≈ 8, 7,62×51 ≈ 11–12, .338 Lapua 60, 12,7 mm 90), brokovnice zasahují plošně, kulomety zpomalují,
+- cena roste s účinností (poškození za sekundu × dostřel), nejsilnější zbraně potřebují vyšší úroveň Dílny.
+
+Rozsah: pistole 50–60 💰, samopaly 90–210, útočné pušky 220–500, brokovnice 230–930, odstřelovačky 140–1240 (Barrett M82), kulomety 330–1130.
+Zbraň určuje hrdinovi dostřel a kadenci, síla hrdiny přidá čtvrtinu jeho základního útoku. V Ledovém království zůstávají meče a kopí.
+
 ## Ukládání
 - **Host**: postup se ukládá jen ručně, tlačítkem 💾 Uložit (do zařízení) nebo jako soubor se zálohou v Profilu.
 - **Google účet**: přes Firebase. Vyplň `js/firebase-config.js`, zapni Google ve Firebase Authentication a vytvoř Firestore s pravidly:

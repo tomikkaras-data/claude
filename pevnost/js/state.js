@@ -11,7 +11,7 @@ function dayDiff(a, b) {
 }
 
 function newKingdomState() {
-  return { base: { hall: 1, forge: 0, tavern: 1, mine: 0 }, slots: Array(10).fill(null), wave: 1, deployed: [] };
+  return { base: { hall: 1, forge: 0, tavern: 1, mine: 0 }, slots: Array(10).fill(null), wave: 1, deployed: ['player'] };
 }
 
 function newState(name = 'Hrdina', age = 10) {
@@ -24,7 +24,7 @@ function newState(name = 'Hrdina', age = 10) {
     achievements: {},
     kingdom: null,
     kingdoms: { fantasy: newKingdomState(), apocalypse: newKingdomState() },
-    heroes: {},     // id -> { equip: {weapon, armor, trinket} }
+    heroes: { player: { equip: {} } }, // id -> { equip: {weapon, armor, trinket} }
     inventory: [],  // item ids
     history: [],
     updated: Date.now(),
@@ -131,6 +131,10 @@ function migrate(s) {
   const out = Object.assign(d, s);
   out.stats = Object.assign(d.stats, s.stats || {});
   out.kingdoms = Object.assign(newState().kingdoms, s.kingdoms || {});
+  if (!out.heroes.player) {
+    out.heroes.player = { equip: {} };
+    for (const k of Object.values(out.kingdoms)) if (!k.deployed.includes('player')) k.deployed.unshift('player');
+  }
   return out;
 }
 
@@ -209,13 +213,20 @@ const Game = {
     for (const slot in own.equip) {
       const it = ITEMS.find(i => i.id === own.equip[slot]);
       if (!it) continue;
+      if (it.gun) {
+        // střelná zbraň určuje dostřel a kadenci; síla hrdiny přidá čtvrtinu jeho základního útoku
+        st.dmg = it.dmg + Math.round(h.dmg * 0.25); st.rate = it.rate; st.range = it.range;
+        st.splash = it.splash || st.splash; st.slow = it.slow || st.slow;
+        continue;
+      }
       st.hp += it.hp || 0; st.dmg += it.dmg || 0;
       if (it.rate) st.rate *= (1 - it.rate);
     }
+    st.dmg = Math.round(st.dmg * 10) / 10; st.rate = Math.round(st.rate * 100) / 100;
     return st;
   },
 
-  heroCap() { return 1 + this.kd().base.tavern; },
+  heroCap() { return 2 + this.kd().base.tavern; }, // hlavní hrdina + parta
 
   battleResult(win, wave, earned) {
     const s = Store.state, kd = this.kd();

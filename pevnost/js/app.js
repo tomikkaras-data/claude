@@ -2,6 +2,8 @@
 'use strict';
 
 const $ = s => document.querySelector(s);
+const itemIcon = (it, K, cls = 'gun-img') => it.img ? `<img class="${cls}" src="${it.img}" alt="">` : skin(it, K)[1];
+const heroName = (h, K) => h.main ? Store.state.name : skin(h, K)[0];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const UI = {
@@ -73,7 +75,7 @@ const UI = {
 
   render(name) {
     ({ activities: () => this.renderActivities(), base: () => this.renderBase(), heroes: () => this.renderHeroes(),
-       achievements: () => this.renderAchievements(), profile: () => this.renderProfile() })[name]();
+       armory: () => this.renderArmory(), achievements: () => this.renderAchievements(), profile: () => this.renderProfile() })[name]();
   },
 
   refresh() {
@@ -263,15 +265,15 @@ const UI = {
     const s = Store.state, K = s.kingdom, kd = Game.kd(), lvl = Game.level(), cap = Game.heroCap();
     let html = `<p class="small">V boji může být ${kd.deployed.length}/${cap} hrdinů (víc míst dá ${skin(BASE_BUILDINGS.tavern, K)[0]}).</p>`;
     for (const h of HEROES) {
-      const own = s.heroes[h.id], [n, ic] = skin(h, K), st = Game.heroStats(h.id), dep = kd.deployed.includes(h.id);
+      const own = s.heroes[h.id], ic = skin(h, K)[1], n = heroName(h, K), st = Game.heroStats(h.id), dep = kd.deployed.includes(h.id);
       html += `<div class="hero ${own ? '' : 'locked'}"><div class="hero-top"><div class="portrait">${ic}</div><div style="flex:1">
         <b>${n}</b><span class="tag">${h.cls}</span>${dep ? '<span class="tag">⚔️ v boji</span>' : ''}
         <div class="small">${h.bio}</div>
-        <div class="stats"><span>❤️ ${st.hp}</span><span>⚔️ ${st.dmg}</span><span>🎯 ${st.range}</span>${st.heal ? `<span>💚 ${st.heal}</span>` : ''}</div></div></div>`;
+        <div class="stats"><span>❤️ ${st.hp}</span><span>⚔️ ${st.dmg}</span><span>⏱️ ${st.rate} s</span><span>🎯 ${st.range}</span>${st.heal ? `<span>💚 ${st.heal}</span>` : ''}</div></div></div>`;
       if (own) {
         html += '<div class="equip">' + Object.entries(SLOTS).map(([slot, sn]) => {
           const it = ITEMS.find(i => i.id === own.equip[slot]);
-          return `<button class="slot ${it ? 'full' : ''}" data-h="${h.id}" data-slot="${slot}"><span class="si">${it ? skin(it, K)[1] : '➕'}</span>${it ? skin(it, K)[0] : sn}</button>`;
+          return `<button class="slot ${it ? 'full' : ''}" data-h="${h.id}" data-slot="${slot}"><span class="si">${it ? itemIcon(it, K, 'slot-img') : '➕'}</span>${it ? skin(it, K)[0] : sn}</button>`;
         }).join('') + '</div>';
         html += `<div class="hero-actions"><button class="btn small ${dep ? 'ghost' : ''}" data-dep="${h.id}">${dep ? 'Stáhnout z boje' : 'Poslat do boje'}</button></div>`;
       } else if (h.lvl > lvl) html += `<div class="hero-actions"><button class="btn small" disabled>🔒 Odemkne se na úrovni ${h.lvl}</button></div>`;
@@ -299,19 +301,19 @@ const UI = {
 
   equipMenu(heroId, slot) {
     const s = Store.state, K = s.kingdom, forge = Game.kd().base.forge, own = s.heroes[heroId];
-    const describe = it => [it.dmg && `⚔️+${it.dmg}`, it.hp && `❤️+${it.hp}`, it.rate && `⚡+${it.rate * 100}%`].filter(Boolean).join(' ');
-    let html = `<h3>${SLOTS[slot]} pro ${skin(HEROES.find(h => h.id === heroId), K)[0]}</h3>`;
+    const describe = it => this.describeItem(it);
+    let html = `<h3>${SLOTS[slot]} pro ${heroName(HEROES.find(h => h.id === heroId), K)}</h3>`;
     if (own.equip[slot]) html += `<button class="btn ghost small" id="unequip">Sundat</button>`;
     const inv = s.inventory.filter(id => ITEMS.find(i => i.id === id).slot === slot);
     html += '<div class="group-title">🎒 Batoh</div>';
     html += inv.length ? [...new Set(inv)].map(id => {
       const it = ITEMS.find(i => i.id === id), [n, ic] = skin(it, K), cnt = inv.filter(x => x === id).length;
-      return `<div class="list-item"><div class="li">${ic}</div><div class="lt"><b>${n}</b> ${cnt > 1 ? '×' + cnt : ''}<div class="small">${describe(it)}</div></div><button class="btn small" data-eq="${id}">Nasadit</button></div>`;
+      return `<div class="list-item"><div class="li">${itemIcon(it, K)}</div><div class="lt"><b>${n}</b> ${cnt > 1 ? '×' + cnt : ''}<div class="small">${describe(it)}</div></div><button class="btn small" data-eq="${id}">Nasadit</button></div>`;
     }).join('') : '<p class="small">Prázdno.</p>';
     html += `<div class="group-title">🛒 Obchod (${skin(BASE_BUILDINGS.forge, K)[0]} úr. ${forge})</div>`;
-    for (const it of ITEMS.filter(i => i.slot === slot)) {
-      const [n, ic] = skin(it, K), locked = it.forge > forge;
-      html += `<div class="list-item"><div class="li">${ic}</div><div class="lt"><b>${n}</b><div class="small">${describe(it)}</div></div>
+    for (const it of this.shopItems().filter(i => i.slot === slot)) {
+      const [n] = skin(it, K), locked = it.forge > forge;
+      html += `<div class="list-item"><div class="li">${itemIcon(it, K)}</div><div class="lt"><b>${n}</b><div class="small">${describe(it)}</div></div>
         ${locked ? `<span class="small">🔒 ${skin(BASE_BUILDINGS.forge, K)[0]} ${it.forge}</span>` : `<button class="btn small gold" data-buy="${it.id}">${it.cost} 💰</button>`}</div>`;
     }
     html += '<button class="btn ghost big" id="eq-x">Zavřít</button>';
@@ -330,6 +332,91 @@ const UI = {
       if (!Game.spend(it.cost)) return;
       if (own.equip[slot]) s.inventory.push(own.equip[slot]);
       own.equip[slot] = it.id; this.toast(skin(it, K)[0] + ' nasazeno!'); done();
+    });
+  },
+
+  // ---------------- Zbrojnice ----------------
+  shopItems() { const K = Store.state.kingdom; return ITEMS.filter(i => !i.kingdom || i.kingdom === K); },
+
+  describeItem(it) {
+    if (it.gun) return `${it.caliber} · ⚔️ ${it.dmg} · ⏱️ ${it.rpm} ran/min · 🎯 ${it.meters} m${it.splash ? ' · 💥 plošně' : ''}${it.slow ? ' · 🐌 zpomaluje' : ''}`;
+    return [it.dmg && `⚔️+${it.dmg}`, it.hp && `❤️+${it.hp}`, it.rate && `⚡+${it.rate * 100}%`].filter(Boolean).join(' ');
+  },
+
+  armoryFilter: 'all',
+  renderArmory() {
+    const s = Store.state, K = s.kingdom, forge = Game.kd().base.forge, forgeName = skin(BASE_BUILDINGS.forge, K)[0];
+    const items = this.shopItems();
+    const filters = [['all', '✨ Vše'], ['inv', `🎒 Batoh (${s.inventory.length})`]];
+    if (K === 'apocalypse') filters.push(...Object.entries(GUN_CLASSES).map(([k, c]) => [k, c.icon + ' ' + c.name]));
+    else filters.push(['weapon', '⚔️ Zbraně']);
+    filters.push(['armor', '🧥 Oblečení'], ['trinket', '📿 Doplňky']);
+    let html = `<p class="small">Kup výbavu a nasaď ji sobě nebo hrdinům. Lepší zboží odemkne ${forgeName} (teď úr. ${forge}).</p>
+      <div class="filters">${filters.map(([k, n]) => `<button data-af="${k}" class="${this.armoryFilter === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+
+    const f = this.armoryFilter;
+    if (f === 'inv') {
+      const ids = [...new Set(s.inventory)];
+      html += ids.length ? ids.map(id => {
+        const it = ITEMS.find(i => i.id === id), cnt = s.inventory.filter(x => x === id).length;
+        return this.itemCard(it, K, `<button class="btn small" data-give="${id}">Nasadit</button>`, cnt);
+      }).join('') : '<p class="small">Batoh je prázdný. Něco si kup! 🛒</p>';
+      // co mají hrdinové na sobě
+      html += '<div class="group-title">🦸 Na hrdinech</div>';
+      for (const [hid, own] of Object.entries(s.heroes)) {
+        const h = HEROES.find(x => x.id === hid);
+        const gear = Object.values(own.equip).map(id => ITEMS.find(i => i.id === id)).filter(Boolean);
+        html += `<div class="list-item"><div class="li">${skin(h, K)[1]}</div><div class="lt"><b>${esc(heroName(h, K))}</b><div class="small">${gear.map(g => skin(g, K)[0]).join(', ') || 'bez výbavy'}</div></div></div>`;
+      }
+    } else {
+      const order = { weapon: 0, armor: 1, trinket: 2 };
+      const list = items.filter(it => f === 'all' || it.cls === f || (!it.gun && it.slot === f) || (f === 'weapon' && it.slot === 'weapon')).sort((a, b) => order[a.slot] - order[b.slot]);
+      const max = { dmg: Math.max(...list.map(i => i.dmg || 0), 1), dps: Math.max(...list.map(i => i.gun ? i.dmg / i.rate : 0), 1), range: 260 };
+      for (const it of list) {
+        const locked = it.forge > forge, owned = s.inventory.filter(x => x === it.id).length;
+        const btn = locked ? `<span class="small">🔒 ${forgeName} ${it.forge}</span>` : `<button class="btn small gold" data-abuy="${it.id}" ${s.gold < it.cost ? 'disabled' : ''}>${it.cost} 💰</button>`;
+        html += this.itemCard(it, K, btn, owned, max);
+      }
+    }
+    const el = $('#tab-armory'); el.innerHTML = html;
+    el.querySelectorAll('[data-af]').forEach(b => b.onclick = () => { this.armoryFilter = b.dataset.af; this.renderArmory(); });
+    el.querySelectorAll('[data-abuy]').forEach(b => b.onclick = () => {
+      const it = ITEMS.find(i => i.id === b.dataset.abuy);
+      if (!Game.spend(it.cost)) return;
+      s.inventory.push(it.id); Store.changed(); this.refresh();
+      this.toast(`${skin(it, K)[0]} je v batohu! 🎒`);
+      this.giveMenu(it.id);
+    });
+    el.querySelectorAll('[data-give]').forEach(b => b.onclick = () => this.giveMenu(b.dataset.give));
+  },
+
+  itemCard(it, K, action, owned = 0, max) {
+    const bar = (label, v, m) => `<div class="sbar"><span>${label}</span><i><b style="width:${Math.min(100, v / m * 100)}%"></b></i></div>`;
+    const bars = it.gun && max ? bar('Poškození', it.dmg, Math.max(max.dmg, 30)) + bar('Kadence', it.dmg / it.rate, max.dps) + bar('Dostřel', it.range, max.range) : '';
+    return `<div class="item-card"><div class="item-pic">${itemIcon(it, K, 'gun-img big')}</div>
+      <div class="item-info"><b>${esc(skin(it, K)[0])}</b>${owned ? `<span class="tag">🎒 ×${owned}</span>` : ''}
+        <div class="small">${this.describeItem(it)}</div>${bars}</div>
+      <div class="item-act">${action}</div></div>`;
+  },
+
+  giveMenu(itemId) {
+    const s = Store.state, K = s.kingdom, it = ITEMS.find(i => i.id === itemId);
+    let html = `<h3>Komu dát ${esc(skin(it, K)[0])}?</h3><div class="center">${itemIcon(it, K, 'gun-img huge')}</div>`;
+    for (const hid of Object.keys(s.heroes)) {
+      const h = HEROES.find(x => x.id === hid), cur = ITEMS.find(i => i.id === s.heroes[hid].equip[it.slot]);
+      html += `<div class="list-item"><div class="li">${skin(h, K)[1]}</div><div class="lt"><b>${esc(heroName(h, K))}</b>
+        <div class="small">teď: ${cur ? skin(cur, K)[0] : 'nic'}</div></div><button class="btn small" data-to="${hid}">Nasadit</button></div>`;
+    }
+    html += '<button class="btn ghost big" id="gv-x">Nechat v batohu</button>';
+    this.modal(html);
+    $('#gv-x').onclick = () => this.closeModal();
+    document.querySelectorAll('[data-to]').forEach(b => b.onclick = () => {
+      const own = s.heroes[b.dataset.to];
+      if (own.equip[it.slot]) s.inventory.push(own.equip[it.slot]);
+      s.inventory.splice(s.inventory.indexOf(it.id), 1);
+      own.equip[it.slot] = it.id; Store.changed();
+      this.closeModal(); this.toast(`${heroName(HEROES.find(h => h.id === b.dataset.to), K)} má ${skin(it, K)[0]}!`);
+      this.renderArmory();
     });
   },
 

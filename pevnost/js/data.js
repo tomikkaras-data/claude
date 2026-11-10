@@ -81,7 +81,7 @@ const ACHIEVEMENTS = [
   { id: 'lvl5', name: 'Úroveň 5', desc: 'Dosáhni úrovně 5', icon: '🎖️', gold: 60, cond: s => levelFromXp(s.xp) >= 5 },
   { id: 'wave5', name: 'Přemožitel bossů', desc: 'Poraz prvního bosse', icon: '🐲', gold: 80, cond: s => s.stats.bosses >= 1 },
   { id: 'wave20', name: 'Neprostupná pevnost', desc: 'Ubraň vlnu 20', icon: '🏰', gold: 250, cond: s => s.stats.bestWave >= 20 },
-  { id: 'heroes3', name: 'Parta', desc: 'Najmi 3 hrdiny', icon: '🤝', gold: 60, cond: s => Object.keys(s.heroes).length >= 3 },
+  { id: 'heroes3', name: 'Parta', desc: 'Najmi 3 hrdiny', icon: '🤝', gold: 60, cond: s => Object.keys(s.heroes).length >= 4 },
 ];
 
 function levelFromXp(xp) { return Math.floor(Math.sqrt(xp / 50)) + 1; }
@@ -118,6 +118,7 @@ const BASE_BUILDINGS = {
 
 // Hrdinové k najmutí (á la žoldnéři). Stejní hrdinové, jiný vzhled podle království.
 const HEROES = [
+  { id: 'player', f: ['Ty', '🧑'], a: ['Ty', '🧑'], cls: 'Hlavní hrdina', hp: 100, dmg: 8, range: 90, rate: 0.9, cost: 0, lvl: 1, bio: 'To jsi ty! Čím víc úkolů splníš, tím lepší výbavu si koupíš.', main: true },
   { id: 'knight', f: ['Sir Bořek', '🛡️'], a: ['Šerif Bob', '🤠'], cls: 'Tank', hp: 140, dmg: 8, range: 30, rate: 0.8, cost: 100, lvl: 1, bio: 'Spolehlivý obránce. Drží nepřátele na místě.' },
   { id: 'archer', f: ['Elfka Lia', '🧝‍♀️'], a: ['Ostrostřelkyně Max', '🎯'], cls: 'Střelec', hp: 70, dmg: 12, range: 130, rate: 0.9, cost: 150, lvl: 2, bio: 'Trefí cokoliv na velkou dálku.' },
   { id: 'mage', f: ['Mrazivá Ela', '❄️'], a: ['Doktor Volt', '🧪'], cls: 'Kouzelník', hp: 60, dmg: 10, range: 100, rate: 1.2, splash: 35, cost: 220, lvl: 4, bio: 'Plošné útoky a zpomalení.', slow: 0.6 },
@@ -128,10 +129,10 @@ const HEROES = [
 
 // Vybavení: slot weapon/armor/trinket
 const ITEMS = [
-  { id: 'w1', slot: 'weapon', f: ['Dřevěný meč', '🗡️'], a: ['Trubka', '🔧'], dmg: 3, cost: 40, forge: 0 },
-  { id: 'w2', slot: 'weapon', f: ['Ocelový meč', '⚔️'], a: ['Brokovnice', '🔫'], dmg: 7, cost: 120, forge: 1 },
-  { id: 'w3', slot: 'weapon', f: ['Ledové kopí', '🔱'], a: ['Laserová puška', '🔦'], dmg: 12, cost: 260, forge: 2 },
-  { id: 'w4', slot: 'weapon', f: ['Dračí čepel', '🐉'], a: ['Plazmomet', '☄️'], dmg: 20, cost: 500, forge: 3 },
+  { id: 'w1', slot: 'weapon', kingdom: 'fantasy', f: ['Dřevěný meč', '🗡️'], a: ['Trubka', '🔧'], dmg: 3, cost: 40, forge: 0 },
+  { id: 'w2', slot: 'weapon', kingdom: 'fantasy', f: ['Ocelový meč', '⚔️'], a: ['Brokovnice', '🔫'], dmg: 7, cost: 120, forge: 1 },
+  { id: 'w3', slot: 'weapon', kingdom: 'fantasy', f: ['Ledové kopí', '🔱'], a: ['Laserová puška', '🔦'], dmg: 12, cost: 260, forge: 2 },
+  { id: 'w4', slot: 'weapon', kingdom: 'fantasy', f: ['Dračí čepel', '🐉'], a: ['Plazmomet', '☄️'], dmg: 20, cost: 500, forge: 3 },
   { id: 'a1', slot: 'armor', f: ['Kožený kabátek', '🧥'], a: ['Kožená bunda', '🧥'], hp: 25, cost: 40, forge: 0 },
   { id: 'a2', slot: 'armor', f: ['Kroužková zbroj', '🦺'], a: ['Neprůstřelná vesta', '🦺'], hp: 60, cost: 140, forge: 1 },
   { id: 'a3', slot: 'armor', f: ['Plátová zbroj', '🛡️'], a: ['Pancéřový oblek', '🤖'], hp: 120, cost: 320, forge: 2 },
@@ -150,3 +151,75 @@ const ENEMIES = {
 };
 
 function skin(def, kingdom) { return kingdom === 'fantasy' ? def.f : def.a; }
+
+// ---------- Zbrojnice (Pustina): skutečné zbraně ----------
+// Reálné údaje: ráže, kadence (ran/min, prakticky), účinný dostřel (m), poškození (index dle ráže/energie střely).
+// Herní hodnoty se z nich počítají: interval mezi výstřely = 40/kadence s (samonabíjecí, opakovací)
+// nebo 0.12 + 100/kadence s (automatické – střílí dávky), dostřel = 60 + m/5 px (max 260).
+const GUN_CLASSES = {
+  pistol:  { name: 'Pistole', icon: '🔫' },
+  smg:     { name: 'Samopaly', icon: '💨' },
+  rifle:   { name: 'Útočné pušky', icon: '🎯' },
+  shotgun: { name: 'Brokovnice', icon: '💥' },
+  sniper:  { name: 'Odstřelovačky', icon: '🔭' },
+  lmg:     { name: 'Kulomety', icon: '⛓️' },
+};
+//  id, název, třída, ráže, poškození, kadence, dostřel m, extra
+const GUN_TABLE = [
+  ['m1911', 'M1911', 'pistol', '.45 ACP', 9, 60, 50],
+  ['glock17', 'Glock 17', 'pistol', '9×19 mm', 7, 70, 50],
+  ['p226', 'SIG Sauer P226', 'pistol', '9×19 mm', 7.5, 70, 50],
+  ['magnum44', 'S&W .44 Magnum', 'pistol', '.44 Magnum', 15, 35, 60],
+  ['uzi', 'Uzi', 'smg', '9×19 mm', 5, 600, 100],
+  ['mp5', 'MP5', 'smg', '9×19 mm', 5.5, 800, 100],
+  ['p90', 'P90', 'smg', '5,7×28 mm', 5.5, 900, 150],
+  ['vector', 'Vector .45', 'smg', '.45 ACP', 7, 1200, 60],
+  ['tommy', 'Tommy Gun', 'smg', '.45 ACP', 7, 700, 50],
+  ['mac10', 'MAC-10', 'smg', '.45 ACP', 6, 1100, 50],
+  ['m4a1', 'M4A1', 'rifle', '5,56×45 mm', 8, 800, 500],
+  ['m16a4', 'M16A4', 'rifle', '5,56×45 mm', 8.5, 800, 550],
+  ['scarh', 'SCAR-H', 'rifle', '7,62×51 mm', 12, 600, 600],
+  ['hk416', 'HK416', 'rifle', '5,56×45 mm', 8.5, 850, 500],
+  ['f2000', 'FN F2000', 'rifle', '5,56×45 mm', 8, 850, 500],
+  ['ak47', 'AK-47', 'rifle', '7,62×39 mm', 10, 600, 350],
+  ['ak74', 'AK-74', 'rifle', '5,45×39 mm', 8, 650, 500],
+  ['ak12', 'AK-12', 'rifle', '5,45×39 mm', 8.5, 700, 500],
+  ['g36c', 'G36C', 'rifle', '5,56×45 mm', 7.5, 750, 200],
+  ['qbz95', 'QBZ-95', 'rifle', '5,8×42 mm', 8, 650, 400],
+  ['famas', 'FAMAS', 'rifle', '5,56×45 mm', 7.5, 1000, 450],
+  ['aug', 'AUG A3', 'rifle', '5,56×45 mm', 8.5, 700, 500],
+  ['l85a2', 'L85A2', 'rifle', '5,56×45 mm', 8.5, 650, 500],
+  ['galil', 'Galil ACE', 'rifle', '7,62×39 mm', 9.5, 650, 400],
+  ['cz805', 'CZ 805 BREN', 'rifle', '5,56×45 mm', 8.5, 750, 500],
+  ['r870', 'Remington 870', 'shotgun', '12/70', 24, 40, 40, { splash: 22 }],
+  ['m500', 'Mossberg 500', 'shotgun', '12/70', 24, 40, 40, { splash: 22 }],
+  ['spas12', 'SPAS-12', 'shotgun', '12/70', 26, 60, 40, { splash: 24 }],
+  ['benelli', 'Benelli M4', 'shotgun', '12/70', 24, 80, 50, { splash: 24 }],
+  ['saiga12', 'Saiga-12', 'shotgun', '12/70', 22, 120, 40, { splash: 22 }],
+  ['svd', 'SVD Dragunov', 'sniper', '7,62×54R', 32, 40, 800],
+  ['m24', 'M24', 'sniper', '7,62×51 mm', 40, 25, 800],
+  ['awm', 'AWM', 'sniper', '.338 Lapua', 60, 25, 1100],
+  ['m82', 'Barrett M82', 'sniper', '12,7×99 mm', 90, 30, 1800],
+  ['mosin', 'Mosin-Nagant', 'sniper', '7,62×54R', 34, 20, 500],
+  ['m249', 'M249 SAW', 'lmg', '5,56×45 mm', 8, 850, 600, { slow: 0.3 }],
+  ['pkm', 'PKM', 'lmg', '7,62×54R', 11, 650, 1000, { slow: 0.3 }],
+  ['rpk', 'RPK', 'lmg', '7,62×39 mm', 10, 600, 400],
+  ['mg3', 'MG3', 'lmg', '7,62×51 mm', 11, 1200, 1000, { slow: 0.3 }],
+  ['m60', 'M60', 'lmg', '7,62×51 mm', 11.5, 550, 1100, { slow: 0.3 }],
+];
+
+const GUNS = GUN_TABLE.map(([id, name, cls, caliber, dmg, rpm, meters, extra = {}]) => {
+  const auto = rpm >= 300;
+  const rate = Math.round((auto ? 0.12 + 100 / rpm : 40 / rpm) * 100) / 100;
+  const range = Math.min(260, Math.round(60 + meters / 5));
+  const dps = dmg / rate;
+  const splashMul = extra.splash ? 1.6 : 1;
+  const value = dps * splashMul * Math.sqrt(range / 100) * (extra.slow ? 1.15 : 1);
+  const cost = Math.round(value ** 1.35 * 2.2 / 10) * 10;
+  // požadovaná úroveň dílny podle síly
+  const forge = value < 16 ? 0 : value < 40 ? 1 : value < 55 ? 2 : 3;
+  return { id: 'g_' + id, gun: id, auto, slot: 'weapon', cls, caliber, rpm, meters, kingdom: 'apocalypse',
+    f: [name, '🔫'], a: [name, '🔫'], img: 'img/guns/' + id + '.webp',
+    dmg, rate, range, cost, forge, ...extra };
+});
+ITEMS.push(...GUNS);
