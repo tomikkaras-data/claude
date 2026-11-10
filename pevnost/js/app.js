@@ -278,12 +278,12 @@ const UI = {
       const f = IsoMap.decorFilter;
       html += `<div class="filters iso-filters">${[['all', 'Vše'], ...ISO_DECOR_GROUPS].map(([k, n]) => `<button data-df="${k}" class="${f === k ? 'on' : ''}">${n}</button>`).join('')}</div><div class="decor-grid">`;
       for (const [id, d] of Object.entries(ISO_DECOR)) {
-        if (f !== 'all' && d.group !== f) continue;
+        if (d.landmark || (f !== 'all' && d.group !== f)) continue;
         html += `<button class="dcard" data-dc="${id}" ${s.gold < d.cost ? 'disabled' : ''} title="${d.name}"><span>${d.icon}</span><small>${d.name}</small><em>${d.cost} 💰</em></button>`;
       }
       html += '</div>';
     } else {
-      html += `<div class="paint-row">${Object.entries(ISO_BRUSHES).map(([k, b]) => `<button class="brush ${IsoMap.brush === k ? 'on' : ''}" data-br="${k}"><span style="background:${b.color}"></span><small>${b.name}</small></button>`).join('')}</div>
+      html += `<div class="paint-row">${Object.entries(ISO_BRUSHES).filter(([, b]) => !b.hidden).map(([k, b]) => `<button class="brush ${IsoMap.brush === k ? 'on' : ''}" data-br="${k}"><span style="background:${b.color}"></span><small>${b.name}</small></button>`).join('')}</div>
         <div class="paint-row">${[1, 2, 3].map(n => `<button class="size ${IsoMap.brushSize === n ? 'on' : ''}" data-bs="${n}">${n}×${n}</button>`).join('')}
           <button class="size ${IsoMap.paintMode ? 'on' : ''}" id="pm-toggle">${IsoMap.paintMode ? '🖌️ Maluju' : '✋ Posouvám mapu'}</button>
           <button class="size danger" id="pm-clear">Smazat malování</button></div>

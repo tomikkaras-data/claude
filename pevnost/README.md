@@ -13,9 +13,13 @@ Otevři `index.html` v prohlížeči nebo spusť `python3 -m http.server` ve slo
 - **Vlny**: nepřátelé jdou po cestě. Každá 5. vlna má bosse. Za výhru jsou XP a zlaťáky. Za prohru se ztratí 15 % zlata a trochu XP, ale nikdy pod začátek aktuální úrovně. Boj jde zrychlit na 2×.
 
 ## Izometrická základna (Pustina) 🏗️
-Základna je ostrov uprostřed kalné řeky (mapa 32×32), inspirovaný protáhlým říčním ostrovem s vilou. Přes střed ostrova vede poškozený silniční most.
-**Zombie přicházejí z obou konců mostu**, uprostřed sejdou na ostrov a jdou po prašné cestě k velitelství na severní špičce. Zátaras na mostě blokuje obě strany.
-Ostrov je po jaderné válce: popel, vyprahlá zem, suchá tráva, písečné a kamenité břehy, spálené stromy, krátery, kosti, vraky aut, vyhořelá vila s propadlou červenou střechou a trosky domů.
+Základna je **Slovanský ostrov v Praze po jaderné válce** (mapa 64×64 políček, ostrov je asi 3× větší než dřív, 1 políčko ≈ 7 m). Sever je nahoře.
+- **Tvar ostrova** odpovídá skutečnosti: protáhlý od severu k jihu, uprostřed nejširší, na jihu úzký ocas. Vpravo je úzké rameno Vltavy a nábřeží s městem.
+- **Žofín:** vyhořelá ruina žlutého paláce se zbytky měděné střechy stojí v horní polovině ostrova. Je to pevná památka, nejde přesunout.
+- **Loděnice:** dřevěná mola s loďkami na západním břehu.
+- **Dva vstupy jako ve skutečnosti:** úzký můstek k Žofínu na severu a plošina Mánesa se Šítkovskou věží na jihu. Zombie přicházejí z města oběma vstupy a jdou po parkových cestičkách k velitelství uprostřed ostrova. Barikáda jde postavit na můstek i na cestičku.
+- **Město na nábřeží:** vybydlené činžáky a domy, ulice, rezavé tramvajové koleje a vraky tramvají. Ve městě se nestaví.
+- **Ostrov:** spálený park (popel, vyprahlá zem, suchá tráva), mrtvé stromy, krátery, trosky, vraky, písek na bývalém hřišti.
 
 Stavění funguje jako ve vesnici v Cave Man RPG:
 - **Záložky Stavby / Dekorace / Malování** pod mapou.
