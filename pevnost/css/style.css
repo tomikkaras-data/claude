@@ -152,17 +152,39 @@ canvas#map { border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.4); touch-a
 #toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: #000c; color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 90%; text-align: center; }
 #toast.show { opacity: 1; }
 
-/* zbrojnice */
-.gun-img { width: 56px; height: 28px; object-fit: contain; display: block; }
-.gun-img.big { width: 100%; height: 52px; object-fit: cover; }
-.gun-img.huge { width: 220px; height: 110px; margin: 6px auto 12px; border-radius: 12px; object-fit: cover; }
-.slot-img { width: 100%; height: 26px; object-fit: contain; display: block; }
-.item-card { display: grid; grid-template-columns: 96px 1fr auto; gap: 6px 10px; background: var(--panel); border-radius: 16px; padding: 10px; margin-bottom: 8px; align-items: center; }
-.item-pic { background: #2f3328; border-radius: 10px; height: 52px; display: grid; place-items: center; font-size: 34px; overflow: hidden; }
-.item-info b { font-size: 15px; }
-.item-act { text-align: right; }
-.item-info .small { font-size: 11px; }
-.sbar { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); margin-top: 3px; }
-.sbar i { height: 6px; background: var(--bg); border-radius: 6px; overflow: hidden; }
-.sbar b { display: block; height: 100%; background: var(--gold); border-radius: 6px; }
+/* zbrojnice – vojenský styl podle obrázků zbraní */
+.gun-img { width: 64px; height: 28px; object-fit: cover; display: block; border-radius: 4px; }
+.gun-img.huge { width: 100%; max-width: 320px; height: auto; margin: 6px auto 12px; border: 3px solid #0d0f0b; outline: 1px solid #4a4f40; }
+.slot-img { width: 100%; height: 30px; object-fit: cover; display: block; border-radius: 4px; }
+#tab-armory {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(120,130,95,.18), transparent 60%),
+    radial-gradient(ellipse at 80% 70%, rgba(0,0,0,.35), transparent 60%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,.015) 0 2px, transparent 2px 5px),
+    #23261d;
+  font-family: "Trebuchet MS", system-ui, sans-serif;
+}
+#tab-armory .filters button { background: #2e3226; border: 1px solid #50563f; color: #d8dcc6; border-radius: 6px; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; }
+#tab-armory .filters button.on { background: #6b7344; border-color: #a3ad6c; color: #fff; }
+#tab-armory .small, #tab-armory .group-title { color: #aab08f; }
+.gun-card { background: linear-gradient(180deg, #343828, #2a2d21); border: 3px solid #0d0f0b; outline: 1px solid #4d5340; outline-offset: -5px;
+  border-radius: 6px; margin-bottom: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,.5); color: #e7e9da; }
+.gun-frame { position: relative; background: #1a1c15; border-bottom: 2px solid #0d0f0b; }
+.gun-frame img { display: block; width: 100%; height: auto; aspect-ratio: 290 / 125; object-fit: contain; }
+.gun-frame .tag { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.7); color: #ffd34d; }
+.gun-cls { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); border: 1px solid #50563f; border-radius: 4px; padding: 2px 6px; font-size: 11px; color: #d8dcc6; }
+.gun-body { padding: 8px 12px 4px; }
+.gun-meta { font-size: 12px; color: #aab08f; margin-bottom: 4px; }
+.gun-act { padding: 4px 12px 12px; }
+.gun-act .btn { width: 100%; }
+.gun-act > .small { display: block; text-align: center; padding: 8px; background: #1a1c15; border-radius: 6px; }
+.gun-card.plain { display: grid; grid-template-columns: 64px 1fr; align-items: center; }
+.gun-card.plain .plain-pic { font-size: 36px; text-align: center; }
+.gun-card.plain .gun-act { grid-column: 1 / -1; }
+.sbar { display: grid; grid-template-columns: 76px 1fr 64px; align-items: center; gap: 8px; font-size: 11px; color: #aab08f; margin-top: 4px; text-transform: uppercase; letter-spacing: .03em; }
+.sbar i { height: 7px; background: #15170f; border: 1px solid #3c4130; border-radius: 2px; overflow: hidden; }
+.sbar b { display: block; height: 100%; background: linear-gradient(90deg, #8e9a4f, #d6c25a); }
+.sbar em { font-style: normal; text-align: right; color: #e7e9da; text-transform: none; }
 .tabbar button { font-size: 10px; }
+.gun-act .btn.gold { background: linear-gradient(180deg, #e6c65e, #b8912c); color: #1f1a08; box-shadow: 0 4px 0 #7a5d16; border-radius: 6px; text-transform: uppercase; letter-spacing: .05em; }
+.gun-act .btn.gold:disabled { opacity: .4; }

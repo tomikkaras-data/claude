@@ -391,12 +391,18 @@ const UI = {
   },
 
   itemCard(it, K, action, owned = 0, max) {
-    const bar = (label, v, m) => `<div class="sbar"><span>${label}</span><i><b style="width:${Math.min(100, v / m * 100)}%"></b></i></div>`;
-    const bars = it.gun && max ? bar('Poškození', it.dmg, Math.max(max.dmg, 30)) + bar('Kadence', it.dmg / it.rate, max.dps) + bar('Dostřel', it.range, max.range) : '';
-    return `<div class="item-card"><div class="item-pic">${itemIcon(it, K, 'gun-img big')}</div>
-      <div class="item-info"><b>${esc(skin(it, K)[0])}</b>${owned ? `<span class="tag">🎒 ×${owned}</span>` : ''}
-        <div class="small">${this.describeItem(it)}</div>${bars}</div>
-      <div class="item-act">${action}</div></div>`;
+    const bar = (label, v, m, txt) => `<div class="sbar"><span>${label}</span><i><b style="width:${Math.min(100, v / m * 100)}%"></b></i><em>${txt}</em></div>`;
+    const ownedTag = owned ? `<span class="tag">🎒 ×${owned}</span>` : '';
+    if (it.gun) {
+      const bars = max ? bar('Poškození', it.dmg, Math.max(max.dmg, 30), it.dmg) + bar('Kadence', it.dmg / it.rate, max.dps, it.rpm + '/min') + bar('Dostřel', it.range, max.range, it.meters + ' m') : '';
+      return `<div class="gun-card"><div class="gun-frame"><img src="${it.img}" alt="${esc(skin(it, K)[0])}" loading="lazy">${ownedTag}
+          <span class="gun-cls">${GUN_CLASSES[it.cls].icon} ${GUN_CLASSES[it.cls].name}</span></div>
+        <div class="gun-body"><div class="gun-meta">${it.caliber}${it.splash ? ' · 💥 plošně' : ''}${it.slow ? ' · 🐌 zpomaluje' : ''}</div>${bars}</div>
+        <div class="gun-act">${action}</div></div>`;
+    }
+    return `<div class="gun-card plain"><div class="plain-pic">${skin(it, K)[1]}</div>
+      <div class="gun-body"><b>${esc(skin(it, K)[0])}</b> ${ownedTag}<div class="gun-meta">${this.describeItem(it)}</div></div>
+      <div class="gun-act">${action}</div></div>`;
   },
 
   giveMenu(itemId) {
