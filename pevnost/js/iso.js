@@ -814,6 +814,12 @@ const IsoMap = {
     return this.groundCanvas;
   },
 
+  face(id) {
+    const k = 'face:' + id;
+    if (!(k in this.imgs)) { const im = new Image(); this.imgs[k] = null; im.onload = () => { this.imgs[k] = im; }; im.src = portraitSrc(id); }
+    return this.imgs[k];
+  },
+
   img(id) {
     if (!(id in this.imgs)) {
       const im = new Image(); this.imgs[id] = null;
@@ -1553,8 +1559,15 @@ const IsoMap = {
     c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.ellipse(x, y, 8, 3, 0, 0, 7); c.fill();
     c.fillStyle = '#6b5a35'; c.strokeStyle = '#ffd34d'; c.lineWidth = 1.5;
     c.beginPath(); c.arc(x, y - 10, 9, 0, 7); c.fill(); c.stroke();
-    c.font = '12px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(skin(h.def, 'apocalypse')[1], x, y - 9.5);
+    const pic = heroPic(h.def, 'apocalypse'), im = pic && this.face(pic);
+    if (im) {  // obličej z portrétu v kolečku
+      c.save(); c.beginPath(); c.arc(x, y - 10, 8.3, 0, 7); c.clip();
+      c.drawImage(im, im.width * 0.14, im.height * 0.08, im.width * 0.72, im.width * 0.72, x - 8.3, y - 18.3, 16.6, 16.6);
+      c.restore();
+    } else {
+      c.font = '12px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(skin(h.def, 'apocalypse')[1], x, y - 9.5);
+    }
     Battle.bar(c, x, y - 24, h.hp / h.max, '#4ade80', 16);
   },
 };

@@ -16,7 +16,7 @@ function newKingdomState() {
 
 function newState(name = 'Hrdina', age = 10) {
   return {
-    v: 1, name, age,
+    v: 1, name, age, avatar: null,
     xp: 0, gold: 50,
     streak: 0, bestStreak: 0, lastDay: null,
     today: { date: todayStr(), count: 0, ids: [] },

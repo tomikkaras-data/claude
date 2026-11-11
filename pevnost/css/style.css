@@ -232,3 +232,16 @@ body.k-apocalypse #zoomBox { display: flex; }
 .hint-line { margin: 6px 4px 0; }
 
 #zoomBox, #placeBox, .map-wrap { user-select: none; -webkit-user-select: none; }
+
+/* portréty */
+#screen-avatar { padding: 12px; overflow-y: auto; }
+.avatar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; padding-bottom: 30px; }
+.avatar { background: #1a1c15; border: 3px solid #0d0f0b; outline: 1px solid #4d5340; outline-offset: -5px; border-radius: 8px; padding: 0; overflow: hidden; cursor: pointer; color: #e7e9da; font-family: inherit; }
+.avatar img { width: 100%; aspect-ratio: 200 / 330; object-fit: cover; display: block; }
+.avatar span { display: block; padding: 5px 2px; font-size: 12px; font-weight: 700; }
+.avatar.on, .avatar:active { border-color: var(--gold); }
+img.face { width: 100%; height: 100%; object-fit: cover; object-position: 50% 18%; display: block; border-radius: inherit; }
+.portrait { overflow: hidden; }
+.portrait img.face { border-radius: 10px; }
+.list-item .li img.face { width: 38px; height: 38px; border-radius: 8px; }
+img.face.big { width: 44px; height: 44px; border-radius: 10px; display: inline-block; vertical-align: middle; border: 2px solid var(--gold); }

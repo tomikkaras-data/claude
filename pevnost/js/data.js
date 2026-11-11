@@ -136,11 +136,11 @@ const BASE_BUILDINGS = {
 // Hrdinové k najmutí (á la žoldnéři). Stejní hrdinové, jiný vzhled podle království.
 const HEROES = [
   { id: 'player', f: ['Ty', '🧑'], a: ['Ty', '🧑'], cls: 'Hlavní hrdina', hp: 100, dmg: 8, range: 90, rate: 0.9, cost: 0, lvl: 1, bio: 'To jsi ty! Čím víc úkolů splníš, tím lepší výbavu si koupíš.', main: true },
-  { id: 'knight', f: ['Sir Bořek', '🛡️'], a: ['Šerif Bob', '🤠'], cls: 'Tank', hp: 140, dmg: 8, range: 30, rate: 0.8, cost: 100, lvl: 1, bio: 'Spolehlivý obránce. Drží nepřátele na místě.' },
-  { id: 'archer', f: ['Elfka Lia', '🧝‍♀️'], a: ['Ostrostřelkyně Max', '🎯'], cls: 'Střelec', hp: 70, dmg: 12, range: 130, rate: 0.9, cost: 150, lvl: 2, bio: 'Trefí cokoliv na velkou dálku.' },
-  { id: 'mage', f: ['Mrazivá Ela', '❄️'], a: ['Doktor Volt', '🧪'], cls: 'Kouzelník', hp: 60, dmg: 10, range: 100, rate: 1.2, splash: 35, cost: 220, lvl: 4, bio: 'Plošné útoky a zpomalení.', slow: 0.6 },
-  { id: 'brute', f: ['Trpaslík Grom', '🪓'], a: ['Mechanik Rusty', '🔩'], cls: 'Bojovník', hp: 180, dmg: 16, range: 30, rate: 1.1, cost: 280, lvl: 6, bio: 'Silné rány zblízka.' },
-  { id: 'healer', f: ['Víla Rosa', '🧚'], a: ['Zdravotnice Kim', '💉'], cls: 'Léčitel', hp: 70, dmg: 4, range: 90, rate: 1.0, heal: 6, cost: 250, lvl: 5, bio: 'Léčí ostatní hrdiny a pevnost.' },
+  { id: 'knight', pic: 'bob', f: ['Sir Bořek', '🛡️'], a: ['Šerif Bob', '🤠'], cls: 'Tank', hp: 140, dmg: 8, range: 30, rate: 0.8, cost: 100, lvl: 1, bio: 'Spolehlivý obránce. Drží nepřátele na místě.' },
+  { id: 'archer', pic: 'max', f: ['Elfka Lia', '🧝‍♀️'], a: ['Ostrostřelkyně Max', '🎯'], cls: 'Střelec', hp: 70, dmg: 12, range: 130, rate: 0.9, cost: 150, lvl: 2, bio: 'Trefí cokoliv na velkou dálku.' },
+  { id: 'mage', pic: 'volt', f: ['Mrazivá Ela', '❄️'], a: ['Doktor Volt', '🧪'], cls: 'Kouzelník', hp: 60, dmg: 10, range: 100, rate: 1.2, splash: 35, cost: 220, lvl: 4, bio: 'Plošné útoky a zpomalení.', slow: 0.6 },
+  { id: 'brute', pic: 'rusty', f: ['Trpaslík Grom', '🪓'], a: ['Mechanik Rusty', '🔩'], cls: 'Bojovník', hp: 180, dmg: 16, range: 30, rate: 1.1, cost: 280, lvl: 6, bio: 'Silné rány zblízka.' },
+  { id: 'healer', pic: 'kim', f: ['Víla Rosa', '🧚'], a: ['Zdravotnice Kim', '💉'], cls: 'Léčitel', hp: 70, dmg: 4, range: 90, rate: 1.0, heal: 6, cost: 250, lvl: 5, bio: 'Léčí ostatní hrdiny a pevnost.' },
   { id: 'beast', f: ['Sněžný obr Hugo', '☃️'], a: ['Pes Rex', '🐕'], cls: 'Zvíře', hp: 120, dmg: 11, range: 30, rate: 0.5, cost: 200, lvl: 3, bio: 'Rychlé útoky, věrný parťák.' },
 ];
 
@@ -240,3 +240,14 @@ const GUNS = GUN_TABLE.map(([id, name, cls, caliber, dmg, rpm, meters, extra = {
     dmg, rate, range, cost, forge, ...extra };
 });
 ITEMS.push(...GUNS);
+
+// ---------- Portréty ----------
+// Obrázky v img/portraits/<id>.webp. Z těchto si hráč vybírá svou postavu;
+// hrdinové v Pustině mají vlastní portréty (pole `pic` u hrdiny).
+const PORTRAITS = [
+  ['velitel', 'Velitel'], ['spojarka', 'Spojařka'], ['veteran', 'Veterán'], ['blondyna', 'Průzkumnice'],
+  ['silak', 'Silák'], ['zrzka', 'Zrzka'], ['stopar', 'Stopař'], ['poustni', 'Pouštní poutnice'],
+  ['pilot', 'Pilot'], ['nocni', 'Noční hlídka'], ['bryle', 'Drsňák'], ['dredy', 'Šaman'],
+  ['lovec', 'Lovec'], ['namornik', 'Námořník'], ['vojak', 'Voják'], ['horal', 'Horal'], ['poustevnik', 'Poustevník'],
+];
+const portraitSrc = id => 'img/portraits/' + id + '.webp';

@@ -3,6 +3,9 @@
 
 const $ = s => document.querySelector(s);
 const itemIcon = (it, K, cls = 'gun-img') => it.img ? `<img class="${cls}" src="${it.img}" alt="">` : skin(it, K)[1];
+// obrázek hrdiny: hráč má vybraný portrét, hrdinové v Pustině své; jinak emoji
+const heroPic = (h, K) => h.main ? Store.state.avatar : (K === 'apocalypse' ? h.pic : null);
+const heroIcon = (h, K) => { const pic = heroPic(h, K); return pic ? `<img class="face" src="${portraitSrc(pic)}" alt="">` : skin(h, K)[1]; };
 const heroName = (h, K) => h.main ? Store.state.name : skin(h, K)[0];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -56,7 +59,17 @@ const UI = {
 
   afterLogin() {
     Game.rollDay();
-    if (!Store.state.kingdom) this.show('screen-kingdom'); else this.enterMain();
+    if (!Store.state.avatar) this.pickAvatar(() => this.afterLogin());
+    else if (!Store.state.kingdom) this.show('screen-kingdom'); else this.enterMain();
+  },
+
+  // Výběr vlastní postavy (na začátku hry, později z profilu)
+  pickAvatar(then) {
+    const cur = Store.state.avatar;
+    $('#avatar-grid').innerHTML = PORTRAITS.map(([id, n]) =>
+      `<button class="avatar ${cur === id ? 'on' : ''}" data-av="${id}"><img src="${portraitSrc(id)}" alt="${n}" loading="lazy"><span>${n}</span></button>`).join('');
+    document.querySelectorAll('[data-av]').forEach(b => b.onclick = () => { Store.state.avatar = b.dataset.av; Store.changed(); then(); });
+    this.show('screen-avatar');
   },
 
   enterMain() {
@@ -336,7 +349,7 @@ const UI = {
     const s = Store.state, K = s.kingdom, kd = Game.kd(), lvl = Game.level(), cap = Game.heroCap();
     let html = `<p class="small">V boji může být ${kd.deployed.length}/${cap} hrdinů (víc míst dá ${skin(BASE_BUILDINGS.tavern, K)[0]}).</p>`;
     for (const h of HEROES) {
-      const own = s.heroes[h.id], ic = skin(h, K)[1], n = heroName(h, K), st = Game.heroStats(h.id), dep = kd.deployed.includes(h.id);
+      const own = s.heroes[h.id], ic = heroIcon(h, K), n = heroName(h, K), st = Game.heroStats(h.id), dep = kd.deployed.includes(h.id);
       html += `<div class="hero ${own ? '' : 'locked'}"><div class="hero-top"><div class="portrait">${ic}</div><div style="flex:1">
         <b>${n}</b><span class="tag">${h.cls}</span>${dep ? '<span class="tag">⚔️ v boji</span>' : ''}
         <div class="small">${h.bio}</div>
@@ -437,7 +450,7 @@ const UI = {
       for (const [hid, own] of Object.entries(s.heroes)) {
         const h = HEROES.find(x => x.id === hid);
         const gear = Object.values(own.equip).map(id => ITEMS.find(i => i.id === id)).filter(Boolean);
-        html += `<div class="list-item"><div class="li">${skin(h, K)[1]}</div><div class="lt"><b>${esc(heroName(h, K))}</b><div class="small">${gear.map(g => skin(g, K)[0]).join(', ') || 'bez výbavy'}</div></div></div>`;
+        html += `<div class="list-item"><div class="li">${heroIcon(h, K)}</div><div class="lt"><b>${esc(heroName(h, K))}</b><div class="small">${gear.map(g => skin(g, K)[0]).join(', ') || 'bez výbavy'}</div></div></div>`;
       }
     } else {
       const order = { weapon: 0, armor: 1, trinket: 2 };
@@ -481,7 +494,7 @@ const UI = {
     let html = `<h3>Komu dát ${esc(skin(it, K)[0])}?</h3><div class="center">${itemIcon(it, K, 'gun-img huge')}</div>`;
     for (const hid of Object.keys(s.heroes)) {
       const h = HEROES.find(x => x.id === hid), cur = ITEMS.find(i => i.id === s.heroes[hid].equip[it.slot]);
-      html += `<div class="list-item"><div class="li">${skin(h, K)[1]}</div><div class="lt"><b>${esc(heroName(h, K))}</b>
+      html += `<div class="list-item"><div class="li">${heroIcon(h, K)}</div><div class="lt"><b>${esc(heroName(h, K))}</b>
         <div class="small">teď: ${cur ? skin(cur, K)[0] : 'nic'}</div></div><button class="btn small" data-to="${hid}">Nasadit</button></div>`;
     }
     html += '<button class="btn ghost big" id="gv-x">Nechat v batohu</button>';
@@ -509,7 +522,7 @@ const UI = {
     const s = Store.state, other = s.kingdom === 'fantasy' ? 'apocalypse' : 'fantasy';
     const u = Store.user;
     $('#tab-profile').innerHTML = `
-      <div class="card"><h3>👤 ${esc(s.name)}</h3>
+      <div class="card"><h3>${s.avatar ? `<img class="face big" src="${portraitSrc(s.avatar)}" alt="">` : '👤'} ${esc(s.name)}</h3>
         <div class="small">${u ? 'Přihlášen přes Google: ' + esc(u.email || '') + ' – postup se ukládá automaticky ☁️' : 'Host – postup ukládej ručně!'}</div>
         <div class="small">Věková skupina: ${s.age >= 10 ? '10+' : '6–9'} let</div></div>
       <div class="card"><h3>📊 Statistiky</h3><div class="statgrid">
@@ -524,12 +537,14 @@ const UI = {
         <button class="btn" id="pf-export">Stáhnout zálohu (soubor)</button>
         <label class="btn ghost" style="display:inline-block">Načíst ze souboru<input type="file" id="pf-import" accept=".json" hidden></label></div>
       <div class="card"><h3>⚙️ Nastavení</h3>
+        <button class="btn ghost" id="pf-avatar">Změnit postavu</button>
         <button class="btn ghost" id="pf-age">Změnit věk na ${s.age >= 10 ? '6–9' : '10+'}</button>
         <button class="btn danger" id="pf-logout">${u ? 'Odhlásit' : 'Ukončit hru'}</button></div>`;
     $('#pf-switch').onclick = () => { s.kingdom = other; Store.changed(); this.enterMain(); this.tab('base'); };
     if (!u) $('#pf-save').onclick = () => { Store.save(); this.updateSaveBadge(); this.toast('💾 Uloženo'); };
     $('#pf-export').onclick = () => { Store.exportFile(); if (!u) { Store.dirty = false; this.updateSaveBadge(); } };
     $('#pf-import').onchange = e => this.loadFile(e, () => this.enterMain());
+    $('#pf-avatar').onclick = () => this.pickAvatar(() => { this.enterMain(); this.tab('profile'); });
     $('#pf-age').onclick = () => { s.age = s.age >= 10 ? 6 : 10; Store.changed(); this.renderProfile(); };
     $('#pf-logout').onclick = async () => {
       if (!u && Store.dirty && !confirm('Máš neuložený postup. Opravdu odejít?')) return;
