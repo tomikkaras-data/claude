@@ -15,9 +15,12 @@ Otevři `index.html` v prohlížeči nebo spusť `python3 -m http.server` ve slo
 ## Izometrická základna (Pustina) 🏗️
 Základna je **Slovanský ostrov v Praze po jaderné válce** (mapa 64×64 políček, ostrov je asi 3× větší než dřív, 1 políčko ≈ 7 m). Sever je nahoře.
 - **Tvar ostrova** odpovídá skutečnosti: protáhlý od severu k jihu, uprostřed nejširší, na jihu úzký ocas. Vpravo je úzké rameno Vltavy a nábřeží s městem.
-- **Žofín:** vyhořelá ruina žlutého paláce se zbytky měděné střechy stojí v horní polovině ostrova. Je to pevná památka, nejde přesunout.
+- **Malované památky** (obrázky v `img/buildings/`, pevné, nejdou přesunout):
+  - `zofin.webp` – palác Žofín v horní polovině ostrova (půdorys 6×6),
+  - `manes.webp` – Mánes se Šítkovskou věží v rameni řeky u jižního vstupu (4×6),
+  - `divadlo.webp` – Národní divadlo na nábřeží u severního cípu ostrova (3×9).
 - **Loděnice:** dřevěná mola s loďkami na západním břehu.
-- **Dva vstupy jako ve skutečnosti:** úzký můstek k Žofínu na severu a plošina Mánesa se Šítkovskou věží na jihu. Zombie přicházejí z města oběma vstupy a jdou po parkových cestičkách k velitelství uprostřed ostrova. Barikáda jde postavit na můstek i na cestičku.
+- **Dva vstupy:** můstek k Žofínu na severu a lávka těsně pod Mánesem na jihu. Zombie přicházejí z města oběma vstupy a jdou po parkových cestičkách k velitelství uprostřed ostrova.
 - **Město na nábřeží:** vybydlené činžáky a domy, ulice, rezavé tramvajové koleje a vraky tramvají. Ve městě se nestaví.
 - **Ostrov:** spálený park (popel, vyprahlá zem, suchá tráva), mrtvé stromy, krátery, trosky, vraky, písek na bývalém hřišti.
 

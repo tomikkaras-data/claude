@@ -23,7 +23,7 @@ const bankU = v => 7.5 + 3.5 * (v + 28) / 56 + 0.3 * Math.sin(v * 0.5); // náb�
 
 // Dva vstupy na ostrov jako ve skutečnosti: můstek k Žofínu na severu a Mánes na jihu.
 const ROUTE_N = [[20, -17], [9, -17], [2, -17], [2.5, -14], [2.5, -5], [3, 2], [1, 5], [-1, 5]];
-const ROUTE_S = [[26, 14], [11, 14], [3, 14], [1.5, 9], [-1, 5]];
+const ROUTE_S = [[26, 18.5], [11.5, 18.5], [4, 18.5], [2.2, 14], [1.5, 9], [-1, 5]]; // lávka těsně pod Mánesem
 const ISO_PATHS = [ROUTE_N.map(p => MT(...p)), ROUTE_S.map(p => MT(...p))];
 const ISO_HQ = { gx: MT(-1, 1.5)[0] - 1, gy: MT(-1, 1.5)[1] - 1 };
 const ISO_HOMES = { tavern: MT(-4, 4), forge: MT(3.5, 7), mine: MT(-1, 10) };
@@ -31,7 +31,7 @@ const ISO_HOMES = { tavern: MT(-4, 4), forge: MT(3.5, 7), mine: MT(-1, 10) };
 const ISO_WALKS = [
   [[2, -17], [-1, -18], [-4, -21], [-4.5, -24], [-2, -26], [0, -23], [1, -19], [2, -17]],
   [[2.5, -5], [4.5, -2], [3, 2]], [[-1, 5], [-4, 3], [-5, -3], [-6, -6]],
-  [[1.5, 9], [-2, 8], [-3.5, 5]], [[3, 14], [3, 19], [3.5, 24], [3, 27]],
+  [[1.5, 9], [-2, 8], [-3.5, 5]], [[4, 18.5], [3.5, 24], [3, 27]],
 ];
 
 // Budovy: rozměr (w×d políček), výška a styl kreslení.
@@ -72,8 +72,9 @@ const ISO_DECOR = {
   ruinvilla:  { name: 'Vyhořelá vila', group: 'ruins', cost: 40, h: 30, icon: '🏛️', w: 3, d: 2 },
   ruinhouse:  { name: 'Rozbořený dům', group: 'ruins', cost: 20, h: 18, icon: '🏚️', w: 2, d: 2 },
   ruinblock:  { name: 'Vybydlený činžák', group: 'ruins', cost: 60, h: 44, icon: '🏢', w: 3, d: 3 },
-  zofin:      { name: 'Ruina paláce Žofín', group: 'ruins', h: 44, w: 6, d: 5, landmark: true },
-  manes:      { name: 'Trosky Mánesa', group: 'ruins', h: 16, w: 2, d: 2, landmark: true },
+  zofin:      { name: 'Palác Žofín', group: 'ruins', h: 44, w: 6, d: 6, landmark: true },
+  manes:      { name: 'Mánes a Šítkovská věž', group: 'ruins', h: 60, w: 4, d: 6, landmark: true },
+  divadlo:    { name: 'Národní divadlo', group: 'ruins', h: 70, w: 3, d: 9, landmark: true },
   sitkov:     { name: 'Šítkovská věž', group: 'ruins', h: 80, landmark: true },
   dock:       { name: 'Loděnice', group: 'junk', h: 6, w: 2, d: 1, landmark: true },
   tram:       { name: 'Vrak tramvaje', group: 'junk', h: 14, w: 3, d: 1, landmark: true },
@@ -213,12 +214,24 @@ const IsoMap = {
   // ---------- stav ----------
   ensure(kd) {
     if (!this.layout) this.init();
-    if (kd.iso && kd.iso.v === 4) return kd.iso;
+    if (kd.iso && kd.iso.v === 5) return kd.iso;
+    if (kd.iso && kd.iso.v === 4) {
+      // nové památky (malované obrázky): vyměníme jen pevné objekty, hráčovy stavby zůstanou
+      const mine = kd.iso.decor.filter(d => !d.fixed);
+      kd.iso.decor = []; kd.iso.v = 5; this.ver = (this.ver || 0) + 1;
+      this.landmarks(kd);
+      const occ = new Set();   // jen políčka nových památek
+      for (const o of kd.iso.decor) { const [w, d] = this.size('decor', o.id, o.flip); for (let y = 0; y < d; y++) for (let x = 0; x < w; x++) occ.add((o.gx + x) + ',' + (o.gy + y)); }
+      const hit = (kind, o) => { const [w, d] = this.size(kind, o.id, o.flip); for (let y = 0; y < d; y++) for (let x = 0; x < w; x++) { const k = (o.gx + x) + ',' + (o.gy + y); if (occ.has(k) || this.road.has(k) !== !!this.def(kind, o.id).road) return true; } return false; };
+      kd.iso.decor.push(...mine.filter(o => !hit('decor', o)));
+      kd.iso.placed = kd.iso.placed.filter(o => { if (o.id === 'hall' || !hit('build', o)) return true; const b = BUILDINGS[o.id] || ISO_EXTRA[o.id]; if (b) Store.state.gold += b.cost; else kd.base[o.id] = 0; return false; });
+      return kd.iso;
+    }
     // nová mapa (Slovanský ostrov): stavby vrátíme jako zlato, hlavní budovy postavíme znovu zdarma
     const old = kd.iso;
     if (old) for (const p of old.placed || []) { const b = BUILDINGS[p.id] || ISO_EXTRA[p.id]; if (b) Store.state.gold += b.cost; }
     kd.slots.forEach((id, i) => { if (id) { Store.state.gold += BUILDINGS[id].cost; kd.slots[i] = null; } });
-    kd.iso = { v: 4, placed: [{ id: 'hall', gx: ISO_HQ.gx, gy: ISO_HQ.gy }], decor: [], paint: {} };
+    kd.iso = { v: 5, placed: [{ id: 'hall', gx: ISO_HQ.gx, gy: ISO_HQ.gy }], decor: [], paint: {} };
     this.landmarks(kd);
     for (const id of ['tavern', 'forge', 'mine']) {
       if (kd.base[id] > 0) {
@@ -233,13 +246,14 @@ const IsoMap = {
   // Pevné památky (nejdou přesunout): ruina Žofína, loděnice, trosky Mánesa s věží, rozbořené město na nábřeží.
   landmarks(kd) {
     const d = kd.iso.decor, r = rng(555), fix = (id, [gx, gy], extra) => d.push({ id, gx, gy, fixed: true, ...extra });
-    const z = MT(-2.5, -10); fix('zofin', [z[0] - 3, z[1] - 2]);
+    const z = MT(-2.5, -10); fix('zofin', [z[0] - 3, z[1] - 3]);
+    const m = MT(7.4, 13.6); fix('manes', [m[0] - 2, m[1] - 3]);              // Mánes s věží stojí v rameni řeky
+    const nd = MT(bankU(-24.5) + 6.9, -24.5); fix('divadlo', [nd[0] - 1, nd[1] - 4]); // Národní divadlo na nábřeží u severního cípu
     for (const [u, v, flip] of [[-8.6, -22, false], [-8.4, -19.5, true], [-8.6, -11, false], [-8.2, -8.5, true], [-7, -2, false]]) fix('dock', MT(u, v), { flip });
-    for (const [u, v] of [[6, 11.6], [8.6, 11.6], [6, 16.4], [8.6, 16.4]]) { const t = MT(u, v); if (!this.road.has(t.join(','))) fix('manes', t, { lift: 7 }); }
-    fix('sitkov', MT(4.2, 17.5));
     fix('tram', MT(bankU(-3) + 1.6, -3)); fix('tram', MT(bankU(22) + 1.6, 22), { flip: true });
     // město: bloky domů v ruinách
     const occ = new Set();
+    for (let y = -1; y <= 9; y++) for (let x = -1; x <= 3; x++) occ.add((nd[0] - 1 + x) + ',' + (nd[1] - 4 + y));
     for (let v = -40; v <= 44; v += 3.2) for (let u = 12; u <= 44; u += 3.4) {
       if (u < bankU(v) + 3.6) continue;
       const id = r() < 0.5 ? 'ruinblock' : r() < 0.6 ? 'ruinvilla' : 'ruinhouse', df = ISO_DECOR[id], [gx, gy] = MT(u + r(), v + r());
@@ -328,7 +342,7 @@ const IsoMap = {
   // Co dávají stavby z harampádí (místa pro hrdiny, rychlost věží, dostřel, zlato, životy)
   bonus(kd) {
     const b = { heroSlots: 0, baseHp: 0, rate: 0, heroRange: 0, gold: 0 };
-    if (!kd.iso || kd.iso.v !== 4) return b;
+    if (!kd.iso || kd.iso.v !== 5) return b;
     for (const p of kd.iso.placed) { const fx = (ISO_EXTRA[p.id] || {}).fx; if (fx) for (const k in fx) b[k] += fx[k]; }
     return b;
   },
@@ -733,7 +747,7 @@ const IsoMap = {
       });
     }
     // 5) textura podle povrchu
-    for (let i = 0; i < 90000; i++) {
+    for (let i = 0; i < 150000; i++) {
       const fx = r() * G, fy = r() * G, gx = Math.floor(fx), gy = Math.floor(fy);
       if (!land(gx, gy)) continue;
       const [x, y] = this.P(fx, fy), t = this.tileAt(gx, gy), q = r();
@@ -770,7 +784,7 @@ const IsoMap = {
       }
       if ((t === 'X' || t === 'K') && r() < 0.4) { c.fillStyle = 'rgba(20,18,16,.4)'; c.beginPath(); c.ellipse(X + (r() - 0.5) * 20, Y + (r() - 0.5) * 8, 8, 3.5, 0, 0, 7); c.fill(); }
     }
-    // 7) dva vstupy přes rameno řeky: úzký můstek k Žofínu a široká plošina Mánesa
+    // 7) dva vstupy přes rameno řeky: můstek k Žofínu a lávka u Mánesa
     const LIFT = 7;
     const deck = (a, b, width, col) => {
       const steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2.5);
@@ -808,7 +822,7 @@ const IsoMap = {
       }
     };
     deck(ISO_PATHS[0][1], ISO_PATHS[0][2], 0.9, '#6f6a60');
-    deck(ISO_PATHS[1][1], ISO_PATHS[1][2], 2.6, '#b9b5aa');
+    deck(ISO_PATHS[1][1], ISO_PATHS[1][2], 0.9, '#6f6a60');
 
     this.groundCanvas = { cv, ox, oy, W, H };
     return this.groundCanvas;
@@ -824,6 +838,7 @@ const IsoMap = {
     if (!(id in this.imgs)) {
       const im = new Image(); this.imgs[id] = null;
       im.onload = () => { this.imgs[id] = im; if (this.B && !this.B.running) this.B.draw(); };
+      im.onerror = () => { if (!im.src.endsWith('.webp')) im.src = 'img/buildings/' + id + '.webp'; };
       im.src = 'img/buildings/' + id + '.png';
     }
     return this.imgs[id];
@@ -846,7 +861,7 @@ const IsoMap = {
     for (const it of this.objects(kd)) {
       if (pl && pl.obj === it.o) continue;
       const [qx, qy] = this.P(it.o.gx, it.o.gy), sx = qx * cam.z + cam.ox, sy = qy * cam.z + cam.oy, mz = cam.z;
-      if (sx < -260 * mz || sx > this.cw + 260 * mz || sy < -120 * mz || sy > this.ch + 140 * mz) continue; // mimo obrazovku
+      if (sx < -340 * mz || sx > this.cw + 340 * mz || sy < -330 * mz || sy > this.ch + 280 * mz) continue; // mimo obrazovku
       const [w, d] = this.size(it.kind, it.o.id, it.o.flip);
       const destroyed = it.o.id === 'barrier' && B.mode === 'fight' && (B.barriers.find(b => b.slot === it.index) || {}).hp <= 0;
       if (!destroyed) objs.push({ z: it.o.gx + it.o.gy + w + d - 1, f: () => this.object(c, it.kind, it.o, kd) });
@@ -909,8 +924,13 @@ const IsoMap = {
     if (im) {
       const C = this.P(gx + w, gy + d), B = this.P(gx + w, gy), D = this.P(gx, gy + d);
       const iw = B[0] - D[0], ih = im.height * iw / im.width;
+      c.fillStyle = 'rgba(0,0,0,.32)'; c.beginPath(); c.moveTo(D[0] + 6, D[1] + 4); c.lineTo(C[0] + 10, C[1] + 6); c.lineTo(B[0] + 26, B[1] + 6); c.lineTo(B[0] + 40, B[1] - 14); c.lineTo(B[0], B[1]); c.lineTo(C[0], C[1]); c.closePath(); c.fill();
       c.drawImage(im, D[0], C[1] - ih, iw, ih);
-    } else this['draw_' + (kind === 'decor' ? o.id : df.style)](c, gx, gy, dims, o);
+    } else {
+      const fn = this['draw_' + (kind === 'decor' ? o.id : df.style)];
+      if (fn) fn.call(this, c, gx, gy, dims, o);
+      else this.footprint(c, gx, gy, w, d, 'rgba(60,56,50,.6)'); // obrázek se ještě načítá
+    }
     c.restore();
     // úroveň budovy
     const lv = kind === 'build' ? kd.base[o.id] : undefined;
@@ -952,16 +972,24 @@ const IsoMap = {
 
   // ---------- dekorace (zástupná grafika) ----------
   draw_deadtree(c, gx, gy, df) {
-    const [x, y] = this.center(gx, gy, df);
-    this.shadowBlob(c, x + 6, y, 12, 4);
-    c.strokeStyle = '#4a3a2a'; c.lineCap = 'round';
-    const branch = (x1, y1, a, len, w) => {
-      if (len < 3) return;
+    // spálený strom: stínovaný kmen se světlou hranou, křivé větve, zbytky suchého listí
+    const [x, y] = this.center(gx, gy, df), r = rng(gx * 53 + gy * 97 + 3), k = 0.85 + r() * 0.5;
+    c.fillStyle = 'rgba(0,0,0,.3)'; c.beginPath(); c.ellipse(x + 14 * k, y + 2, 20 * k, 6 * k, 0, 0, 7); c.fill();
+    c.lineCap = 'round';
+    const tips = [];
+    const branch = (x1, y1, a, len, w, dep) => {
       const x2 = x1 + Math.sin(a) * len, y2 = y1 - Math.cos(a) * len;
-      c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
-      branch(x2, y2, a - 0.5, len * 0.62, w * 0.65); branch(x2, y2, a + 0.45, len * 0.58, w * 0.65);
+      c.strokeStyle = '#2e2319'; c.lineWidth = w; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+      c.strokeStyle = '#5d4a36'; c.lineWidth = w * 0.55; c.beginPath(); c.moveTo(x1 - w * 0.15, y1); c.lineTo(x2 - w * 0.15, y2); c.stroke();
+      if (w > 2.2) { c.strokeStyle = 'rgba(190,165,120,.35)'; c.lineWidth = w * 0.18; c.beginPath(); c.moveTo(x1 - w * 0.3, y1); c.lineTo(x2 - w * 0.3, y2); c.stroke(); }
+      if (dep > 0) { branch(x2, y2, a - 0.35 - r() * 0.4, len * (0.6 + r() * 0.15), w * 0.62, dep - 1); branch(x2, y2, a + 0.3 + r() * 0.4, len * (0.55 + r() * 0.15), w * 0.6, dep - 1); }
+      else tips.push([x2, y2]);
     };
-    branch(x, y, 0.05, 14, 3);
+    branch(x, y, (r() - 0.5) * 0.2, 15 * k, 4.2 * k, 3);
+    if (r() < 0.45) for (const [tx, ty] of tips) {   // pár stromů si drží suché listí
+      c.fillStyle = r() < 0.5 ? 'rgba(120,105,50,.75)' : 'rgba(95,90,45,.7)';
+      c.beginPath(); c.ellipse(tx, ty - 1, 4.5 * k, 3.2 * k, 0, 0, 7); c.fill();
+    }
   },
   draw_bush(c, gx, gy, df) {
     const [x, y] = this.center(gx, gy, df);
