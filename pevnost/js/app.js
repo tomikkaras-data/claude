@@ -292,7 +292,7 @@ const UI = {
       html += `<div class="filters iso-filters">${[['all', 'Vše'], ...ISO_DECOR_GROUPS].map(([k, n]) => `<button data-df="${k}" class="${f === k ? 'on' : ''}">${n}</button>`).join('')}</div><div class="decor-grid">`;
       for (const [id, d] of Object.entries(ISO_DECOR)) {
         if (d.landmark || (f !== 'all' && d.group !== f)) continue;
-        html += `<button class="dcard" data-dc="${id}" ${s.gold < d.cost ? 'disabled' : ''} title="${d.name}"><span>${d.icon}</span><small>${d.name}</small><em>${d.cost} 💰</em></button>`;
+        html += `<button class="dcard" data-dc="${id}" ${s.gold < d.cost ? 'disabled' : ''} title="${d.name}"><span>${d.sp ? `<img src="img/sprites/${d.sp}.webp" alt="">` : d.icon}</span><small>${d.name}</small><em>${d.cost} 💰</em></button>`;
       }
       html += '</div>';
     } else {

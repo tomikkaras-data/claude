@@ -21,8 +21,11 @@ Základna je **Slovanský ostrov v Praze po jaderné válce** (mapa 64×64 polí
   - `divadlo.webp` – Národní divadlo na nábřeží u severního cípu ostrova (3×9).
 - **Loděnice:** dřevěná mola s loďkami na západním břehu.
 - **Dva vstupy:** můstek k Žofínu na severu a lávka těsně pod Mánesem na jihu. Zombie přicházejí z města oběma vstupy a jdou po parkových cestičkách k velitelství uprostřed ostrova.
-- **Město na nábřeží:** vybydlené činžáky a domy, ulice, rezavé tramvajové koleje a vraky tramvají. Ve městě se nestaví.
-- **Ostrov:** spálený park (popel, vyprahlá zem, suchá tráva), mrtvé stromy, krátery, trosky, vraky, písek na bývalém hřišti.
+- **Malované prvky** (`img/sprites/`, 71 obrázků vyříznutých z dodaného listu): stromy (zelené, podzimní, mrtvé, pařez, kmen), auta (funkční, rozbitá, vraky, autobus), loděnice a lodě, zničené hřiště, městský mobiliář (lavičky, lampy, koše, květináče, vývěska, plakátovací sloup, suť).
+- **Ostrov:** spálený park s mrtvými stromy, pár stromů přežilo; lavičky, lampy a koše podél cestiček; zničené hřiště na jihu; loděnice s loďkami na západním břehu.
+- **Nábřeží:** vraky aut a autobusů na ulici s kolejemi, stromořadí, lampy, patníky s řetězy, suť po domech. Ve městě se nestaví.
+- **Podklad** se počítá pixel po pixelu: šum, plynulé přechody mezi povrchy, hloubka vody a pěna u břehu, mokrý okraj ostrova, dlažba ve městě a kolem Žofína.
+- Kreslené stromy, trosky domů, vraky a tramvaje z dřívějška jsou pryč. Kreslené zůstávají jen hráčovy herní stavby (velitelství, věže, stany…) a ploty.
 
 Stavění funguje jako ve vesnici v Cave Man RPG:
 - **Záložky Stavby / Dekorace / Malování** pod mapou.
