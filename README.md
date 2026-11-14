@@ -117,7 +117,7 @@ Several human players share one keyboard (hot-seat).
 * Pick weapons from the scrollable bar at the bottom.
 * Drag one finger to look around and pinch to zoom.
 * For Air Strike and Teleport, tap the spot on the map.
-* The weapon button at the bottom of a phone screen opens a picker with every weapon, grouped into Weapons, Tools and Special. The ⏱ button sets the grenade timer and ↻ rotates the Concrete Block. Special weapons from crates appear in the weapon bar once found.
+* The weapon button at the right edge (above JUMP and FIRE) shows your current weapon and opens a picker with every weapon, grouped into Weapons, Tools and Special. The ⏱ button sets the grenade timer and ↻ rotates the Concrete Block. Special weapons from crates appear in the weapon bar once found.
 * The game switches to fullscreen when a match starts, where the browser allows it. Landscape works best; in portrait a small hint suggests rotating.
 * **❚❚** (top left) pauses the game. The pause menu has a fullscreen toggle.
 

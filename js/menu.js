@@ -350,7 +350,9 @@ const App = {
     }
     const cur = WEAPON[c.weapon];
     const toggle = $('weaponToggle');
-    toggle.innerHTML = `<span class="icon">${cur.icon}</span> ${cur.name} <span class="caret">▴</span>`;
+    toggle.innerHTML = `<span class="icon">${cur.icon}</span><span class="caret">▴</span>`;
+    toggle.title = `Weapon: ${cur.name}`;
+    toggle.setAttribute('aria-label', `Choose a weapon (now: ${cur.name})`);
     toggle.classList.toggle('inactive', !humanCanPick);
     // timer / rotate button for the active human
     const opt = $('optBtn');

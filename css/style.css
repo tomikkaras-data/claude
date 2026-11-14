@@ -459,36 +459,40 @@ kbd {
   .wgroup-label { writing-mode: horizontal-tb; transform: none; font-size: 0.7rem; }
   .wgroup-items { gap: 6px; }
   .weapon { width: 76px; height: 54px; font-size: 0.66rem; }
+  /* compact icon button at the right edge, just above the FIRE / JUMP pad */
   .weapon-toggle {
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    gap: 2px;
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    max-width: calc(100% - 340px);
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 10px 14px;
+    right: calc(12px + env(safe-area-inset-right));
+    bottom: calc(162px + env(safe-area-inset-bottom));
+    width: 58px;
+    height: 46px;
+    padding: 0;
     border: 2px solid var(--accent);
     border-radius: 12px;
     background: rgba(15, 18, 28, 0.85);
     color: #fff;
     font: inherit;
     font-weight: 700;
-    font-size: 0.85rem;
     -webkit-tap-highlight-color: transparent;
   }
-  .weapon-toggle .icon { font-size: 1.1rem; }
+  .weapon-toggle .icon { font-size: 1.35rem; line-height: 1; }
+  .weapon-toggle .caret { font-size: 0.7rem; color: var(--accent); }
   .weapon-toggle.inactive { opacity: 0.5; }
+  body.touch .opt-btn { bottom: calc(216px + env(safe-area-inset-bottom)); }
   .skip-btn { bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
-@media (max-width: 700px) and (orientation: portrait) {
-  .weapon-toggle { bottom: calc(150px + env(safe-area-inset-bottom)); max-width: calc(100% - 32px); }
+/* smaller on-screen pads on phones: sit the weapon button right on top of them */
+@media (max-height: 500px), (max-width: 700px) {
+  .weapon-toggle { bottom: calc(142px + env(safe-area-inset-bottom)); }
 }
+@media (max-height: 500px) {
+  body.touch .opt-btn { bottom: auto; top: calc(70px + env(safe-area-inset-top)); }
+}
+
 
 body.touch .weapon .key { display: none; }
 
