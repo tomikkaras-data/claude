@@ -101,7 +101,8 @@ const WEAPONS = [
   { id: 'anvil',     name: 'Anvil Drop',   icon: '🔨', group: 'crate', kind: 'target', radius: 24, damage: 55, ammo: 1, crate: 2 },
   { id: 'plasma',    name: 'Monster Cannon', icon: '🟢', key: 'X', group: 'crate', kind: 'plasma', speed: 3.2, life: 900, radius: 25, damage: 7, ammo: 1, crate: 1,
     note: 'radius = size of the plasma ball · damage every 1/5 s while it passes through someone',
-    bombletDamage: 85, bombletRadius: 120, subLabel: 'Detonation', subNote: 'press FIRE again while it flies' },
+    bombletDamage: 85, bombletRadius: 120, subLabel: 'Detonation', subNote: 'press FIRE again while it flies',
+    miniBalls: 5, miniDamage: 25, miniRadius: 30, miniClusters: 3, clusterDamage: 15, clusterRadius: 20 },
   { id: 'concrete',  name: 'Concrete Block', icon: '🧱', group: 'crate', kind: 'target', tool: true, ammo: 1, crate: 3 },
 ];
 

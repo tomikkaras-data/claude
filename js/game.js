@@ -497,7 +497,7 @@ class Game {
       const { dx, dy } = c.aimVector();
       this.projectiles.push({
         weapon: 'plasma', plasma: true, x: c.x + dx * 18, y: c.y + dy * 18, vx: dx * w.speed, vy: dy * w.speed,
-        r: w.radius, damage: w.damage * mult, bigDamage: w.bombletDamage * mult, bigR: w.bombletRadius, life: w.life,
+        r: w.radius, damage: w.damage * mult, bigDamage: w.bombletDamage * mult, bigR: w.bombletRadius, life: w.life, mult, phase: 'fly',
         owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
       });
       Sound.play('plasma');
@@ -1083,6 +1083,15 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.mini) {
+        const r = this.stepMiniPlasma(p);
+        if (r) {
+          this.projectiles.splice(i, 1);
+          if (r === 'impact') this.miniPlasmaBlast(p);
+          else if (r === 'water') this.splash(p.x);
+        }
+        continue;
+      }
       if (p.plasma) {
         const r = this.stepPlasma(p);
         if (r) {
@@ -1165,6 +1174,29 @@ class Game {
   // and zaps whatever it touches five times a second
   stepPlasma(p) {
     p.age++;
+    if (p.phase === 'grow') { // stopped dead, swelling to five times its size
+      p.t++;
+      p.r = p.r0 * (1 + 4 * Math.min(1, p.t / 45));
+      if (p.t % 6 === 0) Sound.play('zap');
+      if (p.t >= 45) {
+        p.phase = 'flash';
+        p.t = 0;
+        this.effects.push({ type: 'flash', whiteout: true, life: 75, max: 75 });
+        Sound.play('plasma');
+      }
+      return null;
+    }
+    if (p.phase === 'flash') { // blinding light; the blast comes once it has faded
+      return ++p.t >= 75 ? 'detonate' : null;
+    }
+    if (p.detonate) {
+      p.phase = 'grow';
+      p.t = 0;
+      p.r0 = p.r;
+      p.vx = 0;
+      p.vy = 0;
+      return null;
+    }
     p.x += p.vx;
     p.y += p.vy;
     if (p.age % 12 === 0) this.plasmaPulse(p);
@@ -1176,10 +1208,9 @@ class Game {
     if (p.owner && p.owner.isCPU && p.age > 30) {
       for (const e of this.chars) if (e.alive && e.team !== p.ownerTeam && dist(e.x, e.y, p.x, p.y) < p.r + 40) p.detonate = true;
     }
-    if (p.detonate) return 'detonate';
     if (p.y > WATER_Y + 10) return 'water';
     if (p.x < -120 || p.x > WORLD_W + 120 || p.y < -600 || p.y > WORLD_H + 60) return 'lost';
-    if (p.age > p.life) return 'detonate';
+    if (p.age > p.life) p.detonate = true;
     return null;
   }
 
@@ -1199,8 +1230,18 @@ class Game {
   }
 
   plasmaDetonate(p) {
-    this.effects.push({ type: 'flash', whiteout: true, life: 90, max: 90 });
+    const w = WEAPON.plasma;
     this.explode(p.x, p.y, p.bigR, p.bigDamage, p.ownerTeam, 1.5);
+    // five small plasma balls shoot off in random directions
+    for (let i = 0; i < w.miniBalls; i++) {
+      const a = (i / w.miniBalls) * Math.PI * 2 + rand(-0.5, 0.5);
+      this.projectiles.push({
+        weapon: 'miniplasma', mini: true, x: p.x, y: p.y, vx: Math.cos(a) * 4, vy: Math.sin(a) * 4, r: 8,
+        radius: w.miniRadius, damage: w.miniDamage * p.mult, clusters: w.miniClusters,
+        clusterDamage: w.clusterDamage * p.mult, clusterRadius: w.clusterRadius,
+        ownerId: -1, ownerTeam: p.ownerTeam, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+    }
     // toxic plasma and fire everywhere the blast reached
     for (let i = 0; i < 46; i++) {
       const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * p.bigR;
@@ -1209,6 +1250,37 @@ class Game {
         life: randInt(220, 340), airborne: true, ownerTeam: p.ownerTeam, dmg: toxic ? 2 : 1, toxic, seed: Math.random() * 10 });
     }
     Sound.play('explosion', 2.5);
+  }
+
+  // Small plasma ball from a Monster Cannon detonation: flies straight until it hits rock, a character, a crate or a mine
+  stepMiniPlasma(p) {
+    p.age++;
+    for (let s = 0; s < 2; s++) {
+      p.x += p.vx / 2;
+      p.y += p.vy / 2;
+      if (p.age > 6 && this.terrain.isSolid(p.x, p.y)) return 'impact';
+      if (p.age > 8 && this.chars.some(c => c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + p.r)) return 'impact';
+      if (this.crates.some(k => !k.dead && dist(k.x, k.y, p.x, p.y) < 9 + p.r)) return 'impact';
+      if (this.mines.some(m => !m.dead && dist(m.x, m.y, p.x, p.y) < 5 + p.r)) return 'impact';
+    }
+    if (p.age % 2 === 0) {
+      this.particles.push({ x: p.x, y: p.y, vx: rand(-0.4, 0.4), vy: rand(-0.4, 0.4), life: 18, max: 18, color: '#7dff5a', size: 2.5, grav: 0 });
+    }
+    if (p.y > WATER_Y) return 'water';
+    if (p.x < -100 || p.x > WORLD_W + 100 || p.y < -500 || p.age > 400) return 'lost';
+    return null;
+  }
+
+  miniPlasmaBlast(p) {
+    this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam);
+    this.burst(p.x, p.y, '#7dff5a', 14);
+    // each one splits into green cluster bomblets
+    for (let k = 0; k < p.clusters; k++) {
+      this.projectiles.push({
+        weapon: 'greenlet', x: p.x, y: p.y - 4, vx: rand(-2.8, 2.8), vy: rand(-5.5, -2.5), wind: false, bounce: false,
+        fuse: null, radius: p.clusterRadius, damage: p.clusterDamage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
+      });
+    }
   }
 
   // First solid ground at or below (x, y); the water line if there is none
@@ -2170,13 +2242,13 @@ class Game {
     });
 
     // Contextual hint for the active human player
-    const myDrone = this.isHumanTurn() && this.projectiles.find(p => (p.drone && p.ctrl > 0 || p.plasma) && p.owner === c);
+    const myDrone = this.isHumanTurn() && this.projectiles.find(p => (p.drone && p.ctrl > 0 || p.plasma && p.phase === 'fly' && !p.detonate) && p.owner === c);
     if (this.isHumanTurn() && (!this.hasFired || myDrone)) {
       const w = WEAPON[c.weapon];
       let hint = '';
       const press = this.isTouch ? 'FIRE' : 'Space';
       const lr = this.isTouch ? '◀ ▶' : '←/→';
-      const myBall = this.projectiles.find(p => p.plasma && p.owner === c);
+      const myBall = this.projectiles.find(p => p.plasma && p.owner === c && p.phase === 'fly' && !p.detonate);
       if (myBall) hint = `Press ${press} to detonate the plasma ball`;
       else if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
       else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
@@ -2517,6 +2589,21 @@ class Game {
         ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(0, -8); ctx.quadraticCurveTo(4, -12, 2, -15); ctx.stroke();
         if (this.tick % 6 < 3) { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(2, -15, 2.5, 0, Math.PI * 2); ctx.fill(); }
+        break;
+      case 'miniplasma': {
+        const g2 = ctx.createRadialGradient(0, 0, 1, 0, 0, p.r * 1.8);
+        g2.addColorStop(0, 'rgba(220,255,190,1)');
+        g2.addColorStop(0.5, 'rgba(70,230,70,0.8)');
+        g2.addColorStop(1, 'rgba(30,160,40,0)');
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.arc(0, 0, p.r * 1.8, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'greenlet':
+        ctx.fillStyle = '#4ae04a';
+        ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(200,255,170,0.9)';
+        ctx.beginPath(); ctx.arc(-1, -1, 1.6, 0, Math.PI * 2); ctx.fill();
         break;
       case 'plasma': {
         const pulse = 1 + Math.sin(this.tick * 0.35) * 0.1;
