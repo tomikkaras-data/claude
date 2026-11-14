@@ -504,7 +504,8 @@ class Game {
       this.projectiles.push({
         weapon: 'drone', drone: true, x: c.x + dx * 16, y: c.y + dy * 16, vx: dx * w.speed, vy: dy * w.speed,
         heading: Math.atan2(dy, dx), ctrl: w.ctrlTicks, speed: w.speed, radius: w.radius, damage: w.damage * mult, blastKnock: w.blastKnock,
-        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+        cluster: w.cluster || 0, bombletDamage: (w.bombletDamage || 0) * mult, bombletRadius: w.bombletRadius,
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, fuse: null,
       });
       Sound.play('drone');
     } else if (w.kind === 'melee') {
