@@ -209,6 +209,16 @@ class AIController {
       }
     }
 
+    // Tornado: send it at an enemy standing on the same stretch of ground
+    if (has('tornado')) {
+      for (const e of enemies) {
+        const dx = e.x - c.x, dy = e.y - c.y;
+        if (Math.abs(dx) > 380 || Math.abs(dx) < 40 || Math.abs(dy) > 90) continue;
+        const s = like('tornado', killBonus(WEAPON.tornado.damage + 15, e) + 20);
+        if (s > best.score) best = { score: s, weapon: 'tornado', angle: c.aim, facing: dx >= 0 ? 1 : -1, power: 1 };
+      }
+    }
+
     // Up close: flamethrower or baseball bat
     for (const e of enemies) {
       const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);

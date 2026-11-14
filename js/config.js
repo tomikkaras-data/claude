@@ -76,6 +76,8 @@ const WEAPONS = [
   { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', group: 'weapon', kind: 'mine', radius: 40, damage: 45, ammo: 3 },
   { id: 'drone',     name: 'Drone',        icon: '🛸', key: 'N', group: 'weapon', kind: 'drone', speed: 3.2, ctrlTicks: 180, radius: 45, damage: 55, blastKnock: 1.3, ammo: 2,
     note: 'steer it for 3 s, then it drops' },
+  { id: 'tornado',   name: 'Tornado',      icon: '🌪️', key: 'Q', group: 'weapon', kind: 'tornado', radius: 60, damage: 10, life: 480, speed: 1.1, ammo: 1,
+    note: 'radius = full size it grows to · damage when it throws someone out' },
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'weapon', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
 
   // --- tools: moving around (they don't use up the attack) ------------------

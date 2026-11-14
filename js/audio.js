@@ -76,6 +76,7 @@ const Sound = {
         case 'whoosh': this._noise(0.2, 700, 0.2); break;
         case 'flame': this._noise(0.12, 900, 0.16); break;
         case 'drone': this._tone('sawtooth', 180, 220, 0.25, 0.03); break;
+        case 'wind': this._noise(0.6, 500, 0.12); break;
         case 'win': this._tone('triangle', 400, 1200, 0.9, 0.18); break;
       }
     } catch (e) { /* ignore audio errors */ }

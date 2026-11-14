@@ -490,6 +490,14 @@ class Game {
       }
     } else if (w.kind === 'burst') {
       this.gunBurst = { w, left: w.bullets, t: 0, mult };
+    } else if (w.kind === 'tornado') {
+      const sy = this.groundBelow(c.x + c.facing * 26, c.y - 30);
+      this.projectiles.push({
+        weapon: 'tornado', tornado: true, x: c.x + c.facing * 26, y: sy, dir: c.facing, r: 12, maxR: w.radius,
+        speed: w.speed, life: w.life, damage: w.damage * mult, owner: c, ownerId: c.id, ownerTeam: c.team,
+        caught: [], recent: new Map(), age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('wind');
     } else if (w.kind === 'drone') {
       const { dx, dy } = c.aimVector();
       this.projectiles.push({
@@ -946,6 +954,7 @@ class Game {
 
   updateChar(c) {
     if (!c.alive && !c.grave) return;
+    if (c.inTornado) { c.shownHp += (Math.max(0, c.hp) - c.shownHp) * 0.15; return; }
     const t = this.terrain;
     if (c === this.active && c.alive && this.rope && this.rope.state === 'attached') {
       this.updateRopeChar(c);
@@ -1002,6 +1011,7 @@ class Game {
   }
 
   updateMine(m) {
+    if (m.inTornado) return;
     const t = this.terrain;
     if (!m.airborne && !t.isSolid(m.x, m.y + 5)) m.airborne = true;
     if (m.airborne) {
@@ -1052,6 +1062,10 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.tornado) {
+        if (this.stepTornado(p)) { this.endTornado(p); this.projectiles.splice(i, 1); }
+        continue;
+      }
       let r = p.walker ? this.stepWalker(p) : p.drilling ? this.stepDriller(p) : p.drone ? this.stepDrone(p) : stepProjectile(p, env);
       // flying straight into a crate or a mine counts as a hit
       if (!r && !p.bounce && !p.walker && (this.crates.some(k => !k.dead && dist(k.x, k.y, p.x, p.y) < 11) ||
@@ -1067,7 +1081,7 @@ class Game {
         Sound.play('dig');
         r = null;
       }
-      if (p.age % 2 === 0 && !p.bounce && !p.walker && p.weapon !== 'anvil') {
+      if (p.age % 2 === 0 && !p.bounce && !p.walker && p.weapon !== 'anvil' && !p.drone) {
         this.particles.push({ x: p.x, y: p.y, vx: rand(-0.3, 0.3), vy: rand(-0.3, 0.3), life: 30, max: 30, color: 'rgba(230,230,230,0.6)', size: 3, grav: -0.01 });
       }
       if (!r) continue;
@@ -1115,6 +1129,77 @@ class Game {
     if (p.x < -60 || p.x > WORLD_W + 60 || p.y < -400) return 'lost';
     if (p.drillLeft <= 0) return 'fuse';
     return null;
+  }
+
+  // First solid ground at or below (x, y); the water line if there is none
+  groundBelow(x, y) {
+    for (let yy = Math.max(0, Math.floor(y)); yy < WATER_Y; yy += 2) if (this.terrain.isSolid(x, yy)) return yy;
+    return WATER_Y;
+  }
+
+  // Tornado: travels along the ground, grows, sucks up characters and mines, spins them to the top and flings them
+  stepTornado(p) {
+    p.age++;
+    p.r = 12 + (p.maxR - 12) * Math.min(1, p.age / 180);
+    const H = p.r * 4;
+    // move along the ground; turn back at walls it can't climb
+    p.x += p.dir * p.speed + this.wind * 0.35;
+    const gy = this.groundBelow(p.x, p.y - 50);
+    if (gy < p.y - 45) { p.dir = -p.dir; p.x += p.dir * p.speed * 2; } else p.y = gy;
+    if (p.age % 50 === 0) Sound.play('wind');
+    if (p.age % 2 === 0) {
+      this.particles.push({ x: p.x + rand(-p.r * 0.4, p.r * 0.4), y: p.y - 2, vx: rand(-2, 2), vy: rand(-3, -1), life: 30, max: 30, color: this.theme.burn, size: rand(2, 3.5), grav: 0.05 });
+    }
+
+    // pull in whatever is close to the funnel
+    const inside = o => Math.abs(o.x - p.x) < p.r * 0.6 + CHAR_R && p.y - o.y > -15 && p.y - o.y < H;
+    for (const c of this.chars) {
+      if (!c.alive || c.inTornado || (p.recent.get(c) || 0) > p.age) continue;
+      if (c === p.owner && p.age < 60) continue;
+      if (c.team === p.ownerTeam && !this.friendlyFire) continue;
+      if (!inside(c)) continue;
+      if (c === this.active) { this.releaseRope(); this.jet = null; }
+      c.inTornado = true; c.chute = false;
+      p.caught.push({ o: c, ang: rand(0, Math.PI * 2), h: Math.max(0, p.y - c.y - CHAR_R) });
+    }
+    for (const m of this.mines) {
+      if (m.dead || m.inTornado || (p.recent.get(m) || 0) > p.age || !inside(m)) continue;
+      m.inTornado = true;
+      p.caught.push({ o: m, ang: rand(0, Math.PI * 2), h: Math.max(0, p.y - m.y) });
+    }
+
+    // spin everything caught up the funnel and throw it out at the top
+    for (const e of p.caught.slice()) {
+      const o = e.o;
+      if (o.dead || o.alive === false) { o.inTornado = false; p.caught.splice(p.caught.indexOf(e), 1); continue; }
+      e.h += 2.4;
+      e.ang += 0.28;
+      const rr = p.r * (0.3 + 0.6 * Math.min(1, e.h / H));
+      o.x = p.x + Math.cos(e.ang) * rr;
+      o.y = p.y - e.h - (o.alive !== undefined ? CHAR_R : 4);
+      o.vx = 0; o.vy = 0; o.airborne = true;
+      if (e.h >= H) this.flingFromTornado(p, e, true);
+    }
+    if (p.x < -60 || p.x > WORLD_W + 60) return true;
+    return p.age >= p.life;
+  }
+
+  flingFromTornado(p, e, hard) {
+    const o = e.o;
+    o.inTornado = false;
+    p.caught.splice(p.caught.indexOf(e), 1);
+    p.recent.set(o, p.age + 120); // can't be sucked straight back in
+    o.airborne = true;
+    if (!hard) { o.vx = rand(-1, 1); o.vy = 0; return; }
+    if (o.alive !== undefined && o.alive) this.damageChar(o, Math.max(1, Math.round(p.damage)), 0, 0, -1);
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    o.vx = dir * rand(6, 10);
+    o.vy = -rand(3, 7);
+    Sound.play('whoosh');
+  }
+
+  endTornado(p) {
+    for (const e of p.caught.slice()) this.flingFromTornado(p, e, false);
   }
 
   // Drone: flies forward under remote control for a few seconds, then drops; blows up on contact
@@ -1994,6 +2079,7 @@ class Game {
       const press = this.isTouch ? 'FIRE' : 'Space';
       const lr = this.isTouch ? '◀ ▶' : '←/→';
       if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
+      else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
       else if (w.kind === 'drone') hint = `${press} launches the drone along your aim · then steer it with ${lr} for ${(w.ctrlTicks / TICK_RATE).toFixed(0)} s`;
       else if (this.lockedWeapon) hint = `Move if you like, then press ${press} for the second shot`;
       else if (w.id === 'concrete') hint = `${this.isTouch ? 'Tap' : 'Click'} the map to place a block · ${this.isTouch ? '↻ button' : 'R'} rotates · doesn't use your attack`;
@@ -2331,6 +2417,35 @@ class Game {
         ctx.beginPath(); ctx.moveTo(0, -8); ctx.quadraticCurveTo(4, -12, 2, -15); ctx.stroke();
         if (this.tick % 6 < 3) { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(2, -15, 2.5, 0, Math.PI * 2); ctx.fill(); }
         break;
+      case 'tornado': {
+        const H = p.r * 4;
+        const fade = Math.max(0, Math.min(1, (p.life - p.age) / 60, p.age / 20));
+        for (let k = 0; k < 16; k++) {
+          const f = k / 15;
+          const rr = p.r * (0.22 + 0.78 * f);
+          const off = Math.sin(this.tick * 0.15 + f * 6) * rr * 0.18 * f;
+          ctx.globalAlpha = (0.25 + 0.35 * f) * fade;
+          ctx.strokeStyle = k % 2 ? '#d5d8de' : '#8f949e';
+          ctx.lineWidth = 2 + f * 3;
+          ctx.beginPath();
+          ctx.ellipse(off, -f * H, rr, rr * 0.22, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        // swirling streaks
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1.5;
+        for (let k = 0; k < 5; k++) {
+          const f = ((this.tick * 0.02 + k / 5) % 1);
+          const rr = p.r * (0.22 + 0.78 * f);
+          const a = this.tick * 0.3 + k * 1.3;
+          ctx.globalAlpha = 0.6 * fade;
+          ctx.beginPath();
+          ctx.ellipse(0, -f * H, rr, rr * 0.22, 0, a, a + 1.4);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        break;
+      }
       case 'drone': {
         ctx.rotate(p.heading);
         ctx.fillStyle = '#2f3640';
