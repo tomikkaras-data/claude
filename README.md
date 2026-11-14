@@ -68,7 +68,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 ## Crates
 
 * Wooden and steel crates lie around the map at the start. Supply drops parachute in more crates every few turns.
-* Walk into a crate to open it. A crate that gets hit by an explosion, a bullet, a flame or a projectile bursts with a small blast and sprays 10–20 pieces of shrapnel in every direction, like shotgun pellets. Bullets stop at crates.
+* Walk into a crate to open it. A crate that gets hit by an explosion, a bullet, a flame or a projectile bursts with a small blast and sprays 10–20 pieces of shrapnel in every direction, like shotgun pellets. Bullets stop at crates. Steel crates also spray burning fuel all around when they burst.
 * **Wooden crates** hold one of:
   * +35 health
   * ⚡ a power-up (your next attack does +50% damage)
@@ -128,7 +128,7 @@ Several human players share one keyboard (hot-seat).
 | 2 | Grenade | ∞ | Bounces, explodes with a big knockback when its timer runs out (1–5 s, set with `F`) |
 | 3 | Cluster Bomb | 3 | Like the grenade, then bursts into 6 bomblets |
 | V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it keeps boring through in the same direction for up to 3 seconds, then explodes. If it breaks out of the rock into open air first, it explodes right there |
-| Q | Tornado | 1 | Sets off a tornado that travels along the ground the way you face (turning back at steep walls) and grows to a radius of 60. Characters and mines that get close are sucked in, spun up to the top and thrown out in a random direction (10 damage, plus any fall damage). It dies out after 8 seconds |
+| Q | Tornado | 1 | Sets off a tornado that travels along the ground the way you face (turning back at steep walls) and grows to a radius of 60. Characters, mines and crates that get close are sucked in and spun up to the top. Characters are thrown out in a random direction (10 damage) and always take fall damage when they land; crates burst and mines explode at the top. It dies out after 8 seconds |
 | N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact |
 | 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
 | G | Flamethrower | 3 | Sprays fire for 1.5 s and pushes targets back a little; you can keep aiming while it burns. Some flames stick and keep burning |

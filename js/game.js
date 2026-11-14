@@ -180,6 +180,7 @@ class Game {
   }
 
   updateCrate(k) {
+    if (k.inTornado) return;
     const t = this.terrain;
     if (!k.airborne && !t.isSolid(k.x, k.y + 10)) k.airborne = true;
     if (k.airborne) {
@@ -598,11 +599,18 @@ class Game {
     if (k.dead) return;
     k.dead = true;
     this.burst(k.x, k.y, k.type === 'steel' ? '#b9c2cc' : '#c08a4a', 16);
-    this.deathBlasts.push({ crate: true, x: k.x, y: k.y, t: 5 });
+    this.deathBlasts.push({ crate: true, steel: k.type === 'steel', x: k.x, y: k.y, t: 5 });
   }
 
-  crateBlast(x, y) {
+  crateBlast(x, y, steel) {
     this.explode(x, y, CRATE_BLAST.radius, CRATE_BLAST.damage, -1);
+    if (steel) { // steel crates also spray burning fuel all around
+      for (let i = 0; i < CRATE_BLAST.fires; i++) {
+        const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(1.5, 4.5); // mostly upwards and sideways
+        this.fires.push({ x: x + rand(-4, 4), y: y - 4, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: randInt(200, 300),
+          airborne: true, ownerTeam: -1, dmg: CRATE_BLAST.fireDamage, seed: Math.random() * 10 });
+      }
+    }
     const n = randInt(CRATE_BLAST.pellets[0], CRATE_BLAST.pellets[1]);
     for (let i = 0; i < n; i++) {
       const a = rand(0, Math.PI * 2);
@@ -992,7 +1000,9 @@ class Game {
           const ny = c.y + c.vy / steps;
           if (t.collides(c.x, ny)) {
             if (c.vy > 0) {
-              if (c.alive && c.vy > FALL_SAFE_SPEED && !c.chute && !jet) this.fallDamage(c, c.vy);
+              if (c.alive && c.tornadoFlung && !c.chute) this.fallDamage(c, Math.max(c.vy, FALL_SAFE_SPEED + 1.5));
+              else if (c.alive && c.vy > FALL_SAFE_SPEED && !c.chute && !jet) this.fallDamage(c, c.vy);
+              c.tornadoFlung = false;
               c.vy = 0; c.vx = 0; c.airborne = false; c.chute = false;
               break;
             }
@@ -1159,13 +1169,18 @@ class Game {
       if (c.team === p.ownerTeam && !this.friendlyFire) continue;
       if (!inside(c)) continue;
       if (c === this.active) { this.releaseRope(); this.jet = null; }
-      c.inTornado = true; c.chute = false;
+      c.inTornado = true; c.chute = false; c.tornadoFlung = false;
       p.caught.push({ o: c, ang: rand(0, Math.PI * 2), h: Math.max(0, p.y - c.y - CHAR_R) });
     }
     for (const m of this.mines) {
       if (m.dead || m.inTornado || (p.recent.get(m) || 0) > p.age || !inside(m)) continue;
       m.inTornado = true;
-      p.caught.push({ o: m, ang: rand(0, Math.PI * 2), h: Math.max(0, p.y - m.y) });
+      p.caught.push({ o: m, kind: 'mine', ang: rand(0, Math.PI * 2), h: Math.max(0, p.y - m.y) });
+    }
+    for (const k of this.crates) {
+      if (k.dead || k.inTornado || !inside(k)) continue;
+      k.inTornado = true; k.chute = false;
+      p.caught.push({ o: k, kind: 'crate', ang: rand(0, Math.PI * 2), h: Math.max(0, p.y - k.y - 9) });
     }
 
     // spin everything caught up the funnel and throw it out at the top
@@ -1176,7 +1191,7 @@ class Game {
       e.ang += 0.28;
       const rr = p.r * (0.3 + 0.6 * Math.min(1, e.h / H));
       o.x = p.x + Math.cos(e.ang) * rr;
-      o.y = p.y - e.h - (o.alive !== undefined ? CHAR_R : 4);
+      o.y = p.y - e.h - (e.kind === 'crate' ? 9 : e.kind === 'mine' ? 4 : CHAR_R);
       o.vx = 0; o.vy = 0; o.airborne = true;
       if (e.h >= H) this.flingFromTornado(p, e, true);
     }
@@ -1190,8 +1205,12 @@ class Game {
     p.caught.splice(p.caught.indexOf(e), 1);
     p.recent.set(o, p.age + 120); // can't be sucked straight back in
     o.airborne = true;
+    if (e.kind !== 'crate' && e.kind !== 'mine') o.tornadoFlung = true; // takes fall damage when it lands
     if (!hard) { o.vx = rand(-1, 1); o.vy = 0; return; }
-    if (o.alive !== undefined && o.alive) this.damageChar(o, Math.max(1, Math.round(p.damage)), 0, 0, -1);
+    // crates and mines come out of the top in pieces
+    if (e.kind === 'crate') { this.destroyCrate(o); return; }
+    if (e.kind === 'mine') { o.dead = true; this.explode(o.x, o.y, o.radius, o.damage, o.ownerTeam); return; }
+    if (o.alive) this.damageChar(o, Math.max(1, Math.round(p.damage)), 0, 0, -1);
     const dir = Math.random() < 0.5 ? -1 : 1;
     o.vx = dir * rand(6, 10);
     o.vy = -rand(3, 7);
@@ -1360,7 +1379,7 @@ class Game {
     if (this.mines.some(m => m.dead)) this.mines = this.mines.filter(m => !m.dead);
     for (const b of this.deathBlasts.slice()) {
       if (--b.t > 0) continue;
-      if (b.crate) this.crateBlast(b.x, b.y);
+      if (b.crate) this.crateBlast(b.x, b.y, b.steel);
       else this.explode(b.c.x, b.c.y, DEATH_BLAST.radius, DEATH_BLAST.damage, -1);
     }
     if (this.deathBlasts.length) this.deathBlasts = this.deathBlasts.filter(b => b.t > 0);

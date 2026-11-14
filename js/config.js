@@ -23,7 +23,7 @@ const MINE_FUSE = 70;                // ticks between trigger and blast
 const DIG_TICKS = 300;               // how long each digging tool can run per turn
 const FALL_SAFE_SPEED = 6.8;         // landing faster than this hurts
 const FALL_DAMAGE_PER_SPEED = 7;
-const CRATE_BLAST = { radius: 22, damage: 15, pellets: [10, 20], pellet: { range: 320, damage: 8, radius: 4, knock: 1.2 } };
+const CRATE_BLAST = { radius: 22, damage: 15, fires: 12, fireDamage: 2, pellets: [10, 20], pellet: { range: 320, damage: 8, radius: 4, knock: 1.2 } };
 const DEATH_BLAST = { radius: 28, damage: 20, delay: 35 }; // knocked-out characters go off with a small bang
 
 const MAP_SIZES = {
