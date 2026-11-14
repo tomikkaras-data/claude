@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = 'craterClash.settings';
+const SETTINGS_VERSION = 2;
 const $ = id => document.getElementById(id);
 
 const App = {
@@ -18,7 +19,8 @@ const App = {
       theme: 'random',
       mapSize: 'medium',
       mines: 'few',
-      friendlyFire: false,
+      friendlyFire: true,
+      version: SETTINGS_VERSION,
       crates: 'normal',
       weapons: {},
       unlimitedAmmo: false,
@@ -30,7 +32,12 @@ const App = {
     let s = this.defaults();
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      if (saved && Array.isArray(saved.players) && saved.players.length === 8) s = { ...s, ...saved };
+      if (saved && Array.isArray(saved.players) && saved.players.length === 8) {
+        // settings from older versions pick up new defaults
+        if (!(saved.version >= 2)) saved.friendlyFire = true;
+        saved.version = SETTINGS_VERSION;
+        s = { ...s, ...saved };
+      }
     } catch (e) { /* ignore */ }
     return s;
   },
@@ -67,6 +74,7 @@ const App = {
     $('weaponsBtn').onclick = () => this.showWeaponConfig(true);
     $('weaponsDone').onclick = () => this.showWeaponConfig(false);
     $('weaponsReset').onclick = () => { s.weapons = {}; s.unlimitedAmmo = false; this.save(); this.renderWeaponConfig(); };
+    $('weaponToggle').onclick = () => this.toggleWeaponPanel();
     $('optBtn').onclick = () => { if (this.game) this.game.cycleOption(); $('optBtn').blur(); };
     this.updateWeaponsSummary();
     $('skipBtn').onclick = () => {
@@ -288,6 +296,7 @@ const App = {
     $('overlay').hidden = true;
     this.showSkip(false);
     $('optBtn').hidden = true;
+    this.toggleWeaponPanel(false);
     $('gameScreen').hidden = true;
     $('menu').hidden = false;
   },
@@ -301,20 +310,48 @@ const App = {
     Touch.update(g);
     const humanCanPick = !c.isCPU && !g.hasFired && !g.lockedWeapon && (g.state === 'turn' || g.state === 'banner');
     bar.innerHTML = '';
-    for (const w of WEAPONS) {
-      if (w.crate && !(team.ammo[w.id] > 0)) continue; // special weapons appear once found
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'weapon' + (c.weapon === w.id ? ' on' : '');
-      const ammo = team.ammo[w.id];
-      b.disabled = !humanCanPick || !(ammo > 0);
-      b.title = w.key ? `${w.name} (${w.key})` : w.name;
-      b.innerHTML = (w.key ? `<span class="key">${w.key}</span>` : '') +
-        (ammo !== Infinity ? `<span class="ammo">×${ammo}</span>` : '') +
-        `<span class="icon">${w.icon}</span><span>${w.name}</span>`;
-      b.onclick = () => { g.selectWeapon(w.id); b.blur(); };
-      bar.appendChild(b);
+    // header shown only in the pop-up picker on small screens
+    const head = document.createElement('div');
+    head.className = 'wpanel-head';
+    head.innerHTML = '<span>Choose a weapon</span>';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '✕';
+    close.setAttribute('aria-label', 'Close weapon picker');
+    close.onclick = () => this.toggleWeaponPanel(false);
+    head.appendChild(close);
+    bar.appendChild(head);
+
+    const GROUPS = [['weapon', 'Weapons'], ['tool', 'Tools'], ['crate', 'Special']];
+    for (const [gid, label] of GROUPS) {
+      // special weapons only show once the team has some
+      const items = WEAPONS.filter(w => w.group === gid && !(w.crate && !(team.ammo[w.id] > 0)));
+      if (!items.length) continue;
+      const sec = document.createElement('div');
+      sec.className = 'wgroup';
+      sec.innerHTML = `<span class="wgroup-label">${label}</span>`;
+      const row = document.createElement('div');
+      row.className = 'wgroup-items';
+      for (const w of items) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'weapon' + (c.weapon === w.id ? ' on' : '');
+        const ammo = team.ammo[w.id];
+        b.disabled = !humanCanPick || !(ammo > 0);
+        b.title = w.key ? `${w.name} (${w.key})` : w.name;
+        b.innerHTML = (w.key ? `<span class="key">${w.key}</span>` : '') +
+          (ammo !== Infinity ? `<span class="ammo">×${ammo}</span>` : '') +
+          `<span class="icon">${w.icon}</span><span class="wlabel">${w.name}</span>`;
+        b.onclick = () => { g.selectWeapon(w.id); b.blur(); this.toggleWeaponPanel(false); };
+        row.appendChild(b);
+      }
+      sec.appendChild(row);
+      bar.appendChild(sec);
     }
+    const cur = WEAPON[c.weapon];
+    const toggle = $('weaponToggle');
+    toggle.innerHTML = `<span class="icon">${cur.icon}</span> ${cur.name} <span class="caret">▴</span>`;
+    toggle.classList.toggle('inactive', !humanCanPick);
     // timer / rotate button for the active human
     const opt = $('optBtn');
     const cw = WEAPON[c.weapon];
@@ -322,8 +359,12 @@ const App = {
     opt.hidden = !showOpt;
     if (showOpt) opt.textContent = cw.fuseSelect ? `⏱ Timer ${c.fuse} s` : `↻ Rotate (${c.buildAngle}°)`;
 
-    const on = bar.querySelector('.weapon.on');
-    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  },
+
+  // Small screens: the weapon list opens as a pop-up picker
+  toggleWeaponPanel(open) {
+    const want = open == null ? !document.body.classList.contains('weapons-open') : open;
+    document.body.classList.toggle('weapons-open', want);
   },
 
   showPause(paused) {

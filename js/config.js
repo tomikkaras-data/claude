@@ -10,7 +10,7 @@ const TICK_RATE = 60;                // fixed simulation steps per second
 const GRAVITY = 0.22;                // px / tick^2
 const CHAR_R = 10;                   // character body radius
 const MAX_POWER_SPEED = 15;          // launch speed at full power (px / tick)
-const WIND_ACC = 0.035;              // horizontal acceleration per unit of wind
+const WIND_ACC = 0.055;              // horizontal acceleration per unit of wind
 const RETREAT_TIME = 3;              // seconds to run away after attacking
 const CHARGE_TICKS = 75;             // ticks to charge from 0 to full power
 const WALK_SPEED = 1.1;
@@ -23,6 +23,7 @@ const MINE_FUSE = 70;                // ticks between trigger and blast
 const DIG_TICKS = 300;               // how long each digging tool can run per turn
 const FALL_SAFE_SPEED = 6.8;         // landing faster than this hurts
 const FALL_DAMAGE_PER_SPEED = 7;
+const DEATH_BLAST = { radius: 28, damage: 20, delay: 35 }; // knocked-out characters go off with a small bang
 
 const MAP_SIZES = {
   small:  { w: 1600, h: 900,  label: 'Small' },
@@ -57,35 +58,42 @@ const TEAMS = [
 // tool: true   - does not use up the turn's attack
 // crate: n     - comes in steel crates, n uses per crate
 //   skip       - pass the turn
+// group: where it sits in the weapon bar (weapon / tool / crate)
 const WEAPONS = [
   // --- standard arsenal ---------------------------------------------------
-  { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', kind: 'projectile', charge: true, wind: true, radius: 50, damage: 60, blastKnock: 1.6, ammo: Infinity },
-  { id: 'grenade',   name: 'Grenade',      icon: '💣', key: '2', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 55, damage: 75, blastKnock: 1.6, ammo: Infinity },
-  { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 40, damage: 50, blastKnock: 1.5, ammo: 3,
+  { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', group: 'weapon', kind: 'projectile', charge: true, wind: true, radius: 50, damage: 60, blastKnock: 1.6, ammo: Infinity },
+  { id: 'drillrocket', name: 'Drilling Rocket', icon: '🪛', key: 'V', group: 'weapon', kind: 'projectile', charge: true, wind: true, driller: true, drillTicks: 180, radius: 32, damage: 40, blastKnock: 1.3, ammo: 2,
+    note: 'bores through rock for 3 s, then explodes' },
+  { id: 'grenade',   name: 'Grenade',      icon: '💣', key: '2', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 55, damage: 75, blastKnock: 1.6, ammo: Infinity },
+  { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 40, damage: 50, blastKnock: 1.5, ammo: 3,
     cluster: 6, bombletDamage: 34, bombletRadius: 30, subLabel: 'Bomblets', subNote: '6 bomblets after the main blast' },
-  { id: 'shotgun',   name: 'Shotgun',      icon: '🔫', key: '4', kind: 'hitscan', range: 650, damage: 10, radius: 8, pellets: 6, spread: 5, shots: 2, knock: 1.3, ammo: Infinity,
+  { id: 'shotgun',   name: 'Shotgun',      icon: '🔫', key: '4', group: 'weapon', kind: 'hitscan', range: 650, damage: 10, radius: 8, pellets: 6, spread: 5, shots: 2, knock: 1.3, ammo: Infinity,
     note: 'per pellet · 6 pellets · 2 shots' },
-  { id: 'flamer',    name: 'Flamethrower', icon: '🌋', key: 'G', kind: 'flame', bullets: 90, spread: 6, damage: 4, ammo: 3, note: 'burn damage, 6 times a second while in the flames' },
-  { id: 'bat',       name: 'Baseball Bat', icon: '🏏', key: 'B', kind: 'melee', radius: 14, damage: 30, knock: 12, ammo: 2, note: 'radius = how far it reaches · huge knockback' },
-  { id: 'dynamite',  name: 'Dynamite',     icon: '🧨', key: '5', kind: 'drop', bounce: true, fuse: 300, radius: 70, damage: 75, ammo: 2 },
-  { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', kind: 'mine', radius: 40, damage: 45, ammo: 3 },
-  { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
-  { id: 'rope',      name: 'Ninja Rope',   icon: '🪝', key: '8', kind: 'rope', tool: true, ammo: Infinity },
-  { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', kind: 'dig', dig: 'down', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
-  { id: 'pickaxe',   name: 'Pickaxe',      icon: '⛏️', key: '0', kind: 'dig', dig: 'aim', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
-  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: 'T', kind: 'target', ammo: 2 },
-  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: 'K', kind: 'skip', ammo: Infinity },
+  { id: 'flamer',    name: 'Flamethrower', icon: '🌋', key: 'G', group: 'weapon', kind: 'flame', bullets: 90, spread: 6, damage: 4, ammo: 3, note: 'burn damage, 6 times a second while in the flames' },
+  { id: 'bat',       name: 'Baseball Bat', icon: '🏏', key: 'B', group: 'weapon', kind: 'melee', radius: 14, damage: 30, knock: 12, ammo: 2, note: 'radius = how far it reaches · huge knockback' },
+  { id: 'dynamite',  name: 'Dynamite',     icon: '🧨', key: '5', group: 'weapon', kind: 'drop', bounce: true, fuse: 300, radius: 70, damage: 50, ammo: 2 },
+  { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', group: 'weapon', kind: 'mine', radius: 40, damage: 45, ammo: 3 },
+  { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'weapon', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
 
-  // --- found in steel crates (start with 0 unless changed in Weapon settings)
-  { id: 'gatling',   name: 'Gatling Gun',  icon: '⚙️', kind: 'burst', bullets: 24, spread: 3, range: 900, damage: 4, radius: 5, ammo: 0, crate: 1, note: 'per bullet · 24 bullets' },
-  { id: 'sniper',    name: 'Sniper Rifle', icon: '🎯', kind: 'hitscan', scope: true, range: 3200, damage: 60, radius: 6, knock: 3, ammo: 0, crate: 2 },
-  { id: 'deagle',    name: 'Desert Eagle', icon: '🦅', kind: 'hitscan', range: 1000, damage: 45, radius: 7, knock: 4.5, ammo: 0, crate: 2 },
-  { id: 'nuke',      name: 'Nuka Bomb',    icon: '☢️', kind: 'projectile', charge: true, wind: true, radius: 125, damage: 100, ammo: 0, crate: 1 },
-  { id: 'frog',      name: 'Robot Frog',   icon: '🐸', kind: 'walker', fuse: 300, radius: 75, damage: 80, blastKnock: 1.4, ammo: 0, crate: 2,
-    babies: 5, bombletDamage: 25, bombletRadius: 32, subLabel: 'Baby frogs', subNote: '5 small frogs hop around and go off after 1–3 s' },
-  { id: 'napalm',    name: 'Napalm Strike', icon: '🔥', kind: 'target', radius: 16, damage: 1, canisters: 4, ammo: 0, crate: 1, note: 'burn damage, 6 times a second' },
-  { id: 'anvil',     name: 'Anvil Drop',   icon: '🔨', kind: 'target', radius: 24, damage: 55, ammo: 0, crate: 2 },
-  { id: 'concrete',  name: 'Concrete Block', icon: '🧱', kind: 'target', tool: true, ammo: 0, crate: 3 },
+  // --- tools: moving around (they don't use up the attack) ------------------
+  { id: 'rope',      name: 'Ninja Rope',   icon: '🪝', key: '8', group: 'tool', kind: 'rope', tool: true, ammo: Infinity },
+  { id: 'jetpack',   name: 'Jetpack',      icon: '🎒', key: 'J', group: 'tool', kind: 'jetpack', tool: true, fuel: 360, ammo: 2, note: '6 s of thrust per use' },
+  { id: 'parachute', name: 'Parachute',    icon: '🪂', key: 'U', group: 'tool', kind: 'chute', tool: true, ammo: 3, note: 'opens by itself when you fall while it is selected' },
+  { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', group: 'tool', kind: 'dig', dig: 'down', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
+  { id: 'pickaxe',   name: 'Pickaxe',      icon: '⛏️', key: '0', group: 'tool', kind: 'dig', dig: 'aim', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
+  { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: 'T', group: 'tool', kind: 'target', ammo: 2 },
+  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: 'K', group: 'tool', kind: 'skip', ammo: Infinity },
+
+  // --- special weapons: 1 each at the start, more from steel crates ----------
+  { id: 'gatling',   name: 'Gatling Gun',  icon: '⚙️', group: 'crate', kind: 'burst', bullets: 24, spread: 3, range: 900, damage: 4, radius: 5, ammo: 1, crate: 1, note: 'per bullet · 24 bullets' },
+  { id: 'sniper',    name: 'Sniper Rifle', icon: '🎯', group: 'crate', kind: 'hitscan', scope: true, range: 3200, damage: 60, radius: 6, knock: 3, ammo: 1, crate: 2 },
+  { id: 'deagle',    name: 'Desert Eagle', icon: '🦅', group: 'crate', kind: 'hitscan', range: 1000, damage: 45, radius: 7, knock: 4.5, ammo: 1, crate: 2 },
+  { id: 'nuke',      name: 'Nuka Bomb',    icon: '☢️', group: 'crate', kind: 'projectile', charge: true, wind: true, radius: 125, damage: 75, ammo: 1, crate: 1 },
+  { id: 'frog',      name: 'Frog Clone Bomb', icon: '🐸', group: 'crate', kind: 'walker', fuse: 300, radius: 75, damage: 80, blastKnock: 1.4, ammo: 1, crate: 2,
+    babies: 5, bombletDamage: 25, bombletRadius: 32, subLabel: 'Frog clones', subNote: '5 clones hop around and go off after 1–3 s' },
+  { id: 'napalm',    name: 'Napalm Strike', icon: '🔥', group: 'crate', kind: 'target', radius: 16, damage: 1, canisters: 4, ammo: 1, crate: 1, note: 'burn damage, 6 times a second' },
+  { id: 'anvil',     name: 'Anvil Drop',   icon: '🔨', group: 'crate', kind: 'target', radius: 24, damage: 55, ammo: 1, crate: 2 },
+  { id: 'concrete',  name: 'Concrete Block', icon: '🧱', group: 'crate', kind: 'target', tool: true, ammo: 1, crate: 3 },
 ];
 
 // Defaults kept aside so the Weapon settings screen can reset and compare

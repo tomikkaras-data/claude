@@ -376,18 +376,26 @@ kbd {
 
 #weaponBar {
   flex: none;
-  height: 60px;
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 4px 14px;
   align-items: center;
-  padding: 6px max(6px, env(safe-area-inset-right)) 6px max(6px, env(safe-area-inset-left));
-  overflow-x: auto;
-  overflow-y: hidden;
-  touch-action: pan-x;
-  scrollbar-width: none;
-  justify-content: safe center;
+  justify-content: center;
+  padding: 5px max(8px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  max-height: 40vh;
+  overflow-y: auto;
 }
-#weaponBar::-webkit-scrollbar { display: none; }
+.wpanel-head { display: none; }
+.wgroup { display: flex; align-items: center; gap: 6px; }
+.wgroup-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+.wgroup-items { display: flex; flex-wrap: wrap; gap: 4px; }
 .weapon {
   position: relative;
   flex: none;
@@ -395,35 +403,97 @@ kbd {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 78px;
-  height: 48px;
+  width: 78px;
+  height: 46px;
   background: var(--panel);
   color: var(--text);
   border: 2px solid transparent;
   border-radius: 10px;
   cursor: pointer;
   font: inherit;
-  font-size: 0.72rem;
-  padding: 2px 6px;
+  font-size: 0.64rem;
+  line-height: 1.1;
+  padding: 2px 3px;
   -webkit-tap-highlight-color: transparent;
 }
-.weapon .icon { font-size: 1.15rem; line-height: 1.2; }
+.weapon .icon { font-size: 1.05rem; line-height: 1.2; }
+.weapon .wlabel { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .weapon .key {
-  position: absolute; top: 2px; left: 5px;
-  font-size: 0.65rem; color: var(--muted);
+  position: absolute; top: 2px; left: 4px;
+  font-size: 0.6rem; color: var(--muted);
 }
 .weapon .ammo {
-  position: absolute; top: 2px; right: 5px;
-  font-size: 0.65rem; color: var(--accent);
+  position: absolute; top: 2px; right: 4px;
+  font-size: 0.6rem; color: var(--accent);
 }
 .weapon.on { border-color: var(--accent); background: var(--panel-2); }
 .weapon:disabled { opacity: 0.35; cursor: default; }
+
+.weapon-toggle { display: none; }
+
+/* phones: the weapon list becomes a pop-up picker opened from a button */
+@media (max-height: 560px), (max-width: 700px) {
+  #weaponBar {
+    display: none;
+    position: fixed;
+    inset: calc(8px + env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    max-height: none;
+    z-index: 30;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(18, 21, 31, 0.96);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  }
+  body.weapons-open #weaponBar { display: flex; }
+  .wpanel-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; }
+  .wpanel-head button {
+    width: 40px; height: 40px; border: 0; border-radius: 10px;
+    background: var(--panel-2); color: var(--text); font-size: 1rem;
+  }
+  .wgroup { flex-direction: column; align-items: stretch; gap: 6px; }
+  .wgroup-label { writing-mode: horizontal-tb; transform: none; font-size: 0.7rem; }
+  .wgroup-items { gap: 6px; }
+  .weapon { width: 76px; height: 54px; font-size: 0.66rem; }
+  .weapon-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    max-width: calc(100% - 340px);
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 10px 14px;
+    border: 2px solid var(--accent);
+    border-radius: 12px;
+    background: rgba(15, 18, 28, 0.85);
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    font-size: 0.85rem;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .weapon-toggle .icon { font-size: 1.1rem; }
+  .weapon-toggle.inactive { opacity: 0.5; }
+  .skip-btn { bottom: calc(64px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 700px) and (orientation: portrait) {
+  .weapon-toggle { bottom: calc(150px + env(safe-area-inset-bottom)); max-width: calc(100% - 32px); }
+}
+
 body.touch .weapon .key { display: none; }
 
 /* small screens (phones) */
 @media (max-height: 500px), (max-width: 700px) {
-  #weaponBar { height: 52px; padding-top: 4px; padding-bottom: 4px; }
-  .weapon { min-width: 62px; height: 44px; font-size: 0.62rem; }
   .pad.left { grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(3, 42px); gap: 6px; }
   .pad.right { grid-template-columns: 56px 72px; grid-template-rows: 42px 74px; gap: 6px; }
   .pad.right .fire { width: 82px; height: 74px; }

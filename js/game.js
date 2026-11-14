@@ -30,6 +30,8 @@ class Game {
     this.mines = [];
     this.crates = [];
     this.fires = [];
+    this.deathBlasts = [];
+    this.jet = null;
     this.particles = [];
     this.effects = [];
     this.texts = [];
@@ -293,6 +295,8 @@ class Game {
     this.lockedWeapon = null;
     this.turnMult = null;
     this.gunBurst = null;
+    this.jet = null;
+    this.chuteSteer = 0;
     this.state = 'banner';
     this.bannerTimer = 80;
     this.camManual = false;
@@ -308,6 +312,7 @@ class Game {
     this.digging = false;
     this.gunBurst = null;
     this.lockedWeapon = null;
+    this.jet = null;
     const every = (CRATE_AMOUNTS[this.settings.crates] || CRATE_AMOUNTS.normal).every;
     this.dropPending = every > 0 && this.turnNumber % every === 0;
     this.state = 'settle';
@@ -375,6 +380,12 @@ class Game {
     const w = WEAPON[c.weapon];
     this.camManual = false;
     if (w.kind === 'rope') { this.fireRope(); return; }
+    if (w.kind === 'jetpack') { this.toggleJetpack(); return; }
+    if (w.kind === 'chute') {
+      if (c.airborne && !c.chute) this.openChute(c);
+      else if (!c.chute) this.texts.push({ x: c.x, y: c.y - 50, text: 'Jump or fall to open it', color: '#fff', life: 70 });
+      return;
+    }
     if (this.hasFired || this.gunBurst) return;
     if (w.kind === 'dig') {
       if (this.digLeft[w.id] > 0) { this.releaseRope(); this.digging = true; }
@@ -386,6 +397,32 @@ class Game {
       if (this.mouse.inside && !this.isTouch) this.fireAt(this.mouse.x, this.mouse.y);
       else this.texts.push({ x: c.x, y: c.y - 50, text: 'Tap the map to pick a target', color: '#fff', life: 90 });
     } else this.fire(1);
+  }
+
+  // --- jetpack and parachute --------------------------------------------------
+
+  toggleJetpack() {
+    if (this.state !== 'turn') return;
+    const c = this.active, team = this.teams[c.team];
+    if (this.jet) { this.jet = null; return; }
+    if (!(team.ammo.jetpack > 0)) return;
+    team.ammo.jetpack--;
+    this.releaseRope();
+    this.jet = { fuel: WEAPON.jetpack.fuel, max: WEAPON.jetpack.fuel, tx: 0, ty: 0 };
+    c.chute = false;
+    this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
+  }
+
+  openChute(c) {
+    const team = this.teams[c.team];
+    if (c.chute || !(team.ammo.parachute > 0)) return false;
+    team.ammo.parachute--;
+    c.chute = true;
+    c.vy = Math.min(c.vy, 2);
+    this.texts.push({ x: c.x, y: c.y - 50, text: '🪂', color: '#fff', life: 50 });
+    Sound.play('whoosh');
+    this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
+    return true;
   }
 
   // Damage multiplier for this turn's attack (uses up a power-up)
@@ -407,7 +444,7 @@ class Game {
     const team = this.teams[c.team];
     if (this.lockedWeapon && this.lockedWeapon !== w.id) return;
     if (!this.lockedWeapon && !(team.ammo[w.id] > 0)) return;
-    if (w.kind === 'target' || w.kind === 'rope' || w.kind === 'dig') return;
+    if (w.kind === 'target' || w.kind === 'rope' || w.kind === 'dig' || w.kind === 'jetpack' || w.kind === 'chute') return;
 
     this.releaseRope();
     this.charging = false;
@@ -831,7 +868,11 @@ class Game {
     c.hp = 0;
     c.grave = !drowned;
     this.texts.push({ x: c.x, y: c.y - 46, text: drowned ? (this.theme.lava ? `${c.name} fell into the lava!` : `${c.name} drowned!`) : `${c.name} is out!`, color: '#fff', life: 110 });
-    if (!drowned) this.burst(c.x, c.y, TEAMS[c.team].color, 25);
+    if (!drowned) {
+      this.burst(c.x, c.y, TEAMS[c.team].color, 25);
+      this.deathBlasts.push({ c, t: DEATH_BLAST.delay });
+    }
+    c.chute = false;
     if (c === this.active && this.state === 'turn') this.endTurn();
   }
 
@@ -850,9 +891,29 @@ class Game {
     if (c === this.active && c.alive && this.rope && this.rope.state === 'attached') {
       this.updateRopeChar(c);
     } else {
+      const jet = c === this.active && this.jet;
+      if (jet && (jet.tx || jet.ty) && jet.fuel > 0) {
+        c.vx = clamp(c.vx + jet.tx, -4.5, 4.5);
+        c.vy = Math.max(c.vy + jet.ty, -3.6);
+        if (jet.ty < 0) c.airborne = true;
+        jet.fuel--;
+        if (jet.fuel <= 0) { this.jet = null; this.texts.push({ x: c.x, y: c.y - 40, text: 'Out of fuel!', color: '#fff', life: 60 }); }
+        if (this.tick % 2 === 0) {
+          this.particles.push({ x: c.x - c.facing * 7, y: c.y + 8, vx: rand(-0.4, 0.4), vy: rand(1.5, 3), life: 16, max: 16, color: Math.random() < 0.5 ? '#ffb347' : '#ff6a00', size: 3, grav: 0 });
+        }
+      }
+      // parachute: opens by itself when falling with it selected
+      if (c.alive && !c.chute && c.airborne && c.vy > 3.5 && c.weapon === 'parachute' && !jet) this.openChute(c);
       if (!c.airborne && !t.collides(c.x, c.y + 1)) c.airborne = true;
       if (c.airborne) {
-        c.vy = Math.min(c.vy + GRAVITY, 12);
+        if (c.chute) {
+          c.vy = Math.min(c.vy + GRAVITY * 0.35, 1.5);
+          const steer = c === this.active ? this.chuteSteer : 0;
+          c.vx += (this.wind * 1.2 + steer * 1.6 - c.vx) * 0.05;
+        } else if (jet) {
+          c.vy = Math.min(c.vy + GRAVITY * 0.8, 12);
+          if (!jet.tx) c.vx *= 0.98;
+        } else c.vy = Math.min(c.vy + GRAVITY, 12);
         const steps = Math.max(1, Math.ceil(Math.max(Math.abs(c.vx), Math.abs(c.vy)) / 2));
         for (let i = 0; i < steps; i++) {
           const nx = c.x + c.vx / steps;
@@ -863,8 +924,8 @@ class Game {
           const ny = c.y + c.vy / steps;
           if (t.collides(c.x, ny)) {
             if (c.vy > 0) {
-              if (c.alive && c.vy > FALL_SAFE_SPEED) this.fallDamage(c, c.vy);
-              c.vy = 0; c.vx = 0; c.airborne = false;
+              if (c.alive && c.vy > FALL_SAFE_SPEED && !c.chute && !jet) this.fallDamage(c, c.vy);
+              c.vy = 0; c.vx = 0; c.airborne = false; c.chute = false;
               break;
             }
             c.vy = 0;
@@ -932,7 +993,18 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
-      const r = p.walker ? this.stepWalker(p) : stepProjectile(p, env);
+      let r = p.walker ? this.stepWalker(p) : p.drilling ? this.stepDriller(p) : stepProjectile(p, env);
+      if (r === 'impact' && p.driller && !p.drilling && !this.chars.some(c => c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + 4)) {
+        // hit rock: keep boring in the direction it was flying
+        const sp = Math.hypot(p.vx, p.vy) || 1;
+        p.drilling = true;
+        p.drillLeft = p.drillTicks;
+        p.vx = p.vx / sp * 1.4;
+        p.vy = p.vy / sp * 1.4;
+        p.wind = false;
+        Sound.play('dig');
+        r = null;
+      }
       if (p.age % 2 === 0 && !p.bounce && !p.walker && p.weapon !== 'anvil') {
         this.particles.push({ x: p.x, y: p.y, vx: rand(-0.3, 0.3), vy: rand(-0.3, 0.3), life: 30, max: 30, color: 'rgba(230,230,230,0.6)', size: 3, grav: -0.01 });
       }
@@ -956,6 +1028,26 @@ class Game {
         });
       }
     }
+  }
+
+  // Drilling rocket after impact: straight line through anything, then a blast
+  stepDriller(p) {
+    p.age++;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.spin += 0.6;
+    if (--p.drillLeft % 5 === 0) {
+      this.terrain.carve(p.x, p.y, 10);
+      if (p.drillLeft % 15 === 0) Sound.play('dig');
+      for (let i = 0; i < 2; i++) {
+        this.particles.push({ x: p.x, y: p.y, vx: rand(-1.5, 1.5) - p.vx, vy: rand(-2, 0), life: 18, max: 18, color: this.theme.burn, size: 2.5, grav: 0.15 });
+      }
+    }
+    for (const c of this.chars) if (c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + 5) return 'impact';
+    if (p.y > WATER_Y) return 'water';
+    if (p.x < -60 || p.x > WORLD_W + 60 || p.y < -400) return 'lost';
+    if (p.drillLeft <= 0) return 'fuse';
+    return null;
   }
 
   // Robot frog: hops along the ground, turns at walls, explodes on its timer or next to an enemy
@@ -1038,6 +1130,11 @@ class Game {
       const f = this.fires.find(f => (f.jet ? dist(f.x, f.y, c.x, c.y) < CHAR_R + 5 : dist(f.x, f.y, c.x, c.y + CHAR_R - 4) < 13) &&
         (c.team !== f.ownerTeam || this.friendlyFire));
       if (!f) continue;
+      if (f.jet) { // the flamethrower stream pushes a little
+        c.vx = clamp(c.vx + Math.sign(f.vx || 1) * 0.9, -4, 4);
+        c.vy = Math.min(c.vy, 0) - 0.7;
+        c.airborne = true;
+      }
       const got = this.hurt(c, Math.max(1, Math.round(f.dmg)));
       c.burnShown = (c.burnShown || 0) + got;
       if (c.burnShown >= 6) {
@@ -1049,7 +1146,7 @@ class Game {
   }
 
   worldIsCalm() {
-    return this.projectiles.length === 0 && this.fires.length === 0 &&
+    return this.projectiles.length === 0 && this.fires.length === 0 && this.deathBlasts.length === 0 &&
       this.crates.every(k => !k.airborne) &&
       this.chars.every(c => !(c.alive || c.grave) || !c.airborne) &&
       this.mines.every(m => m.fuse == null && !m.airborne);
@@ -1062,6 +1159,10 @@ class Game {
     this.updateProjectiles();
     for (const m of this.mines) if (!m.dead) this.updateMine(m);
     if (this.mines.some(m => m.dead)) this.mines = this.mines.filter(m => !m.dead);
+    for (const b of this.deathBlasts) {
+      if (--b.t <= 0) this.explode(b.c.x, b.c.y, DEATH_BLAST.radius, DEATH_BLAST.damage, -1);
+    }
+    if (this.deathBlasts.length) this.deathBlasts = this.deathBlasts.filter(b => b.t > 0);
     for (const k of this.crates) if (!k.dead) this.updateCrate(k);
     if (this.crates.some(k => k.dead)) this.crates = this.crates.filter(k => !k.dead);
     this.updateFires();
@@ -1242,6 +1343,25 @@ class Game {
       this.ropeReel = (down ? 1 : 0) - (up ? 1 : 0);
       if (left || right || up || down) this.camManual = false;
       return;
+    }
+    if (this.jet) {
+      const j = this.jet;
+      const grounded = !c.airborne;
+      j.ty = up ? -0.4 : 0;
+      j.tx = 0;
+      if (left && !right) { c.facing = -1; if (!grounded || up) j.tx = -0.22; else this.walk(c, -1); }
+      else if (right && !left) { c.facing = 1; if (!grounded || up) j.tx = 0.22; else this.walk(c, 1); }
+      if (down) c.aim = Math.max(-85, c.aim - 1.2);
+      if (left || right || up) this.camManual = false;
+      if (this.charging) {
+        this.chargePower += 1 / CHARGE_TICKS;
+        if (this.chargePower >= 1) this.fire(1);
+      }
+      return;
+    }
+    if (c.chute && c.airborne) {
+      this.chuteSteer = (right ? 1 : 0) - (left ? 1 : 0);
+      if (right) c.facing = 1; else if (left) c.facing = -1;
     }
     if (this.digging) {
       if (left && !right) c.facing = -1; else if (right && !left) c.facing = 1;
@@ -1698,6 +1818,7 @@ class Game {
       let sub = this.retreating ? 'Retreat!' : this.hasFired ? 'Fired' : WEAPON[c.weapon].name;
       if (this.rope && this.rope.state === 'attached') sub = 'Swinging on rope';
       if (this.digging) sub = 'Digging…';
+      if (this.jet) sub = `Jetpack · fuel ${(this.jet.fuel / TICK_RATE).toFixed(1)} s`;
       if (this.lockedWeapon) sub = `${WEAPON[this.lockedWeapon].name} · shot ${this.shotsFired + 1} of ${WEAPON[this.lockedWeapon].shots}`;
       if (this.gunBurst) sub = 'Firing…';
       if (this.state === 'settle') sub = 'Waiting…';
@@ -1759,6 +1880,12 @@ class Game {
       else if (w.fuseSelect) hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
       else if (w.scope) hint = `Scope: ${this.isTouch ? '▲ ▼' : '↑/↓'} for fine aim, ${press} to fire`;
       else if (w.kind === 'burst') hint = `${press} fires ${w.bullets} rounds · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
+      else if (w.kind === 'jetpack') hint = this.jet
+        ? `${this.isTouch ? '▲' : '↑'} thrust · ${this.isTouch ? '◀ ▶' : '←/→'} steer · fuel ${(this.jet.fuel / TICK_RATE).toFixed(1)} s · pick a weapon to attack while flying · ${press} switches it off`
+        : `${press} straps on the jetpack (${this.teams[c.team].ammo.jetpack === Infinity ? '∞' : this.teams[c.team].ammo.jetpack} left) · doesn't use your attack`;
+      else if (w.kind === 'chute') hint = c.chute
+        ? `${this.isTouch ? '◀ ▶' : '←/→'} steer the parachute · no fall damage while it's open`
+        : `Keep it selected and it opens by itself when you fall · or jump and press ${press}`;
       else if (w.kind === 'melee') hint = `Get right next to an enemy, aim and press ${press} to swing`;
       else if (w.kind === 'flame') hint = `${press} sprays fire for ${(w.bullets / TICK_RATE).toFixed(1)} s · keep aiming while it burns`;
       else if (w.kind === 'walker') hint = `${press} releases the frog · it hops forward and explodes after ${Math.round(w.fuse / TICK_RATE)} s`;
@@ -1817,6 +1944,28 @@ class Game {
     ctx.save();
     const shake = c === this.active && this.digging ? rand(-1, 1) : 0;
     ctx.translate(c.x + shake, c.y + bob);
+    if (c.chute) { // parachute canopy
+      ctx.strokeStyle = 'rgba(30,30,30,0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-7, -4); ctx.lineTo(-17, -30);
+      ctx.moveTo(7, -4); ctx.lineTo(17, -30);
+      ctx.stroke();
+      ctx.fillStyle = team.color;
+      ctx.beginPath();
+      ctx.ellipse(0, -30, 22, 13, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(0, -30, 8, 13, 0, Math.PI, 0);
+      ctx.fill();
+    }
+    if (c === this.active && this.jet) { // jetpack on the back
+      ctx.fillStyle = '#9aa1ab';
+      ctx.fillRect(-c.facing * 13 - 3, -7, 6, 13);
+      ctx.fillStyle = '#d9534f';
+      ctx.fillRect(-c.facing * 13 - 3, -7, 6, 3);
+    }
     // feet
     ctx.fillStyle = team.dark;
     ctx.beginPath();
@@ -1999,7 +2148,7 @@ class Game {
 
   drawAim(ctx, c) {
     const w = WEAPON[c.weapon];
-    if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'drop' || w.kind === 'mine' || w.dig === 'down') return;
+    if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'drop' || w.kind === 'mine' || w.dig === 'down' || w.kind === 'chute' || w.kind === 'jetpack') return;
     if (this.rope && this.rope.state === 'attached') return;
     if (w.scope) { this.drawScope(ctx, c); return; }
     const { dx, dy } = c.aimVector();
@@ -2060,6 +2209,19 @@ class Game {
         ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(0, -8); ctx.quadraticCurveTo(4, -12, 2, -15); ctx.stroke();
         if (this.tick % 6 < 3) { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(2, -15, 2.5, 0, Math.PI * 2); ctx.fill(); }
+        break;
+      case 'drillrocket':
+        ctx.rotate(Math.atan2(p.vy, p.vx));
+        ctx.fillStyle = '#4b5563';
+        ctx.fillRect(-9, -3.5, 13, 7);
+        ctx.fillStyle = '#c9ccd2';
+        ctx.beginPath(); ctx.moveTo(4, -4); ctx.lineTo(13, 0); ctx.lineTo(4, 4); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 1;
+        for (let k = 0; k < 3; k++) {
+          const o = ((p.spin * 3 + k * 3) % 9);
+          ctx.beginPath(); ctx.moveTo(4 + o, -3.5 + o * 0.35); ctx.lineTo(4 + o, 3.5 - o * 0.35); ctx.stroke();
+        }
+        if (!p.drilling) { ctx.fillStyle = '#fa0'; ctx.fillRect(-12, -2, 3, 4); }
         break;
       case 'nuke':
         ctx.rotate(Math.atan2(p.vy, p.vx));
