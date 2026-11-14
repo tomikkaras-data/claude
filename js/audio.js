@@ -77,6 +77,8 @@ const Sound = {
         case 'flame': this._noise(0.12, 900, 0.16); break;
         case 'drone': this._tone('sawtooth', 180, 220, 0.25, 0.03); break;
         case 'wind': this._noise(0.6, 500, 0.12); break;
+        case 'zap': this._tone('sine', 520, 380, 0.08, 0.04); break;
+        case 'plasma': this._tone('sawtooth', 90, 260, 0.5, 0.12); break;
         case 'win': this._tone('triangle', 400, 1200, 0.9, 0.18); break;
       }
     } catch (e) { /* ignore audio errors */ }

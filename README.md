@@ -85,6 +85,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 | 🐸 Frog Clone Bomb | 2 | Big frog that hops forward, turns at walls and explodes after 5 seconds or when it reaches an enemy. The blast releases 5 frog clones that hop around at random and go off after 1–3 seconds each |
 | 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
 | 🔨 Anvil Drop | 2 | Click a target; a heavy anvil drops straight down |
+| 🟢 Monster Cannon | 1 | Fires a toxic green plasma ball (radius 25) straight along your aim: slow, no gravity, no wind. It eats through rock and zaps anyone it passes through 5 times a second. Press FIRE again while it flies to detonate it: the whole screen goes white, a huge blast hits everything around, and toxic plasma and fire burn across the blast area. If you don't, it goes off by itself after 15 seconds |
 | 🧱 Concrete Block | 3 | Click to place a slab of new ground; `R` rotates it. It's a tool, so it doesn't use up your attack |
 
 ## Controls (human players)

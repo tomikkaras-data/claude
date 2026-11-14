@@ -385,6 +385,8 @@ class Game {
     const c = this.active;
     const w = WEAPON[c.weapon];
     this.camManual = false;
+    const ball = this.projectiles.find(p => p.plasma && p.owner === c);
+    if (ball) { ball.detonate = true; return; }
     if (w.kind === 'rope') { this.fireRope(); return; }
     if (w.kind === 'jetpack') { this.toggleJetpack(); return; }
     if (w.kind === 'chute') {
@@ -491,6 +493,14 @@ class Game {
       }
     } else if (w.kind === 'burst') {
       this.gunBurst = { w, left: w.bullets, t: 0, mult };
+    } else if (w.kind === 'plasma') {
+      const { dx, dy } = c.aimVector();
+      this.projectiles.push({
+        weapon: 'plasma', plasma: true, x: c.x + dx * 18, y: c.y + dy * 18, vx: dx * w.speed, vy: dy * w.speed,
+        r: w.radius, damage: w.damage * mult, bigDamage: w.bombletDamage * mult, bigR: w.bombletRadius, life: w.life,
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('plasma');
     } else if (w.kind === 'tornado') {
       const sy = this.groundBelow(c.x + c.facing * 26, c.y - 30);
       this.projectiles.push({
@@ -1073,6 +1083,15 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.plasma) {
+        const r = this.stepPlasma(p);
+        if (r) {
+          this.projectiles.splice(i, 1);
+          if (r === 'detonate') this.plasmaDetonate(p);
+          else if (r === 'water') this.splash(p.x);
+        }
+        continue;
+      }
       if (p.tornado) {
         if (this.stepTornado(p)) { this.endTornado(p); this.projectiles.splice(i, 1); }
         continue;
@@ -1140,6 +1159,56 @@ class Game {
     if (p.x < -60 || p.x > WORLD_W + 60 || p.y < -400) return 'lost';
     if (p.drillLeft <= 0) return 'fuse';
     return null;
+  }
+
+  // Monster Cannon: a slow plasma ball that ignores gravity and wind, eats through anything
+  // and zaps whatever it touches five times a second
+  stepPlasma(p) {
+    p.age++;
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.age % 12 === 0) this.plasmaPulse(p);
+    if (p.age % 2 === 0) {
+      this.particles.push({ x: p.x + rand(-p.r, p.r) * 0.6, y: p.y + rand(-p.r, p.r) * 0.6, vx: -p.vx * 0.3 + rand(-0.5, 0.5), vy: -p.vy * 0.3 + rand(-0.5, 0.5),
+        life: 26, max: 26, color: Math.random() < 0.5 ? '#7dff5a' : '#2fd12f', size: rand(2, 4), grav: 0 });
+    }
+    // CPU gunners set it off when it reaches an enemy
+    if (p.owner && p.owner.isCPU && p.age > 30) {
+      for (const e of this.chars) if (e.alive && e.team !== p.ownerTeam && dist(e.x, e.y, p.x, p.y) < p.r + 40) p.detonate = true;
+    }
+    if (p.detonate) return 'detonate';
+    if (p.y > WATER_Y + 10) return 'water';
+    if (p.x < -120 || p.x > WORLD_W + 120 || p.y < -600 || p.y > WORLD_H + 60) return 'lost';
+    if (p.age > p.life) return 'detonate';
+    return null;
+  }
+
+  plasmaPulse(p) {
+    this.terrain.carve(p.x, p.y, p.r);
+    for (const c of this.chars) {
+      if (!c.alive || (c === p.owner && p.age < 45)) continue;
+      const d = dist(c.x, c.y, p.x, p.y);
+      if (d > p.r + CHAR_R) continue;
+      if (c.team === p.ownerTeam && !this.friendlyFire) continue;
+      const ux = d > 1 ? (c.x - p.x) / d : 0;
+      this.damageChar(c, Math.max(1, Math.round(p.damage)), ux * 1.2, -0.9, p.ownerTeam);
+    }
+    for (const m of this.mines) if (!m.dead && dist(m.x, m.y, p.x, p.y) < p.r + 5) this.triggerMine(m);
+    for (const k of this.crates) if (!k.dead && dist(k.x, k.y, p.x, p.y) < p.r + 9) this.destroyCrate(k);
+    if (p.age % 24 === 0) Sound.play('zap');
+  }
+
+  plasmaDetonate(p) {
+    this.effects.push({ type: 'flash', whiteout: true, life: 90, max: 90 });
+    this.explode(p.x, p.y, p.bigR, p.bigDamage, p.ownerTeam, 1.5);
+    // toxic plasma and fire everywhere the blast reached
+    for (let i = 0; i < 46; i++) {
+      const a = rand(0, Math.PI * 2), rr = Math.sqrt(Math.random()) * p.bigR;
+      const toxic = i % 3 !== 0;
+      this.fires.push({ x: p.x + Math.cos(a) * rr, y: p.y + Math.sin(a) * rr, vx: rand(-1.2, 1.2), vy: rand(-2.5, 0),
+        life: randInt(220, 340), airborne: true, ownerTeam: p.ownerTeam, dmg: toxic ? 2 : 1, toxic, seed: Math.random() * 10 });
+    }
+    Sound.play('explosion', 2.5);
   }
 
   // First solid ground at or below (x, y); the water line if there is none
@@ -1837,9 +1906,10 @@ class Game {
     ctx.globalAlpha = 1;
 
     this.drawAmbient(ctx);
-    const flash = this.effects.find(e => e.type === 'flash');
+    const flash = this.effects.find(e => e.type === 'flash' && !e.whiteout);
     if (flash) {
-      ctx.fillStyle = `rgba(255,250,225,${(flash.life / flash.max) * 0.85})`;
+      const a = flash.whiteout ? Math.min(1, (flash.life / flash.max) * 1.8) : (flash.life / flash.max) * 0.85;
+      ctx.fillStyle = flash.whiteout ? `rgba(255,255,255,${a})` : `rgba(255,250,225,${a})`;
       ctx.fillRect(0, 0, viewW, viewH);
     }
 
@@ -1848,6 +1918,14 @@ class Game {
     ctx.setTransform(dpr * u, 0, 0, dpr * u, 0, 0);
     this.drawHUD(ctx, viewW / u, viewH / u);
     if (this.state === 'banner') this.drawBanner(ctx, viewW / u);
+
+    // Monster Cannon detonation: the whole screen goes white, HUD included
+    const white = this.effects.find(e => e.type === 'flash' && e.whiteout);
+    if (white) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(1, (white.life / white.max) * 1.8)})`;
+      ctx.fillRect(0, 0, viewW, viewH);
+    }
   }
 
   drawClouds(ctx) {
@@ -2092,13 +2170,16 @@ class Game {
     });
 
     // Contextual hint for the active human player
-    const myDrone = this.isHumanTurn() && this.projectiles.find(p => p.drone && p.ctrl > 0 && p.owner === c);
+    const myDrone = this.isHumanTurn() && this.projectiles.find(p => (p.drone && p.ctrl > 0 || p.plasma) && p.owner === c);
     if (this.isHumanTurn() && (!this.hasFired || myDrone)) {
       const w = WEAPON[c.weapon];
       let hint = '';
       const press = this.isTouch ? 'FIRE' : 'Space';
       const lr = this.isTouch ? '◀ ▶' : '←/→';
-      if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
+      const myBall = this.projectiles.find(p => p.plasma && p.owner === c);
+      if (myBall) hint = `Press ${press} to detonate the plasma ball`;
+      else if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
+      else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
       else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
       else if (w.kind === 'drone') hint = `${press} launches the drone along your aim · then steer it with ${lr} for ${(w.ctrlTicks / TICK_RATE).toFixed(0)} s`;
       else if (this.lockedWeapon) hint = `Move if you like, then press ${press} for the second shot`;
@@ -2361,11 +2442,11 @@ class Game {
       const flick = Math.sin(this.tick * 0.4 + f.seed) * 1.5;
       const fade = Math.min(1, f.life / 40);
       ctx.globalAlpha = 0.85 * fade;
-      ctx.fillStyle = '#ff6a00';
+      ctx.fillStyle = f.toxic ? '#3ddc3d' : '#ff6a00';
       ctx.beginPath();
       ctx.ellipse(f.x, f.y - 3, 4 + flick * 0.3, 7 + flick, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#ffd34d';
+      ctx.fillStyle = f.toxic ? '#c6ff8a' : '#ffd34d';
       ctx.beginPath();
       ctx.ellipse(f.x, f.y - 1, 2.2, 4 + flick * 0.5, 0, 0, Math.PI * 2);
       ctx.fill();
@@ -2437,6 +2518,31 @@ class Game {
         ctx.beginPath(); ctx.moveTo(0, -8); ctx.quadraticCurveTo(4, -12, 2, -15); ctx.stroke();
         if (this.tick % 6 < 3) { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(2, -15, 2.5, 0, Math.PI * 2); ctx.fill(); }
         break;
+      case 'plasma': {
+        const pulse = 1 + Math.sin(this.tick * 0.35) * 0.1;
+        const R = p.r * pulse;
+        const glow = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R * 1.7);
+        glow.addColorStop(0, 'rgba(180,255,120,0.95)');
+        glow.addColorStop(0.45, 'rgba(60,220,60,0.75)');
+        glow.addColorStop(0.75, 'rgba(30,160,40,0.3)');
+        glow.addColorStop(1, 'rgba(30,160,40,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(230,255,200,0.9)';
+        ctx.beginPath(); ctx.arc(0, 0, R * 0.35, 0, Math.PI * 2); ctx.fill();
+        // crackling arcs
+        ctx.strokeStyle = 'rgba(200,255,150,0.8)';
+        ctx.lineWidth = 1.5;
+        for (let k = 0; k < 3; k++) {
+          const a = this.tick * 0.2 + k * 2.1;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * R * 0.3, Math.sin(a) * R * 0.3);
+          ctx.lineTo(Math.cos(a + 0.4) * R * 0.75, Math.sin(a + 0.4) * R * 0.75);
+          ctx.lineTo(Math.cos(a + 0.1) * R * 1.05, Math.sin(a + 0.1) * R * 1.05);
+          ctx.stroke();
+        }
+        break;
+      }
       case 'tornado': {
         const H = p.r * 4;
         const fade = Math.max(0, Math.min(1, (p.life - p.age) / 60, p.age / 20));

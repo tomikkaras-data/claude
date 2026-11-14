@@ -209,6 +209,18 @@ class AIController {
       }
     }
 
+    // Monster Cannon: goes through anything, so any enemy in range will do (it's set off next to them)
+    if (has('plasma')) {
+      for (const e of enemies) {
+        const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);
+        if (d > 700 || d < 90) continue;
+        const angle = Math.atan2(-dy, Math.abs(dx)) * 180 / Math.PI;
+        if (Math.abs(angle) > 85) continue;
+        const s = like('plasma', killBonus(WEAPON.plasma.bombletDamage * 0.8, e) + 30);
+        if (s > best.score) best = { score: s, weapon: 'plasma', angle, facing: dx >= 0 ? 1 : -1, power: 1 };
+      }
+    }
+
     // Tornado: send it at an enemy standing on the same stretch of ground
     if (has('tornado')) {
       for (const e of enemies) {
