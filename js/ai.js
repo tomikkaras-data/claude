@@ -209,7 +209,7 @@ class AIController {
       }
     }
 
-    // Monster Cannon: goes through anything, so any enemy in range will do (it's set off next to them)
+    // Star Cannon: goes through anything, so any enemy in range will do (it's set off next to them)
     if (has('plasma')) {
       for (const e of enemies) {
         const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);

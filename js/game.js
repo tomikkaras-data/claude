@@ -1170,7 +1170,7 @@ class Game {
     return null;
   }
 
-  // Monster Cannon: a slow plasma ball that ignores gravity and wind, eats through anything
+  // Star Cannon: a slow plasma ball that ignores gravity and wind, eats through anything
   // and zaps whatever it touches five times a second
   stepPlasma(p) {
     p.age++;
@@ -1186,8 +1186,14 @@ class Game {
       }
       return null;
     }
-    if (p.phase === 'flash') { // blinding light; the blast comes once it has faded
-      return ++p.t >= 75 ? 'detonate' : null;
+    if (p.phase === 'flash') { // blinding light
+      if (++p.t >= 75) { p.phase = 'bubble'; p.t = 0; Sound.play('plasma'); }
+      return null;
+    }
+    if (p.phase === 'bubble') { // then the whole blast area throbs green and white before it goes off
+      p.t++;
+      if (p.t % 10 === 0) Sound.play('zap');
+      return p.t >= 70 ? 'detonate' : null;
     }
     if (p.detonate) {
       p.phase = 'grow';
@@ -1232,6 +1238,14 @@ class Game {
   plasmaDetonate(p) {
     const w = WEAPON.plasma;
     this.explode(p.x, p.y, p.bigR, p.bigDamage, p.ownerTeam, 1.5);
+    // a shower of green cluster bomblets
+    for (let i = 0; i < w.burstClusters; i++) {
+      const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(3, 7.5);
+      this.projectiles.push({
+        weapon: 'greenlet', x: p.x + rand(-10, 10), y: p.y + rand(-10, 10), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, wind: false, bounce: false,
+        fuse: null, radius: w.clusterRadius, damage: w.clusterDamage * p.mult, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
+      });
+    }
     // five small plasma balls shoot off in random directions
     for (let i = 0; i < w.miniBalls; i++) {
       const a = (i / w.miniBalls) * Math.PI * 2 + rand(-0.5, 0.5);
@@ -1252,7 +1266,7 @@ class Game {
     Sound.play('explosion', 2.5);
   }
 
-  // Small plasma ball from a Monster Cannon detonation: flies straight until it hits rock, a character, a crate or a mine
+  // Small plasma ball from a Star Cannon detonation: flies straight until it hits rock, a character, a crate or a mine
   stepMiniPlasma(p) {
     p.age++;
     for (let s = 0; s < 2; s++) {
@@ -1991,7 +2005,7 @@ class Game {
     this.drawHUD(ctx, viewW / u, viewH / u);
     if (this.state === 'banner') this.drawBanner(ctx, viewW / u);
 
-    // Monster Cannon detonation: the whole screen goes white, HUD included
+    // Star Cannon detonation: the whole screen goes white, HUD included
     const white = this.effects.find(e => e.type === 'flash' && e.whiteout);
     if (white) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -2606,6 +2620,21 @@ class Game {
         ctx.beginPath(); ctx.arc(-1, -1, 1.6, 0, Math.PI * 2); ctx.fill();
         break;
       case 'plasma': {
+        if (p.phase === 'bubble') {
+          const throb = 0.5 + 0.5 * Math.sin(p.t * 0.45);
+          const R = p.bigR * (0.93 + 0.07 * Math.sin(p.t * 0.3)) * Math.min(1, 0.4 + p.t / 18);
+          const gb = ctx.createRadialGradient(0, 0, R * 0.1, 0, 0, R);
+          gb.addColorStop(0, `rgba(255,255,255,${0.85 - 0.3 * throb})`);
+          gb.addColorStop(0.55, `rgba(${Math.round(90 + 165 * (1 - throb))},255,${Math.round(90 + 165 * (1 - throb))},${0.55 + 0.2 * throb})`);
+          gb.addColorStop(0.9, `rgba(40,210,60,${0.45 + 0.25 * throb})`);
+          gb.addColorStop(1, 'rgba(40,210,60,0)');
+          ctx.fillStyle = gb;
+          ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = throb > 0.5 ? 'rgba(255,255,255,0.9)' : 'rgba(110,255,110,0.9)';
+          ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(0, 0, R * 0.98, 0, Math.PI * 2); ctx.stroke();
+          break;
+        }
         const pulse = 1 + Math.sin(this.tick * 0.35) * 0.1;
         const R = p.r * pulse;
         const glow = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R * 1.7);
