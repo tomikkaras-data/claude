@@ -136,7 +136,7 @@ Several human players share one keyboard (hot-seat).
 | 6 | Mine | 3 | Drops a proximity mine (only enemies set it off) |
 | 7 | Air Strike | 1 | Click or tap a target, 5 missiles rain down |
 | 8 | Ninja Rope | ∞ | Tool: swing around the map |
-| J | Jetpack | 2 | Tool: press Space to put it on, ↑ to fly, ←/→ to steer; 6 s of fuel; you can attack while flying |
+| J | Jetpack | 2 | Tool: press Space to put it on, ↑ to fly, ←/→ to steer; 6 s of fuel. Pressing Space again or picking another weapon takes it off, and the controls go back to normal |
 | U | Parachute | 3 | Tool: keep it selected and it opens by itself when you fall; no fall damage while it's open; ←/→ steer |
 | 9 | Drill | ∞ | Tool: hold FIRE/Space to dig straight down (5 s per turn) |
 | 0 | Pickaxe | ∞ | Tool: hold FIRE/Space to tunnel in the aim direction (5 s per turn) |

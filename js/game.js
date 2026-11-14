@@ -345,6 +345,11 @@ class Game {
     if (this.hasFired || this.charging || this.digging || this.lockedWeapon) return;
     const team = this.teams[this.active.team];
     if (!(team.ammo[id] > 0)) return;
+    // picking anything else takes the jetpack off (controls go back to normal)
+    if (this.jet && id !== 'jetpack') {
+      this.jet = null;
+      this.texts.push({ x: this.active.x, y: this.active.y - 40, text: 'Jetpack off', color: '#fff', life: 50 });
+    }
     this.active.weapon = id;
     this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
   }
@@ -1997,7 +2002,7 @@ class Game {
       else if (w.scope) hint = `Scope: ${this.isTouch ? '▲ ▼' : '↑/↓'} for fine aim, ${press} to fire`;
       else if (w.kind === 'burst') hint = `${press} fires ${w.bullets} rounds · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
       else if (w.kind === 'jetpack') hint = this.jet
-        ? `${this.isTouch ? '▲' : '↑'} thrust · ${this.isTouch ? '◀ ▶' : '←/→'} steer · fuel ${(this.jet.fuel / TICK_RATE).toFixed(1)} s · pick a weapon to attack while flying · ${press} switches it off`
+        ? `${this.isTouch ? '▲' : '↑'} thrust · ${this.isTouch ? '◀ ▶' : '←/→'} steer · fuel ${(this.jet.fuel / TICK_RATE).toFixed(1)} s · ${press} or picking another weapon takes it off`
         : `${press} straps on the jetpack (${this.teams[c.team].ammo.jetpack === Infinity ? '∞' : this.teams[c.team].ammo.jetpack} left) · doesn't use your attack`;
       else if (w.kind === 'chute') hint = c.chute
         ? `${this.isTouch ? '◀ ▶' : '←/→'} steer the parachute · no fall damage while it's open`
