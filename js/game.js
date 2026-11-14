@@ -1187,14 +1187,8 @@ class Game {
       }
       return null;
     }
-    if (p.phase === 'flash') { // blinding light
-      if (++p.t >= 75) { p.phase = 'bubble'; p.t = 0; Sound.play('plasma'); }
-      return null;
-    }
-    if (p.phase === 'bubble') { // then the whole blast area throbs green and white before it goes off
-      p.t++;
-      if (p.t % 10 === 0) Sound.play('zap');
-      return p.t >= 70 ? 'detonate' : null;
+    if (p.phase === 'flash') { // blinding light; the blast goes off as it fades
+      return ++p.t >= 75 ? 'detonate' : null;
     }
     if (p.detonate) {
       p.phase = 'grow';
@@ -2627,6 +2621,7 @@ class Game {
         ctx.beginPath(); ctx.arc(-1, -1, 1.6, 0, Math.PI * 2); ctx.fill();
         break;
       case 'plasma': {
+        if (p.phase === 'flash') break; // hidden by the white-out
         if (p.phase === 'bubble') {
           const throb = 0.5 + 0.5 * Math.sin(p.t * 0.45);
           const R = p.bigR * (0.93 + 0.07 * Math.sin(p.t * 0.3)) * Math.min(1, 0.4 + p.t / 18);
