@@ -45,7 +45,7 @@ You need at least two different teams to start. The menu remembers your setup.
 * The **rope, jetpack, parachute, drill and pickaxe** are tools. Using them doesn't use up your attack, so you can dig or swing into position and then still shoot.
 * When every human player is out and only CPU players are left, a **Skip to end** button appears. It fast-forwards the rest of the match silently and shows the winner.
 * Wind changes every turn and pushes everything that flies without bouncing: the bazooka, drilling rocket, Nuka Bomb, and air strike and napalm canisters. Grenades aren't affected.
-* Mines go off about a second after an enemy gets close. Mines that were on the map from the start hurt everyone. Mines laid by a team only react to (and hurt) the other teams. Explosions set off nearby mines.
+* Mines go off about a second after an enemy gets close, and straight away when anything hits them: an explosion, a bullet, a flame or a projectile. Mines that were on the map from the start hurt everyone. Mines laid by a team only react to (and hurt) the other teams. Explosions set off nearby mines.
 * The **last team with living characters wins**.
 
 ## Map themes
@@ -68,7 +68,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 ## Crates
 
 * Wooden and steel crates lie around the map at the start. Supply drops parachute in more crates every few turns.
-* Walk into a crate to open it. Explosions destroy crates.
+* Walk into a crate to open it. A crate that gets hit by an explosion, a bullet, a flame or a projectile bursts with a small blast and sprays 10–20 pieces of shrapnel in every direction, like shotgun pellets. Bullets stop at crates.
 * **Wooden crates** hold one of:
   * +35 health
   * ⚡ a power-up (your next attack does +50% damage)
@@ -127,7 +127,8 @@ Several human players share one keyboard (hot-seat).
 | 1 | Bazooka | ∞ | Explodes on impact with a big knockback, affected by wind |
 | 2 | Grenade | ∞ | Bounces, explodes with a big knockback when its timer runs out (1–5 s, set with `F`) |
 | 3 | Cluster Bomb | 3 | Like the grenade, then bursts into 6 bomblets |
-| V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it keeps boring through in the same direction for 3 seconds, then explodes |
+| V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it keeps boring through in the same direction for up to 3 seconds, then explodes. If it breaks out of the rock into open air first, it explodes right there |
+| N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact |
 | 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
 | G | Flamethrower | 3 | Sprays fire for 1.5 s and pushes targets back a little; you can keep aiming while it burns. Some flames stick and keep burning |
 | B | Baseball Bat | 2 | Hits someone right next to you for 30 damage and sends them flying |

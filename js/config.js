@@ -23,6 +23,7 @@ const MINE_FUSE = 70;                // ticks between trigger and blast
 const DIG_TICKS = 300;               // how long each digging tool can run per turn
 const FALL_SAFE_SPEED = 6.8;         // landing faster than this hurts
 const FALL_DAMAGE_PER_SPEED = 7;
+const CRATE_BLAST = { radius: 22, damage: 15, pellets: [10, 20], pellet: { range: 320, damage: 8, radius: 4, knock: 1.2 } };
 const DEATH_BLAST = { radius: 28, damage: 20, delay: 35 }; // knocked-out characters go off with a small bang
 
 const MAP_SIZES = {
@@ -73,6 +74,8 @@ const WEAPONS = [
   { id: 'bat',       name: 'Baseball Bat', icon: '🏏', key: 'B', group: 'weapon', kind: 'melee', radius: 14, damage: 30, knock: 12, ammo: 2, note: 'radius = how far it reaches · huge knockback' },
   { id: 'dynamite',  name: 'Dynamite',     icon: '🧨', key: '5', group: 'weapon', kind: 'drop', bounce: true, fuse: 300, radius: 70, damage: 50, ammo: 2 },
   { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', group: 'weapon', kind: 'mine', radius: 40, damage: 45, ammo: 3 },
+  { id: 'drone',     name: 'Drone',        icon: '🛸', key: 'N', group: 'weapon', kind: 'drone', speed: 3.2, ctrlTicks: 180, radius: 45, damage: 55, blastKnock: 1.3, ammo: 2,
+    note: 'steer it for 3 s, then it drops' },
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'weapon', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
 
   // --- tools: moving around (they don't use up the attack) ------------------

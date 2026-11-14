@@ -192,6 +192,23 @@ class AIController {
       }
     }
 
+    // Drone: flies straight at an enemy in sight and homes in
+    if (has('drone')) {
+      const w = WEAPON.drone;
+      for (const e of enemies) {
+        const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);
+        if (d > 520) continue;
+        const facing = dx >= 0 ? 1 : -1;
+        const angle = Math.atan2(-dy, Math.abs(dx)) * 180 / Math.PI;
+        if (Math.abs(angle) > 85) continue;
+        const a = angle * Math.PI / 180;
+        const hit = traceRay(this.env(), c.x, c.y, Math.cos(a) * facing, -Math.sin(a), d + 20, c.id);
+        if (hit.hit !== e) continue;
+        const s = like('drone', killBonus(w.damage * 0.85, e) - 10);
+        if (s > best.score) best = { score: s, weapon: 'drone', angle, facing, power: 1 };
+      }
+    }
+
     // Up close: flamethrower or baseball bat
     for (const e of enemies) {
       const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);

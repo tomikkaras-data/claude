@@ -485,6 +485,14 @@ class Game {
       }
     } else if (w.kind === 'burst') {
       this.gunBurst = { w, left: w.bullets, t: 0, mult };
+    } else if (w.kind === 'drone') {
+      const { dx, dy } = c.aimVector();
+      this.projectiles.push({
+        weapon: 'drone', drone: true, x: c.x + dx * 16, y: c.y + dy * 16, vx: dx * w.speed, vy: dy * w.speed,
+        heading: Math.atan2(dy, dx), ctrl: w.ctrlTicks, speed: w.speed, radius: w.radius, damage: w.damage * mult, blastKnock: w.blastKnock,
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('drone');
     } else if (w.kind === 'melee') {
       this.swingBat(c, w, mult);
     } else if (w.kind === 'flame') {
@@ -530,17 +538,64 @@ class Game {
 
   // One bullet or pellet along (dx, dy)
   fireBullet(c, dx, dy, w, mult) {
-    const hit = traceRay(this.env, c.x, c.y, dx, dy, w.range, c.id);
-    this.effects.push({ type: 'tracer', x1: c.x + dx * 12, y1: c.y + dy * 12, x2: hit.x, y2: hit.y, life: 10, max: 10 });
+    this.shootRay(c.x, c.y, dx, dy, w, mult, c.team, c.id, 12);
+  }
+
+  shootRay(ox, oy, dx, dy, w, mult, ownerTeam, ignoreId, startGap) {
+    let hit = traceRay(this.env, ox, oy, dx, dy, w.range, ignoreId);
+    // a crate in the way stops the bullet (and bursts)
+    const hitDist = dist(ox, oy, hit.x, hit.y);
+    let crate = null, crateT = Infinity;
+    for (const k of this.crates) {
+      if (k.dead) continue;
+      const t = (k.x - ox) * dx + (k.y - oy) * dy;
+      if (t < startGap || t > hitDist || t >= crateT) continue;
+      if (dist(k.x, k.y, ox + dx * t, oy + dy * t) < 11) { crate = k; crateT = t; }
+    }
+    if (crate) hit = { x: ox + dx * crateT, y: oy + dy * crateT, hit: null, solid: false };
+    this.effects.push({ type: 'tracer', x1: ox + dx * startGap, y1: oy + dy * startGap, x2: hit.x, y2: hit.y, life: 10, max: 10 });
+    this.hitAlongLine(ox + dx * startGap, oy + dy * startGap, hit.x, hit.y);
     const k = w.knock || 1.5;
-    if (hit.hit) this.damageChar(hit.hit, Math.max(1, Math.round(w.damage * mult)), dx * k, dy * k - 0.8, c.team);
+    if (hit.hit) this.damageChar(hit.hit, Math.max(1, Math.round(w.damage * mult)), dx * k, dy * k - 0.8, ownerTeam);
     if (hit.solid || hit.hit) {
       if (w.radius > 0) this.terrain.carve(hit.x, hit.y, w.radius);
       for (let i = 0; i < 4; i++) {
         this.particles.push({ x: hit.x, y: hit.y, vx: rand(-1.5, 1.5) - dx, vy: rand(-2, 0), life: randInt(10, 22), max: 22, color: hit.hit ? '#fff' : this.theme.burn, size: 2.5, grav: 0.12 });
       }
-      for (const m of this.mines) if (dist(m.x, m.y, hit.x, hit.y) < 10) m.fuse = Math.min(m.fuse == null ? 99 : m.fuse, 6);
     }
+  }
+
+  // Bullets set off mines and crates they pass through
+  hitAlongLine(x1, y1, x2, y2) {
+    const segDist = (px, py) => {
+      const vx = x2 - x1, vy = y2 - y1, len2 = vx * vx + vy * vy || 1;
+      const t = clamp(((px - x1) * vx + (py - y1) * vy) / len2, 0, 1);
+      return dist(px, py, x1 + vx * t, y1 + vy * t);
+    };
+    for (const m of this.mines) if (!m.dead && segDist(m.x, m.y) < 8) this.triggerMine(m);
+    for (const k of this.crates) if (!k.dead && segDist(k.x, k.y) < 11) this.destroyCrate(k);
+  }
+
+  triggerMine(m) {
+    m.fuse = Math.min(m.fuse == null ? 99 : m.fuse, 6);
+  }
+
+  // A crate that gets hit bursts: small blast plus shrapnel flying in every direction
+  destroyCrate(k) {
+    if (k.dead) return;
+    k.dead = true;
+    this.burst(k.x, k.y, k.type === 'steel' ? '#b9c2cc' : '#c08a4a', 16);
+    this.deathBlasts.push({ crate: true, x: k.x, y: k.y, t: 5 });
+  }
+
+  crateBlast(x, y) {
+    this.explode(x, y, CRATE_BLAST.radius, CRATE_BLAST.damage, -1);
+    const n = randInt(CRATE_BLAST.pellets[0], CRATE_BLAST.pellets[1]);
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2);
+      this.shootRay(x, y, Math.cos(a), Math.sin(a), CRATE_BLAST.pellet, 1, -1, -1, 4);
+    }
+    Sound.play('shot');
   }
 
   fireAt(x, y) {
@@ -824,14 +879,13 @@ class Game {
       m.vx += Math.cos(ang) * force;
       m.vy += Math.sin(ang) * force - 2;
       m.airborne = true;
-      if (d < radius * 0.8) m.fuse = Math.min(m.fuse == null ? 99 : m.fuse, 8);
+      if (d < reach + 6) this.triggerMine(m);
     }
     for (const k of this.crates) {
       if (k.dead) continue;
       const d = dist(x, y, k.x, k.y);
       if (d < radius * 0.75) {
-        k.dead = true;
-        this.burst(k.x, k.y, k.type === 'steel' ? '#b9c2cc' : '#c08a4a', 16);
+        this.destroyCrate(k);
       } else if (d < reach + 10) {
         const ang = Math.atan2(k.y - y, k.x - x);
         k.vx += Math.cos(ang) * 2.5; k.vy += Math.sin(ang) * 2.5 - 2; k.airborne = true; k.chute = false;
@@ -993,7 +1047,10 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
-      let r = p.walker ? this.stepWalker(p) : p.drilling ? this.stepDriller(p) : stepProjectile(p, env);
+      let r = p.walker ? this.stepWalker(p) : p.drilling ? this.stepDriller(p) : p.drone ? this.stepDrone(p) : stepProjectile(p, env);
+      // flying straight into a crate or a mine counts as a hit
+      if (!r && !p.bounce && !p.walker && (this.crates.some(k => !k.dead && dist(k.x, k.y, p.x, p.y) < 11) ||
+          this.mines.some(m => !m.dead && dist(m.x, m.y, p.x, p.y) < 7))) r = 'impact';
       if (r === 'impact' && p.driller && !p.drilling && !this.chars.some(c => c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + 4)) {
         // hit rock: keep boring in the direction it was flying
         const sp = Math.hypot(p.vx, p.vy) || 1;
@@ -1044,9 +1101,59 @@ class Game {
       }
     }
     for (const c of this.chars) if (c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + 5) return 'impact';
+    // broke out of the rock into open air: blow up right away
+    if (p.drillTicks - p.drillLeft > 8) {
+      const ux = p.vx / 1.4, uy = p.vy / 1.4, t = this.terrain;
+      if (!t.isSolid(p.x + ux * 14, p.y + uy * 14) && !t.isSolid(p.x + ux * 20, p.y + uy * 20) && !t.isSolid(p.x + ux * 26, p.y + uy * 26)) return 'impact';
+    }
     if (p.y > WATER_Y) return 'water';
     if (p.x < -60 || p.x > WORLD_W + 60 || p.y < -400) return 'lost';
     if (p.drillLeft <= 0) return 'fuse';
+    return null;
+  }
+
+  // Drone: flies forward under remote control for a few seconds, then drops; blows up on contact
+  stepDrone(p) {
+    p.age++;
+    p.spin += 0.9;
+    if (p.ctrl > 0) {
+      p.ctrl--;
+      let turn = 0;
+      const own = p.owner;
+      if (own && own.alive && !own.isCPU && own === this.active) {
+        const k = this.keys;
+        turn = ((k.ArrowRight || k.KeyD) ? 1 : 0) - ((k.ArrowLeft || k.KeyA) ? 1 : 0);
+      } else if (own && own.isCPU) {
+        // CPU pilots home in on the nearest enemy
+        let best = null;
+        for (const e of this.chars) if (e.alive && e.team !== own.team && (!best || dist(e.x, e.y, p.x, p.y) < dist(best.x, best.y, p.x, p.y))) best = e;
+        if (best) {
+          let diff = Math.atan2(best.y - p.y, best.x - p.x) - p.heading;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          turn = clamp(diff / 0.06, -1, 1);
+        }
+      }
+      p.heading += turn * 0.06;
+      p.vx = Math.cos(p.heading) * p.speed;
+      p.vy = Math.sin(p.heading) * p.speed;
+      if (p.age % 18 === 0) Sound.play('drone');
+    } else {
+      p.vy = Math.min(p.vy + GRAVITY, 10);
+      p.heading = Math.atan2(p.vy, p.vx);
+    }
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(p.vx), Math.abs(p.vy)) / 2));
+    for (let i = 0; i < steps; i++) {
+      p.x += p.vx / steps;
+      p.y += p.vy / steps;
+      if (this.terrain.isSolid(p.x, p.y)) return 'impact';
+      for (const c of this.chars) {
+        if (!c.alive || (c === p.owner && p.age < 25)) continue;
+        if (dist(c.x, c.y, p.x, p.y) < CHAR_R + 5) return 'impact';
+      }
+    }
+    if (p.y > WATER_Y) return 'water';
+    if (p.x < -100 || p.x > WORLD_W + 100 || p.y < -600) return 'lost';
     return null;
   }
 
@@ -1109,6 +1216,8 @@ class Game {
           if (Math.random() < 0.25) { f.jet = false; f.airborne = true; f.vx = 0; f.vy = 0; f.life = randInt(60, 100); }
           else f.life = 0;
         } else { f.x = nx; f.y = ny; }
+        for (const m of this.mines) if (!m.dead && dist(m.x, m.y, f.x, f.y) < 8) this.triggerMine(m);
+        for (const k of this.crates) if (!k.dead && dist(k.x, k.y, f.x, f.y) < 11) this.destroyCrate(k);
         f.life--;
         if (f.y > WATER_Y) f.life = 0;
         continue;
@@ -1159,8 +1268,10 @@ class Game {
     this.updateProjectiles();
     for (const m of this.mines) if (!m.dead) this.updateMine(m);
     if (this.mines.some(m => m.dead)) this.mines = this.mines.filter(m => !m.dead);
-    for (const b of this.deathBlasts) {
-      if (--b.t <= 0) this.explode(b.c.x, b.c.y, DEATH_BLAST.radius, DEATH_BLAST.damage, -1);
+    for (const b of this.deathBlasts.slice()) {
+      if (--b.t > 0) continue;
+      if (b.crate) this.crateBlast(b.x, b.y);
+      else this.explode(b.c.x, b.c.y, DEATH_BLAST.radius, DEATH_BLAST.damage, -1);
     }
     if (this.deathBlasts.length) this.deathBlasts = this.deathBlasts.filter(b => b.t > 0);
     for (const k of this.crates) if (!k.dead) this.updateCrate(k);
@@ -1344,6 +1455,7 @@ class Game {
       if (left || right || up || down) this.camManual = false;
       return;
     }
+    if (this.projectiles.some(p => p.drone && p.ctrl > 0 && p.owner === c)) return; // arrows steer the drone
     if (this.jet) {
       const j = this.jet;
       const grounded = !c.airborne;
@@ -1870,11 +1982,15 @@ class Game {
     });
 
     // Contextual hint for the active human player
-    if (this.isHumanTurn() && !this.hasFired) {
+    const myDrone = this.isHumanTurn() && this.projectiles.find(p => p.drone && p.ctrl > 0 && p.owner === c);
+    if (this.isHumanTurn() && (!this.hasFired || myDrone)) {
       const w = WEAPON[c.weapon];
       let hint = '';
       const press = this.isTouch ? 'FIRE' : 'Space';
-      if (this.lockedWeapon) hint = `Move if you like, then press ${press} for the second shot`;
+      const lr = this.isTouch ? '◀ ▶' : '←/→';
+      if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
+      else if (w.kind === 'drone') hint = `${press} launches the drone along your aim · then steer it with ${lr} for ${(w.ctrlTicks / TICK_RATE).toFixed(0)} s`;
+      else if (this.lockedWeapon) hint = `Move if you like, then press ${press} for the second shot`;
       else if (w.id === 'concrete') hint = `${this.isTouch ? 'Tap' : 'Click'} the map to place a block · ${this.isTouch ? '↻ button' : 'R'} rotates · doesn't use your attack`;
       else if (w.kind === 'target') hint = this.isTouch ? 'Tap the map to pick a target' : 'Click the map to pick a target';
       else if (w.fuseSelect) hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
@@ -2210,6 +2326,25 @@ class Game {
         ctx.beginPath(); ctx.moveTo(0, -8); ctx.quadraticCurveTo(4, -12, 2, -15); ctx.stroke();
         if (this.tick % 6 < 3) { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(2, -15, 2.5, 0, Math.PI * 2); ctx.fill(); }
         break;
+      case 'drone': {
+        ctx.rotate(p.heading);
+        ctx.fillStyle = '#2f3640';
+        ctx.fillRect(-7, -3, 14, 6);
+        ctx.fillStyle = '#e5484d';
+        ctx.fillRect(4, -2, 3, 4);
+        ctx.strokeStyle = '#2f3640';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(-6, -3); ctx.lineTo(-8, -7); ctx.moveTo(6, -3); ctx.lineTo(8, -7); ctx.stroke();
+        ctx.strokeStyle = 'rgba(220,225,235,0.9)';
+        ctx.lineWidth = 1.5;
+        for (const rx of [-8, 8]) {
+          const r = 6 * Math.abs(Math.cos(p.spin + rx));
+          ctx.beginPath(); ctx.moveTo(rx - r, -8); ctx.lineTo(rx + r, -8); ctx.stroke();
+        }
+        ctx.fillStyle = p.ctrl > 0 && this.tick % 10 < 5 ? '#4ade80' : '#14532d';
+        ctx.fillRect(-1.5, -1.5, 3, 3);
+        break;
+      }
       case 'drillrocket':
         ctx.rotate(Math.atan2(p.vy, p.vx));
         ctx.fillStyle = '#4b5563';
@@ -2268,6 +2403,9 @@ class Game {
         ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+    if (p.drone && p.ctrl > 0) {
+      this.outlinedText(ctx, (p.ctrl / TICK_RATE).toFixed(1), p.x, p.y - 18, 'bold 12px system-ui, sans-serif', '#4ade80');
+    }
     if (p.fuse != null) {
       this.outlinedText(ctx, String(Math.ceil(p.fuse / TICK_RATE)), p.x, p.y - 16, 'bold 12px system-ui, sans-serif', '#fff');
     }
