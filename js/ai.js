@@ -147,6 +147,13 @@ class AIController {
     const noise = DIFFICULTY[g.settings.difficulty] || DIFFICULTY.normal;
     let best = { score: -Infinity };
     const killBonus = (dmg, e) => Math.min(dmg, e.hp) * 10 + (dmg >= e.hp ? 300 : 0);
+    // A random taste for each weapon this turn, so CPUs vary their choices
+    // (otherwise, with unlimited ammo, the strongest weapon would win every time)
+    const taste = {};
+    const like = (id, sc) => {
+      if (taste[id] == null) taste[id] = WEAPON[id].crate ? rand(0.55, 1.05) : rand(0.8, 1.15);
+      return sc > 0 ? sc * taste[id] : sc;
+    }
 
     // Ballistic weapons: simulate the real flight for many angles and powers
     for (const id of ['bazooka', 'grenade', 'nuke']) {
@@ -157,7 +164,7 @@ class AIController {
           for (let power = 0.2; power <= 1.0001; power += 0.05) {
             const pt = this.simulate(w, angle, facing, power);
             if (!pt) continue;
-            const s = this.scoreBlast(pt.x, pt.y, w.radius, w.damage, enemies, friends) + (w.crate ? 10 : 0);
+            const s = like(id, this.scoreBlast(pt.x, pt.y, w.radius, w.damage, enemies, friends));
             if (s > best.score) best = { score: s, weapon: id, angle, facing, power };
           }
         }
@@ -180,7 +187,7 @@ class AIController {
         let expected = w.damage;
         if (id === 'shotgun') expected = w.pellets * w.damage * clamp(110 / d, 0.25, 1);
         if (id === 'gatling') expected = w.bullets * w.damage * clamp(160 / d, 0.15, 0.7);
-        const s = killBonus(expected, e) + 15 + (w.crate ? 10 : 0);
+        const s = like(id, killBonus(expected, e) + 15);
         if (s > best.score) best = { score: s, weapon: id, angle, facing, power: 1 };
       }
     }
@@ -195,13 +202,13 @@ class AIController {
       if (has('flamer') && d < 150) {
         const hit = traceRay(this.env(), c.x, c.y, Math.cos(a) * facing, -Math.sin(a), 170, c.id);
         if (hit.hit === e) {
-          const s = killBonus(WEAPON.flamer.damage * 7, e) + 5;
+          const s = like('flamer', killBonus(WEAPON.flamer.damage * 7, e) + 5);
           if (s > best.score) best = { score: s, weapon: 'flamer', angle, facing, power: 1 };
         }
       }
       if (has('bat') && d < CHAR_R * 2 + WEAPON.bat.radius) {
         // swing a little upwards so the enemy flies far (into the water, ideally)
-        const s = killBonus(WEAPON.bat.damage + 15, e) + 25;
+        const s = like('bat', killBonus(WEAPON.bat.damage + 15, e) + 25);
         if (s > best.score) best = { score: s, weapon: 'bat', angle: clamp(angle + 25, -40, 60), facing, power: 1 };
       }
     }
@@ -217,7 +224,7 @@ class AIController {
         }
         if (!open) continue;
         const expected = id === 'airstrike' ? w.damage * 1.5 : id === 'napalm' ? w.damage * 12 : w.damage * 0.9;
-        const s = killBonus(expected, e) - (id === 'airstrike' ? 50 : 20);
+        const s = like(id, killBonus(expected, e) - (id === 'airstrike' ? 50 : 20));
         if (s > best.score) best = { score: s, weapon: id, angle: null, target: { x: e.x, y: e.y } };
       }
     }

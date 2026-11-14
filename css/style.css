@@ -162,6 +162,23 @@ button.secondary:hover { border-color: var(--accent); }
   color: #ffd23f;
   vertical-align: middle;
 }
+.unlimited {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border: 1px solid #3a4260;
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  cursor: pointer;
+}
+.unlimited:has(input:checked) { border-color: var(--accent); }
+.unlimited input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.unlimited span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.unlimited small { color: var(--muted); font-size: 0.85rem; line-height: 1.4; }
+.weapons-table input:disabled { opacity: 0.4; }
+
 .table-wrap { overflow-x: auto; border-radius: var(--radius); }
 .weapons-table { width: 100%; min-width: 520px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .weapons-table th {

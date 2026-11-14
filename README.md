@@ -60,7 +60,9 @@ Every map is generated randomly. The theme changes both the look and the shape o
 
 ## Weapon settings
 
-The **Weapon settings** button in the menu opens a table of every weapon. You can change its damage, blast radius and how much ammo each team starts with (leave ammo empty for unlimited). Changed values are highlighted and remembered. **Reset all to defaults** undoes everything. Special weapons normally start at 0 because they come from steel crates, but you can give teams some from the start here.
+The **Weapon settings** button in the menu opens a table of every weapon. You can change its damage, blast radius and how much ammo each team starts with (leave ammo empty for unlimited). Changed values are highlighted and remembered. **Reset all to defaults** undoes everything.
+
+Tick **All weapons unlimited** at the top of that screen to give every team every weapon, the special crate weapons included, with unlimited ammo from the start. While it's on, wooden crates hand out health, power-ups and armor instead of ammo. Special weapons normally start at 0 because they come from steel crates, but you can give teams some from the start here.
 
 ## Crates
 

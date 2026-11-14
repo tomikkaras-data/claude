@@ -93,15 +93,18 @@ const WEAPON_DEFAULTS = Object.fromEntries(WEAPONS.map(w => [w.id, { ...w }]));
 const WEAPON_FIELDS = ['damage', 'radius', 'ammo', 'bombletDamage'];
 
 // overrides = { weaponId: { damage, radius, ammo (-1 = unlimited), bombletDamage } }
-function applyWeaponConfig(overrides) {
+// unlimited = true gives every weapon, special ones included, unlimited ammo from the start
+function applyWeaponConfig(overrides, unlimited) {
   const over = overrides || {};
   for (const w of WEAPONS) {
     const d = WEAPON_DEFAULTS[w.id];
     for (const f of WEAPON_FIELDS) if (f in d) w[f] = d[f];
+    if (unlimited) w.ammo = Infinity;
     const o = over[w.id];
     if (!o) continue;
     for (const f of WEAPON_FIELDS) {
       if (!(f in d) || o[f] == null || !isFinite(o[f])) continue;
+      if (f === 'ammo' && unlimited) continue;
       w[f] = f === 'ammo' && o[f] < 0 ? Infinity : o[f];
     }
   }

@@ -10,7 +10,7 @@ class Game {
     this.ctx = canvas.getContext('2d');
     this.settings = settings;
     this.hooks = hooks || {};
-    applyWeaponConfig(settings.weapons);
+    applyWeaponConfig(settings.weapons, settings.unlimitedAmmo);
 
     const size = MAP_SIZES[settings.mapSize] || MAP_SIZES.medium;
     setWorldSize(size.w, size.h);
@@ -227,14 +227,23 @@ class Game {
         c.armor += 40;
         text = '🛡 Armor: half damage';
       } else {
-        // more ammo for something the team already has
+        // more ammo for something the team already has (with unlimited ammo there's nothing to refill: heal instead)
         const pool = WEAPONS.filter(w => !w.tool && w.kind !== 'skip' && isFinite(team.ammo[w.id]) && (!w.crate || team.ammo[w.id] > 0));
+        if (!pool.length) {
+          c.hp += 35;
+          text = '+35 HP';
+          return this.crateOpened(k, c, text);
+        }
         const w = pool[randInt(0, pool.length - 1)];
         const amount = w.crate ? 1 : (w.id === 'mine' || w.id === 'cluster' ? 2 : 1);
         team.ammo[w.id] += amount;
         text = `${w.icon} +${amount} ${w.name}`;
       }
     }
+    this.crateOpened(k, c, text);
+  }
+
+  crateOpened(k, c, text) {
     this.texts.push({ x: c.x, y: c.y - 50, text, color: '#fff', life: 130 });
     this.burst(k.x, k.y, k.type === 'steel' ? '#b9c2cc' : '#c08a4a', 18);
     Sound.play('pickup');
