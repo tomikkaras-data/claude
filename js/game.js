@@ -1174,9 +1174,10 @@ class Game {
   // and zaps whatever it touches five times a second
   stepPlasma(p) {
     p.age++;
-    if (p.phase === 'grow') { // stopped dead, swelling to five times its size
+    if (p.phase === 'grow') { // stopped dead, swelling until it fills the whole blast radius
       p.t++;
-      p.r = p.r0 * (1 + 4 * Math.min(1, p.t / 45));
+      const k = Math.min(1, p.t / 45);
+      p.r = p.r0 + (p.bigR - p.r0) * k * k;
       if (p.t % 6 === 0) Sound.play('zap');
       if (p.t >= 45) {
         p.phase = 'flash';
@@ -1238,6 +1239,12 @@ class Game {
   plasmaDetonate(p) {
     const w = WEAPON.plasma;
     this.explode(p.x, p.y, p.bigR, p.bigDamage, p.ownerTeam, 1.5);
+    // toxic plasma gushes out of the centre in every direction
+    for (let i = 0; i < w.toxicSpray; i++) {
+      const a = rand(0, Math.PI * 2), sp = rand(0.8, 6.5);
+      this.fires.push({ x: p.x + rand(-6, 6), y: p.y + rand(-6, 6), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.5,
+        life: randInt(240, 380), airborne: true, ownerTeam: p.ownerTeam, dmg: 2, toxic: true, seed: Math.random() * 10 });
+    }
     // a shower of green cluster bomblets
     for (let i = 0; i < w.burstClusters; i++) {
       const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(3, 7.5);
@@ -2635,15 +2642,16 @@ class Game {
           ctx.beginPath(); ctx.arc(0, 0, R * 0.98, 0, Math.PI * 2); ctx.stroke();
           break;
         }
-        const pulse = 1 + Math.sin(this.tick * 0.35) * 0.1;
+        const pulse = 1 + Math.sin(this.tick * (p.phase === 'grow' ? 0.8 : 0.35)) * 0.1;
         const R = p.r * pulse;
-        const glow = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R * 1.7);
+        const glowK = p.phase === 'fly' ? 1.7 : 1.15;
+        const glow = ctx.createRadialGradient(0, 0, R * 0.2, 0, 0, R * glowK);
         glow.addColorStop(0, 'rgba(180,255,120,0.95)');
         glow.addColorStop(0.45, 'rgba(60,220,60,0.75)');
         glow.addColorStop(0.75, 'rgba(30,160,40,0.3)');
         glow.addColorStop(1, 'rgba(30,160,40,0)');
         ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, R * glowK, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = 'rgba(230,255,200,0.9)';
         ctx.beginPath(); ctx.arc(0, 0, R * 0.35, 0, Math.PI * 2); ctx.fill();
         // crackling arcs
