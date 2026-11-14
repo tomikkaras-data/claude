@@ -52,6 +52,7 @@ function launchProjectile(weapon, shooter, power, fuseTicks) {
     radius: weapon.radius,
     damage: weapon.damage,
     cluster: weapon.cluster || 0,
+    blastKnock: weapon.blastKnock || 1,
     ownerId: shooter.id,
     ownerTeam: shooter.team,
     age: 0,

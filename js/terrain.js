@@ -55,11 +55,12 @@ class Terrain {
 
   generate() {
     const { w, h } = this;
+    const gen = this.theme.gen || { amp: 1, rough: 1, caves: 1, islands: 1, channel: 0.5 };
     const waves = [
-      { amp: rand(80, 130), freq: rand(1.0, 2.2) },
-      { amp: rand(35, 65),  freq: rand(3, 5) },
-      { amp: rand(15, 30),  freq: rand(7, 11) },
-      { amp: rand(4, 9),    freq: rand(20, 30) },
+      { amp: rand(80, 130) * gen.amp, freq: rand(1.0, 2.2) },
+      { amp: rand(35, 65) * gen.amp,  freq: rand(3, 5) },
+      { amp: rand(15, 30) * gen.rough, freq: rand(7, 11) },
+      { amp: rand(4, 9) * gen.rough,   freq: rand(20, 30) },
     ].map(wv => ({ ...wv, phase: rand(0, Math.PI * 2) }));
     const base = h - 400 + rand(-40, 30);
     const heights = new Float32Array(w);
@@ -70,7 +71,7 @@ class Terrain {
     }
 
     // Sometimes cut watery channels through the land
-    const channels = (Math.random() < 0.5 ? 1 : 0) + (w > 2000 && Math.random() < 0.6 ? 1 : 0);
+    const channels = (Math.random() < gen.channel ? 1 : 0) + (w > 2000 && Math.random() < gen.channel + 0.1 ? 1 : 0);
     for (let ch = 0; ch < channels; ch++) {
       const cx = rand(w * 0.2, w * 0.8);
       const half = rand(25, 45);
@@ -88,7 +89,7 @@ class Terrain {
 
     // Caves
     const scale = w / 1600;
-    const caves = Math.round(randInt(4, 8) * scale);
+    const caves = Math.round(randInt(4, 8) * scale * gen.caves);
     for (let i = 0; i < caves; i++) {
       const cx = rand(60, w - 60);
       const cy = heights[Math.floor(cx)] + rand(70, 220);
@@ -100,7 +101,7 @@ class Terrain {
     }
 
     // Floating islands
-    const islands = Math.round(randInt(1, 3) * scale);
+    const islands = Math.round(randInt(1, 3) * scale * gen.islands);
     for (let i = 0; i < islands; i++) {
       const rx = rand(55, 110), ry = rand(16, 28);
       const cx = rand(rx + 20, w - rx - 20);

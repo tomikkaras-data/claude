@@ -262,7 +262,7 @@ const App = {
     for (const w of WEAPONS) {
       if (w.kind === 'skip' || w.kind === 'rope') continue;
       addRow(w, w.name, w.note || '', ['damage', 'radius', 'ammo']);
-      if (w.cluster) addRow(w, 'Bomblets', `${w.cluster} bomblets after the main blast`, ['bombletDamage', null, null], true);
+      if (w.bombletDamage != null) addRow(w, w.subLabel, w.subNote, ['bombletDamage', null, null], true);
     }
   },
 

@@ -439,10 +439,15 @@ class Game {
       }
     } else if (w.kind === 'burst') {
       this.gunBurst = { w, left: w.bullets, t: 0, mult };
+    } else if (w.kind === 'melee') {
+      this.swingBat(c, w, mult);
+    } else if (w.kind === 'flame') {
+      this.gunBurst = { w, left: w.bullets, t: 0, mult };
     } else if (w.kind === 'walker') {
       this.projectiles.push({
-        weapon: 'frog', walker: true, x: c.x + c.facing * 12, y: c.y - 4, vx: c.facing * 1.6, vy: -3, dir: c.facing,
-        fuse: w.fuse, radius: w.radius, damage: w.damage * mult, ownerId: c.id, ownerTeam: c.team,
+        weapon: 'frog', walker: true, x: c.x + c.facing * 14, y: c.y - 6, vx: c.facing * 1.6, vy: -3, dir: c.facing, foot: 8,
+        fuse: w.fuse, radius: w.radius, damage: w.damage * mult, blastKnock: w.blastKnock, ownerId: c.id, ownerTeam: c.team,
+        babies: w.babies, bombletDamage: w.bombletDamage * mult, bombletRadius: w.bombletRadius,
         age: 0, hop: 0, bounce: false, wind: false, cluster: 0, spin: 0,
       });
       Sound.play('croak');
@@ -451,6 +456,30 @@ class Game {
       this.endTurn();
     }
     this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
+  }
+
+  // Baseball bat: short reach, huge knockback in the aim direction
+  swingBat(c, w, mult) {
+    const { dx, dy } = c.aimVector();
+    const px = c.x + dx * 14, py = c.y + dy * 14;
+    this.effects.push({ type: 'swing', x: c.x, y: c.y, facing: c.facing, aim: c.aim, life: 14, max: 14 });
+    let hit = false;
+    for (const o of this.chars) {
+      if (!o.alive || o === c || dist(o.x, o.y, px, py) > CHAR_R + w.radius) continue;
+      if (o.team === c.team && !this.friendlyFire) continue;
+      hit = true;
+      o.x += dx * 2; o.y -= 2; // lift off the ground so the hit carries
+      this.damageChar(o, Math.max(1, Math.round(w.damage * mult)), dx * w.knock, dy * w.knock - 2.5, c.team);
+      this.burst(o.x, o.y, '#fff', 12);
+    }
+    for (const m of this.mines) {
+      if (dist(m.x, m.y, px, py) < w.radius + 8) { m.vx += dx * 7; m.vy += dy * 7 - 3; m.airborne = true; hit = true; }
+    }
+    for (const k of this.crates) {
+      if (dist(k.x, k.y, px, py) < w.radius + 10) { k.vx += dx * 6; k.vy += dy * 6 - 3; k.airborne = true; k.chute = false; hit = true; }
+    }
+    Sound.play(hit ? 'bat' : 'whoosh');
+    if (!hit) this.texts.push({ x: c.x, y: c.y - 40, text: 'Whiff!', color: '#fff', life: 50 });
   }
 
   // One bullet or pellet along (dx, dy)
@@ -720,7 +749,7 @@ class Game {
 
   // --- damage ----------------------------------------------------------------
 
-  explode(x, y, radius, damage, ownerTeam) {
+  explode(x, y, radius, damage, ownerTeam, knock = 1) {
     this.terrain.carve(x, y, radius);
     const reach = radius + CHAR_R;
     if (damage > 0) {
@@ -730,7 +759,7 @@ class Game {
         if (d >= reach) continue;
         if (c.team === ownerTeam && !this.friendlyFire) continue; // teammates (and yourself) are safe unless friendly fire is on
         const f = 1 - d / reach;
-        const force = f * damage * 0.09;
+        const force = f * damage * 0.09 * knock;
         const ang = d < 1 ? -Math.PI / 2 : Math.atan2(c.y - y, c.x - x);
         if (c === this.active) this.releaseRope();
         this.damageChar(c, Math.max(1, Math.round(damage * f)), Math.cos(ang) * force, Math.sin(ang) * force - force * 0.6, ownerTeam);
@@ -792,7 +821,7 @@ class Game {
     c.alive = false;
     c.hp = 0;
     c.grave = !drowned;
-    this.texts.push({ x: c.x, y: c.y - 46, text: drowned ? `${c.name} drowned!` : `${c.name} is out!`, color: '#fff', life: 110 });
+    this.texts.push({ x: c.x, y: c.y - 46, text: drowned ? (this.theme.lava ? `${c.name} fell into the lava!` : `${c.name} drowned!`) : `${c.name} is out!`, color: '#fff', life: 110 });
     if (!drowned) this.burst(c.x, c.y, TEAMS[c.team].color, 25);
     if (c === this.active && this.state === 'turn') this.endTurn();
   }
@@ -902,8 +931,15 @@ class Game {
       this.projectiles.splice(i, 1);
       if (r === 'water') { this.splash(p.x); continue; }
       if (r === 'lost') continue;
-      this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam);
+      this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock || 1);
       if (p.napalm) this.spawnFire(p.x, p.y - 4, 7, p.ownerTeam, p.burn);
+      for (let k = 0; k < (p.babies || 0); k++) {
+        this.projectiles.push({
+          weapon: 'frog', walker: true, baby: true, x: p.x + rand(-6, 6), y: p.y - 8, vx: rand(-2.6, 2.6), vy: rand(-5.5, -3),
+          dir: Math.random() < 0.5 ? -1 : 1, fuse: randInt(60, 180), foot: 4, radius: p.bombletRadius, damage: p.bombletDamage,
+          ownerId: -1, ownerTeam: p.ownerTeam, age: 0, hop: randInt(0, 10), bounce: false, wind: false, cluster: 0, spin: 0,
+        });
+      }
       for (let k = 0; k < p.cluster; k++) {
         this.projectiles.push({
           weapon: 'bomblet', x: p.x, y: p.y - 4, vx: rand(-3, 3), vy: rand(-6, -3), wind: false, bounce: false,
@@ -916,26 +952,36 @@ class Game {
   // Robot frog: hops along the ground, turns at walls, explodes on its timer or next to an enemy
   stepWalker(p) {
     const t = this.terrain;
+    const foot = p.foot || 6;
     p.age++;
     p.fuse--;
-    const grounded = t.isSolid(p.x, p.y + 6);
+    const grounded = t.isSolid(p.x, p.y + foot);
     if (grounded && p.vy >= 0) {
       p.vx = 0; p.vy = 0;
-      if (++p.hop >= 26) { p.hop = 0; p.vy = -4.2; p.vx = p.dir * 1.9; p.y -= 1; if (p.age % 3 === 0) Sound.play('croak'); }
+      if (++p.hop >= (p.baby ? 14 : 26)) {
+        p.hop = 0;
+        if (p.baby) p.dir = Math.random() < 0.5 ? -1 : 1; // babies bounce around at random
+        p.vy = p.baby ? -rand(2.8, 4.2) : -4.4;
+        p.vx = p.dir * (p.baby ? rand(1, 2.2) : 1.9);
+        p.y -= 1;
+        if (!p.baby && p.age % 3 === 0) Sound.play('croak');
+      }
     } else {
       p.vy = Math.min(p.vy + GRAVITY, 10);
       const steps = Math.max(1, Math.ceil(Math.max(Math.abs(p.vx), Math.abs(p.vy)) / 2));
       for (let i = 0; i < steps; i++) {
         const nx = p.x + p.vx / steps;
-        if (t.isSolid(nx + p.dir * 4, p.y)) { p.dir = -p.dir; p.vx = -p.vx * 0.4; } else p.x = nx;
+        if (t.isSolid(nx + p.dir * (foot * 0.7), p.y)) { p.dir = -p.dir; p.vx = -p.vx * 0.4; } else p.x = nx;
         const ny = p.y + p.vy / steps;
-        if (t.isSolid(p.x, ny + 6)) { p.vy = 0; break; }
-        if (t.isSolid(p.x, ny - 5)) { p.vy = 0.5; continue; }
+        if (t.isSolid(p.x, ny + foot)) { p.vy = 0; break; }
+        if (t.isSolid(p.x, ny - foot)) { p.vy = 0.5; continue; }
         p.y = ny;
       }
     }
-    for (const c of this.chars) {
-      if (c.alive && c.team !== p.ownerTeam && dist(c.x, c.y, p.x, p.y) < CHAR_R + 7) return 'impact';
+    if (!p.baby) {
+      for (const c of this.chars) {
+        if (c.alive && c.team !== p.ownerTeam && dist(c.x, c.y, p.x, p.y) < CHAR_R + foot + 2) return 'impact';
+      }
     }
     if (p.y > WATER_Y) return 'water';
     if (p.x < -60 || p.x > WORLD_W + 60) return 'lost';
@@ -953,6 +999,19 @@ class Game {
   updateFires() {
     const t = this.terrain;
     for (const f of this.fires) {
+      if (f.jet) {
+        f.vy += 0.05;
+        const nx = f.x + f.vx, ny = f.y + f.vy;
+        if (t.isSolid(nx, ny)) {
+          if (Math.random() < 0.2) t.carve(nx, ny, 4);
+          // some of the flames stick and keep burning for a moment
+          if (Math.random() < 0.25) { f.jet = false; f.airborne = true; f.vx = 0; f.vy = 0; f.life = randInt(60, 100); }
+          else f.life = 0;
+        } else { f.x = nx; f.y = ny; }
+        f.life--;
+        if (f.y > WATER_Y) f.life = 0;
+        continue;
+      }
       if (!f.airborne && !t.isSolid(f.x, f.y + 3)) f.airborne = true;
       if (f.airborne) {
         f.vy = Math.min(f.vy + 0.15, 6);
@@ -967,7 +1026,8 @@ class Game {
     if (this.tick % 10 !== 0 || !this.fires.length) return;
     for (const c of this.chars) {
       if (!c.alive) continue;
-      const f = this.fires.find(f => dist(f.x, f.y, c.x, c.y + CHAR_R - 4) < 13 && (c.team !== f.ownerTeam || this.friendlyFire));
+      const f = this.fires.find(f => (f.jet ? dist(f.x, f.y, c.x, c.y) < CHAR_R + 5 : dist(f.x, f.y, c.x, c.y + CHAR_R - 4) < 13) &&
+        (c.team !== f.ownerTeam || this.friendlyFire));
       if (!f) continue;
       const got = this.hurt(c, Math.max(1, Math.round(f.dmg)));
       c.burnShown = (c.burnShown || 0) + got;
@@ -1025,7 +1085,17 @@ class Game {
         if (this.ai) this.ai.update();
         else this.handleHeldKeys();
 
-        if (this.gunBurst && c.alive) {
+        if (this.gunBurst && c.alive && this.gunBurst.w.kind === 'flame') {
+          const b = this.gunBurst;
+          for (let i = 0; i < 2; i++) {
+            const a = (c.aim + rand(-b.w.spread, b.w.spread)) * Math.PI / 180;
+            const dx = Math.cos(a) * c.facing, dy = -Math.sin(a), sp = rand(5, 7);
+            this.fires.push({ jet: true, x: c.x + dx * 14, y: c.y + dy * 14, vx: dx * sp, vy: dy * sp, life: randInt(26, 34),
+              airborne: true, ownerTeam: c.team, dmg: b.w.damage * b.mult, seed: Math.random() * 10 });
+          }
+          if (b.t++ % 6 === 0) Sound.play('flame');
+          if (--b.left <= 0) this.gunBurst = null;
+        } else if (this.gunBurst && c.alive) {
           const b = this.gunBurst;
           if (b.t++ % 3 === 0) {
             const a = (c.aim + rand(-b.w.spread, b.w.spread)) * Math.PI / 180;
@@ -1371,7 +1441,7 @@ class Game {
     }
     ctx.fillStyle = this.skyGradient;
     ctx.fillRect(0, 0, viewW, viewH);
-    ctx.fillStyle = 'rgba(255,255,230,0.55)';
+    ctx.fillStyle = this.theme.sun || 'rgba(255,255,230,0.55)';
     ctx.beginPath();
     ctx.arc(viewW * 0.72, Math.min(110, viewH * 0.15), 40, 0, Math.PI * 2);
     ctx.fill();
@@ -1415,6 +1485,7 @@ class Game {
     }
     ctx.globalAlpha = 1;
 
+    this.drawAmbient(ctx);
     const flash = this.effects.find(e => e.type === 'flash');
     if (flash) {
       ctx.fillStyle = `rgba(255,250,225,${(flash.life / flash.max) * 0.85})`;
@@ -1429,7 +1500,7 @@ class Game {
   }
 
   drawClouds(ctx) {
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillStyle = this.theme.cloud || 'rgba(255,255,255,0.7)';
     for (const c of this.clouds) {
       ctx.beginPath();
       ctx.ellipse(c.x, c.y, 50 * c.s, 16 * c.s, 0, 0, Math.PI * 2);
@@ -1679,6 +1750,8 @@ class Game {
       else if (w.fuseSelect) hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
       else if (w.scope) hint = `Scope: ${this.isTouch ? '▲ ▼' : '↑/↓'} for fine aim, ${press} to fire`;
       else if (w.kind === 'burst') hint = `${press} fires ${w.bullets} rounds · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
+      else if (w.kind === 'melee') hint = `Get right next to an enemy, aim and press ${press} to swing`;
+      else if (w.kind === 'flame') hint = `${press} sprays fire for ${(w.bullets / TICK_RATE).toFixed(1)} s · keep aiming while it burns`;
       else if (w.kind === 'walker') hint = `${press} releases the frog · it hops forward and explodes after ${Math.round(w.fuse / TICK_RATE)} s`;
       else if (w.kind === 'rope') hint = this.rope && this.rope.state === 'attached'
         ? (this.isTouch ? '◀ ▶ swing · ▲ ▼ climb · FIRE or JUMP to let go' : '←/→ swing · ↑/↓ climb · Space or Enter to let go')
@@ -1862,8 +1935,44 @@ class Game {
     ctx.restore();
   }
 
+  // Falling snow (winter) or rising embers (volcanic), drawn over the view
+  drawAmbient(ctx) {
+    const kind = this.theme.ambient;
+    if (!kind) return;
+    if (!this.ambient) {
+      this.ambient = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(0.5, 1.4), p: rand(0, 6) }));
+    }
+    const { viewW, viewH } = this;
+    for (const a of this.ambient) {
+      if (kind === 'snow') {
+        a.y += 0.0012 * a.s;
+        a.x += (this.wind * 0.0009 + Math.sin((this.tick + a.p * 50) * 0.02) * 0.0003) * a.s;
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      } else {
+        a.y -= 0.0009 * a.s;
+        a.x += (this.wind * 0.0006 + Math.sin((this.tick + a.p * 40) * 0.03) * 0.0004) * a.s;
+        ctx.fillStyle = `rgba(255,${Math.round(120 + 60 * Math.sin(this.tick * 0.1 + a.p))},40,0.75)`;
+      }
+      if (a.y > 1.02) a.y = -0.02; else if (a.y < -0.02) a.y = 1.02;
+      if (a.x > 1.02) a.x = -0.02; else if (a.x < -0.02) a.x = 1.02;
+      const r = (kind === 'snow' ? 1.8 : 1.3) * a.s;
+      ctx.beginPath();
+      ctx.arc(a.x * viewW, a.y * viewH, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   drawFires(ctx) {
     for (const f of this.fires) {
+      if (f.jet) {
+        const age = 1 - f.life / 34;
+        ctx.globalAlpha = 0.75 * (1 - age * 0.6);
+        ctx.fillStyle = age < 0.3 ? '#ffe27a' : age < 0.65 ? '#ff8a1f' : '#d9411e';
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, 3 + age * 6, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
       const flick = Math.sin(this.tick * 0.4 + f.seed) * 1.5;
       const fade = Math.min(1, f.life / 40);
       ctx.globalAlpha = 0.85 * fade;
@@ -1956,7 +2065,8 @@ class Game {
         break;
       case 'frog': {
         const sq = p.vy === 0 ? 1.15 : 0.9;
-        ctx.scale(p.dir, 1);
+        const size = p.baby ? 0.75 : 1.6;
+        ctx.scale(p.dir * size, size);
         ctx.fillStyle = '#3fae49';
         ctx.beginPath(); ctx.ellipse(0, 0, 7 * sq, 5 / sq, 0, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#1d5e24'; ctx.lineWidth = 1.2; ctx.stroke();
@@ -2001,6 +2111,23 @@ class Game {
       ctx.strokeStyle = '#ff9d2e';
       ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.6 + t * 0.8), 0, Math.PI * 2); ctx.stroke();
+    } else if (e.type === 'swing') {
+      const base = e.facing > 0 ? -e.aim * Math.PI / 180 : Math.PI + e.aim * Math.PI / 180;
+      const sweep = (t - 0.5) * 2.4 * e.facing;
+      ctx.globalAlpha = 1 - t;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, 20, base - 1.2 * e.facing, base + sweep, e.facing < 0);
+      ctx.stroke();
+      // the bat itself
+      const a = base + sweep;
+      ctx.strokeStyle = '#a0612a';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(e.x + Math.cos(a) * 6, e.y + Math.sin(a) * 6);
+      ctx.lineTo(e.x + Math.cos(a) * 24, e.y + Math.sin(a) * 24);
+      ctx.stroke();
     } else if (e.type === 'tracer') {
       ctx.globalAlpha = 1 - t;
       ctx.strokeStyle = '#fff6a0';

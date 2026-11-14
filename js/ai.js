@@ -185,6 +185,27 @@ class AIController {
       }
     }
 
+    // Up close: flamethrower or baseball bat
+    for (const e of enemies) {
+      const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);
+      const facing = dx >= 0 ? 1 : -1;
+      const angle = Math.atan2(-dy, Math.abs(dx)) * 180 / Math.PI;
+      if (Math.abs(angle) > 85) continue;
+      const a = angle * Math.PI / 180;
+      if (has('flamer') && d < 150) {
+        const hit = traceRay(this.env(), c.x, c.y, Math.cos(a) * facing, -Math.sin(a), 170, c.id);
+        if (hit.hit === e) {
+          const s = killBonus(WEAPON.flamer.damage * 7, e) + 5;
+          if (s > best.score) best = { score: s, weapon: 'flamer', angle, facing, power: 1 };
+        }
+      }
+      if (has('bat') && d < CHAR_R * 2 + WEAPON.bat.radius) {
+        // swing a little upwards so the enemy flies far (into the water, ideally)
+        const s = killBonus(WEAPON.bat.damage + 15, e) + 25;
+        if (s > best.score) best = { score: s, weapon: 'bat', angle: clamp(angle + 25, -40, 60), facing, power: 1 };
+      }
+    }
+
     // Things that fall from the sky need open sky above the target
     for (const id of ['airstrike', 'anvil', 'napalm']) {
       if (!has(id)) continue;

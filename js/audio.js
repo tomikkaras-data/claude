@@ -72,6 +72,9 @@ const Sound = {
         case 'drop': this._tone('sine', 500, 300, 0.4, 0.1); break;
         case 'croak': this._tone('square', 220, 150, 0.12, 0.08); break;
         case 'build': this._tone('square', 180, 120, 0.15, 0.14); break;
+        case 'bat': this._noise(0.12, 1800, 0.6); this._tone('sine', 300, 90, 0.15, 0.3); break;
+        case 'whoosh': this._noise(0.2, 700, 0.2); break;
+        case 'flame': this._noise(0.12, 900, 0.16); break;
         case 'win': this._tone('triangle', 400, 1200, 0.9, 0.18); break;
       }
     } catch (e) { /* ignore audio errors */ }

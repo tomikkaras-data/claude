@@ -29,7 +29,7 @@ python3 -m http.server 8000
 | Crates | None, Normal (supply drop every 3 turns) or Lots (every 2 turns) |
 | Weapon settings | Damage, blast radius and starting ammo for every weapon (see below) |
 | Friendly fire | Off (teammates and yourself are safe) or On (anyone can be hurt) |
-| Theme | Random, Grassland, Desert or Snow |
+| Theme | Random, Grassy land, Sand, Winter or Volcanic |
 
 You need at least two different teams to start. The menu remembers your setup.
 
@@ -46,6 +46,17 @@ You need at least two different teams to start. The menu remembers your setup.
 * Wind changes every turn. It pushes the bazooka and air strike missiles.
 * Mines go off about a second after an enemy gets close. Mines that were on the map from the start hurt everyone. Mines laid by a team only react to (and hurt) the other teams. Explosions set off nearby mines.
 * The **last team with living characters wins**.
+
+## Map themes
+
+Every map is generated randomly. The theme changes both the look and the shape of the land:
+
+| Theme | Land | Extras |
+|---|---|---|
+| Grassy land | Rolling hills, caves and floating islands | |
+| Sand | Smooth, low dunes with few caves | |
+| Winter | Tall snowy ridges | Falling snow |
+| Volcanic | Jagged basalt peaks with lots of caves and a glowing crust | Lava instead of water, rising embers |
 
 ## Weapon settings
 
@@ -68,7 +79,7 @@ The **Weapon settings** button in the menu opens a table of every weapon. You ca
 | 🎯 Sniper Rifle | 2 | Scoped aim with a laser sight and fine aiming; long range, high damage |
 | 🦅 Desert Eagle | 2 | Single high-damage pistol shot with strong knockback |
 | ☢️ Nuka Bomb | 1 | Launched like the bazooka; enormous blast |
-| 🐸 Robot Frog | 2 | Hops forward, turns at walls, explodes after 5 seconds or when it reaches an enemy |
+| 🐸 Robot Frog | 2 | Big frog that hops forward, turns at walls and explodes after 5 seconds or when it reaches an enemy. The blast releases 5 baby frogs that hop around at random and go off after 1–3 seconds each |
 | 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
 | 🔨 Anvil Drop | 2 | Click a target; a heavy anvil drops straight down |
 | 🧱 Concrete Block | 3 | Click to place a slab of new ground; `R` rotates it. It's a tool, so it doesn't use up your attack |
@@ -110,10 +121,12 @@ Several human players share one keyboard (hot-seat).
 
 | # | Weapon | Ammo | Notes |
 |---|---|---|---|
-| 1 | Bazooka | ∞ | Explodes on impact, affected by wind |
-| 2 | Grenade | ∞ | Bounces, explodes when its timer runs out (1–5 s, set with `F`) |
+| 1 | Bazooka | ∞ | Explodes on impact with a big knockback, affected by wind |
+| 2 | Grenade | ∞ | Bounces, explodes with a big knockback when its timer runs out (1–5 s, set with `F`) |
 | 3 | Cluster Bomb | 3 | Like the grenade, then bursts into 6 bomblets |
 | 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
+| G | Flamethrower | 3 | Sprays fire for 1.5 s; you can keep aiming while it burns. Some flames stick and keep burning |
+| B | Baseball Bat | 2 | Hits someone right next to you for 30 damage and sends them flying |
 | 5 | Dynamite | 2 | Dropped at your feet, huge blast after 5 seconds |
 | 6 | Mine | 3 | Drops a proximity mine (only enemies set it off) |
 | 7 | Air Strike | 1 | Click or tap a target, 5 missiles rain down |
