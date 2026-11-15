@@ -395,7 +395,7 @@ kbd {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
 }
-.wgroup-items { display: flex; flex-wrap: wrap; gap: 4px; }
+.wgroup-items { display: flex; flex-wrap: wrap; gap: 3px; }
 .weapon {
   position: relative;
   flex: none;
@@ -403,7 +403,7 @@ kbd {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 78px;
+  width: 67px;
   height: 46px;
   background: var(--panel);
   color: var(--text);
@@ -411,7 +411,7 @@ kbd {
   border-radius: 10px;
   cursor: pointer;
   font: inherit;
-  font-size: 0.64rem;
+  font-size: 0.6rem;
   line-height: 1.1;
   padding: 2px 3px;
   -webkit-tap-highlight-color: transparent;

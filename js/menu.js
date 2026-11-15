@@ -194,6 +194,7 @@ const App = {
     });
     if (Touch.enabled) this.game.isTouch = true;
     window.__game = this.game; // handy for debugging from the console
+    if (!this._balanceBound) { this._balanceBound = true; window.addEventListener('resize', () => this.balanceWeaponRows()); }
     this.renderWeapons();
     this.game.start();
   },
@@ -348,6 +349,7 @@ const App = {
       sec.appendChild(row);
       bar.appendChild(sec);
     }
+    this.balanceWeaponRows();
     const cur = WEAPON[c.weapon];
     const toggle = $('weaponToggle');
     toggle.innerHTML = `<span class="icon">${cur.icon}</span><span class="caret">▴</span>`;
@@ -361,6 +363,20 @@ const App = {
     opt.hidden = !showOpt;
     if (showOpt) opt.textContent = cw.fuseSelect ? `⏱ Timer ${c.fuse} s` : `↻ Rotate (${c.buildAngle}°)`;
 
+  },
+
+  // When a group has to wrap, spread its buttons evenly over the rows (no lonely button on the last row)
+  balanceWeaponRows() {
+    for (const row of document.querySelectorAll('#weaponBar .wgroup-items')) {
+      row.style.maxWidth = '';
+      const btns = [...row.children];
+      if (btns.length < 2 || !btns[0].offsetWidth) continue;
+      const rows = new Set(btns.map(b => b.offsetTop)).size;
+      if (rows < 2) continue;
+      const perRow = Math.ceil(btns.length / rows);
+      const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+      row.style.maxWidth = `${perRow * btns[0].offsetWidth + (perRow - 1) * gap + 1}px`;
+    }
   },
 
   // Small screens: the weapon list opens as a pop-up picker

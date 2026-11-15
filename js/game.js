@@ -519,7 +519,8 @@ class Game {
       if (w.cluster) { p.bombletDamage = w.bombletDamage * mult; p.bombletRadius = w.bombletRadius; }
       if (w.frags) {
         Object.assign(p, { frags: w.frags, fragDamage: w.bombletDamage * mult, fragRadius: w.bombletRadius,
-          fragClusters: w.fragClusters, clusterDamage: w.clusterDamage * mult, clusterRadius: w.clusterRadius });
+          fragClusters: w.fragClusters, clusterDamage: w.clusterDamage * mult, clusterRadius: w.clusterRadius,
+          microClusters: w.microClusters, microDamage: w.microDamage * mult, microRadius: w.microRadius });
       }
       if (w.id === 'smoke') p.smoke = true;
       if (w.id === 'flashbang') p.flash = true;
@@ -574,6 +575,15 @@ class Game {
         owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, fuse: null,
       });
       Sound.play('drone');
+    } else if (w.kind === 'boulder') {
+      const { dx, dy } = c.aimVector();
+      const sp = Math.max(0.1, power) * MAX_POWER_SPEED * 0.85;
+      this.projectiles.push({
+        weapon: 'boulder', boulder: true, x: c.x + dx * 16, y: c.y + dy * 16, vx: dx * sp, vy: dy * sp,
+        bouncesLeft: w.bounces, radius: w.radius, damage: w.damage * mult, blastKnock: w.blastKnock, cool: 0,
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('throw');
     } else if (w.kind === 'boomerang') {
       const { dx, dy } = c.aimVector();
       const sp = Math.max(0.15, power) * 11;
@@ -1167,6 +1177,11 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.boulder) {
+        const r = this.stepBoulder(p);
+        if (r) { this.projectiles.splice(i, 1); if (r === 'water') this.splash(p.x); }
+        continue;
+      }
       if (p.boomer) {
         const r = this.stepBoomerang(p);
         if (r) this.projectiles.splice(i, 1);
@@ -1218,7 +1233,7 @@ class Game {
         Sound.play('dig');
         r = null;
       }
-      if (p.age % 2 === 0 && !p.bounce && !p.walker && p.weapon !== 'anvil' && !p.drone && p.weapon !== 'plasmafrag' && p.weapon !== 'greenlet') {
+      if (p.age % 2 === 0 && !p.bounce && !p.walker && p.weapon !== 'anvil' && !p.drone && p.weapon !== 'plasmafrag' && p.weapon !== 'greenlet' && p.weapon !== 'microlet') {
         this.particles.push({ x: p.x, y: p.y, vx: rand(-0.3, 0.3), vy: rand(-0.3, 0.3), life: 30, max: 30, color: 'rgba(230,230,230,0.6)', size: 3, grav: -0.01 });
       }
       if (!r) continue;
@@ -1233,6 +1248,7 @@ class Game {
           weapon: 'plasmafrag', x: p.x, y: p.y - 6, vx: rand(-4.2, 4.2), vy: rand(-8.5, -4), wind: false, bounce: false, fuse: null,
           radius: p.fragRadius, damage: p.fragDamage, cluster: p.fragClusters, clusterWeapon: 'greenlet',
           bombletDamage: p.clusterDamage, bombletRadius: p.clusterRadius, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
+          nest: { n: p.microClusters, weapon: 'microlet', damage: p.microDamage, radius: p.microRadius },
         });
       }
       if (p.napalm) this.spawnFire(p.x, p.y - 4, 7, p.ownerTeam, p.burn);
@@ -1246,7 +1262,10 @@ class Game {
       for (let k = 0; k < p.cluster; k++) {
         this.projectiles.push({
           weapon: p.clusterWeapon || 'bomblet', x: p.x, y: p.y - 4, vx: rand(-3, 3), vy: rand(-6, -3), wind: false, bounce: false,
-          fuse: null, radius: p.bombletRadius || 24, damage: p.bombletDamage || 25, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
+          fuse: null, radius: p.bombletRadius || 24, damage: p.bombletDamage || 25, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
+          // one more round of splitting if this projectile carries it
+          cluster: p.nest ? p.nest.n : 0, clusterWeapon: p.nest && p.nest.weapon,
+          bombletDamage: p.nest && p.nest.damage, bombletRadius: p.nest && p.nest.radius,
         });
       }
     }
@@ -1403,6 +1422,44 @@ class Game {
         fuse: null, radius: p.clusterRadius, damage: p.clusterDamage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
       });
     }
+  }
+
+  // Lava boulder: every time it hits something it explodes, sets fire around and bounces on (6 times)
+  stepBoulder(p) {
+    p.age++;
+    p.spin += p.vx * 0.06;
+    p.vy = Math.min(p.vy + GRAVITY, 12);
+    if (p.cool > 0) p.cool--;
+    const steps = Math.max(1, Math.ceil(Math.hypot(p.vx, p.vy) / 2));
+    for (let i = 0; i < steps; i++) {
+      p.x += p.vx / steps;
+      p.y += p.vy / steps;
+      if (p.cool > 0) continue;
+      const hitRock = this.terrain.isSolid(p.x, p.y + 6) || this.terrain.isSolid(p.x + Math.sign(p.vx) * 6, p.y);
+      const hitChar = this.chars.some(c => c.alive && (c !== p.owner || p.age > 15) && dist(c.x, c.y, p.x, p.y) < CHAR_R + 7);
+      const hitThing = this.crates.some(k => !k.dead && dist(k.x, k.y, p.x, p.y) < 15) || this.mines.some(m => !m.dead && dist(m.x, m.y, p.x, p.y) < 10);
+      if (hitRock || hitChar || hitThing) {
+        this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock);
+        for (let k = 0; k < 16; k++) {
+          const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(1, 4.5);
+          this.fires.push({ x: p.x + rand(-8, 8), y: p.y - 4, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: randInt(200, 320),
+            airborne: true, ownerTeam: p.ownerTeam, dmg: 2, seed: Math.random() * 10 });
+        }
+        if (--p.bouncesLeft <= 0) return 'done';
+        // spring back up out of the new crater and keep rolling the same way
+        p.vy = -Math.max(4.5, Math.abs(p.vy) * 0.7);
+        p.vx = (Math.abs(p.vx) < 1.2 ? Math.sign(p.vx || 1) * 1.8 : p.vx * 0.85);
+        p.cool = 8;
+        Sound.play('thud');
+        break;
+      }
+    }
+    if (p.age % 2 === 0) {
+      this.particles.push({ x: p.x, y: p.y, vx: rand(-0.4, 0.4), vy: rand(-0.6, 0), life: 22, max: 22, color: Math.random() < 0.5 ? '#ff6a00' : '#ffb347', size: rand(2, 3.5), grav: -0.02 });
+    }
+    if (p.y > WATER_Y) return 'water';
+    if (p.x < -100 || p.x > WORLD_W + 100 || p.age > 1500) return 'lost';
+    return null;
   }
 
   // Boomerang: flies out, curves back to the thrower; hits each character once with a big knock
@@ -2488,6 +2545,7 @@ class Game {
       if (myBall) hint = `Press ${press} to detonate the plasma ball`;
       else if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
       else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
+      else if (w.kind === 'boulder') hint = `Hold ${press} to charge the throw · it explodes and spreads fire on each of its ${w.bounces} bounces`;
       else if (w.kind === 'boomerang') hint = `Hold ${press} to charge the throw · it curves back to you and sends anyone it hits flying`;
       else if (w.kind === 'mouse') hint = `${press} lets the mine mouse go · it lays a mine every 0.5 s for 5 s, then bursts`;
       else if (w.id === 'flashbang') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · blinds and dazes everyone near it for their next turn`;
@@ -2875,6 +2933,24 @@ class Game {
         g2.addColorStop(1, 'rgba(30,160,40,0)');
         ctx.fillStyle = g2;
         ctx.beginPath(); ctx.arc(0, 0, p.r * 1.8, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'microlet':
+        ctx.fillStyle = '#7dff5a';
+        ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'boulder': {
+        ctx.rotate(p.spin);
+        ctx.shadowColor = '#ff6a00';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#3b2a26';
+        ctx.beginPath();
+        for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2, rr = 8 + (k % 3) * 1.2; k ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(rr, 0); }
+        ctx.closePath(); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = this.tick % 10 < 5 ? '#ff8a1f' : '#ffd166';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(-5, -2); ctx.lineTo(0, 1); ctx.lineTo(4, -3); ctx.moveTo(-2, 4); ctx.lineTo(2, 2); ctx.stroke();
         break;
       }
       case 'greenlet':
