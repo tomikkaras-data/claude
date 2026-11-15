@@ -172,6 +172,19 @@ class Game {
     }
   }
 
+  // Flashbang: a huge burst of light; anyone inside it is dazed on their next turn
+  flashbang(p) {
+    this.effects.push({ type: 'flashbang', x: p.x, y: p.y, r: p.radius, life: 40, max: 40 });
+    Sound.play('flashbang');
+    for (const c of this.chars) {
+      if (!c.alive || dist(c.x, c.y, p.x, p.y) > p.radius) continue;
+      if (c.team === p.ownerTeam && c !== this.active && !this.friendlyFire) continue;
+      c.dazed = 1;
+      this.texts.push({ x: c.x, y: c.y - 40, text: '😵 Dazed!', color: '#fff', life: 80 });
+      if (c === this.active && this.state === 'turn') this.dazedNow = true;
+    }
+  }
+
   addSmoke(x, y) {
     const r = WEAPON.smoke.smokeRadius;
     const puffs = Array.from({ length: 22 }, () => {
@@ -337,6 +350,8 @@ class Game {
     this.bannerTimer = 80;
     this.camManual = false;
     this.ai = this.active.isCPU ? new AIController(this, this.active) : null;
+    this.dazedNow = this.active.dazed > 0;
+    if (this.dazedNow) this.active.dazed--;
     if (!(team.ammo[this.active.weapon] > 0)) this.active.weapon = 'bazooka';
     Sound.play('turn');
     this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
@@ -507,6 +522,7 @@ class Game {
           fragClusters: w.fragClusters, clusterDamage: w.clusterDamage * mult, clusterRadius: w.clusterRadius });
       }
       if (w.id === 'smoke') p.smoke = true;
+      if (w.id === 'flashbang') p.flash = true;
       this.projectiles.push(p);
       Sound.play(w.bounce ? 'throw' : 'launch');
     } else if (w.kind === 'drop') {
@@ -569,7 +585,7 @@ class Game {
       Sound.play('whoosh');
     } else if (w.kind === 'mouse') {
       this.projectiles.push({
-        weapon: 'mouse', mouse: true, x: c.x + c.facing * 12, y: c.y, vx: 0, vy: -1.5, dir: c.facing, life: w.life, dropEvery: w.dropEvery,
+        weapon: 'mouse', mouse: true, x: c.x + c.facing * 12, y: c.y, vx: 0, vy: -1.5, dir: c.facing, life: w.life, dropStart: w.dropStart, dropEvery: w.dropEvery,
         radius: w.radius, damage: w.damage * mult, pellets: w.pellets, owner: c, ownerId: c.id, ownerTeam: c.team,
         age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
       });
@@ -1210,6 +1226,7 @@ class Game {
       if (r === 'water') { this.splash(p.x); continue; }
       if (r === 'lost') continue;
       if (p.smoke) { this.addSmoke(p.x, p.y); continue; } // smoke grenade: no blast at all
+      if (p.flash) { this.flashbang(p); continue; }       // flashbang: light only
       this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock || 1);
       for (let k = 0; k < (p.frags || 0); k++) { // plasma frag grenade: big green frags that split again
         this.projectiles.push({
@@ -1467,7 +1484,7 @@ class Game {
       if (t.isSolid(p.x, ny + foot)) { p.vy = 0; } else p.y = ny;
     }
     p.spin += 0.4;
-    if (p.age % p.dropEvery === 0 && p.age < p.life) {
+    if (p.age >= p.dropStart && (p.age - p.dropStart) % p.dropEvery === 0 && p.age < p.life) {
       this.mines.push(this.makeMine(p.x, p.y + 1, p.ownerTeam, 60));
       Sound.play('squeak');
     }
@@ -1758,6 +1775,7 @@ class Game {
       case 'turn': {
         const c = this.active;
         if (!c.alive) { this.endTurn(); break; }
+        if (this.dazedNow) c.aim = clamp(c.aim + Math.cos(this.tick * 0.07) * 1.3, -85, 85); // can't hold the aim steady
         if (this.ai) this.ai.update();
         else this.handleHeldKeys();
 
@@ -2196,6 +2214,17 @@ class Game {
     this.drawHUD(ctx, viewW / u, viewH / u);
     if (this.state === 'banner') this.drawBanner(ctx, viewW / u);
 
+    // Dazed by a flashbang: the screen keeps washing out white during your turn
+    if (this.dazedNow && this.active && !this.active.isCPU && (this.state === 'turn' || this.state === 'banner')) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const pulse = 0.5 + 0.5 * Math.sin(this.tick * 0.12);
+      const g = ctx.createRadialGradient(viewW / 2, viewH / 2, Math.min(viewW, viewH) * 0.15, viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.7);
+      g.addColorStop(0, `rgba(255,255,255,${0.25 + 0.35 * pulse})`);
+      g.addColorStop(1, `rgba(255,255,255,${0.55 + 0.35 * pulse})`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, viewW, viewH);
+    }
+
     // Star Cannon detonation: the whole screen goes white, HUD included
     const white = this.effects.find(e => e.type === 'flash' && e.whiteout);
     if (white) {
@@ -2292,7 +2321,7 @@ class Game {
       const team = TEAMS[c.team];
       const y = s.y - 12;
       this.outlinedText(ctx, String(Math.max(0, Math.round(c.shownHp))), s.x, y, 'bold 13px system-ui, sans-serif', team.color);
-      const buffs = (c.powerUp ? ' ⚡' : '') + (c.armor > 0 ? ' 🛡' : '');
+      const buffs = (c.powerUp ? ' ⚡' : '') + (c.armor > 0 ? ' 🛡' : '') + (c.dazed > 0 || (c === this.active && this.dazedNow) ? ' 😵' : '');
       this.outlinedText(ctx, c.name + (c.isCPU ? ' 🤖' : '') + buffs, s.x, y - 15, '12px system-ui, sans-serif', team.color);
       if (c === this.active && (this.state === 'turn' || this.state === 'banner')) {
         const by = y - 30 + Math.sin(this.tick * 0.12) * 4;
@@ -2461,13 +2490,14 @@ class Game {
       else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
       else if (w.kind === 'boomerang') hint = `Hold ${press} to charge the throw · it curves back to you and sends anyone it hits flying`;
       else if (w.kind === 'mouse') hint = `${press} lets the mine mouse go · it lays a mine every 0.5 s for 5 s, then bursts`;
+      else if (w.id === 'flashbang') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · blinds and dazes everyone near it for their next turn`;
       else if (w.id === 'smoke') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · makes a smoke cloud that hides anyone inside from other teams`;
       else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
       else if (w.kind === 'drone') hint = `${press} launches the drone along your aim · then steer it with ${lr} for ${(w.ctrlTicks / TICK_RATE).toFixed(0)} s`;
       else if (this.lockedWeapon) hint = `Move if you like, then press ${press} for the second shot`;
       else if (w.id === 'concrete') hint = `${this.isTouch ? 'Tap' : 'Click'} the map to place a block · ${this.isTouch ? '↻ button' : 'R'} rotates · doesn't use your attack`;
       else if (w.kind === 'target') hint = this.isTouch ? 'Tap the map to pick a target' : 'Click the map to pick a target';
-      else if (w.fuseSelect && w.id !== 'smoke') hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
+      else if (w.fuseSelect && w.id !== 'smoke' && w.id !== 'flashbang') hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
       else if (w.scope) hint = `Scope: ${this.isTouch ? '▲ ▼' : '↑/↓'} for fine aim, ${press} to fire`;
       else if (w.kind === 'burst') hint = `${press} fires ${w.bullets} rounds · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
       else if (w.kind === 'jetpack') hint = this.jet
@@ -2825,8 +2855,9 @@ class Game {
       case 'cluster':
       case 'plasmagrenade':
       case 'smoke':
+      case 'flashbang':
         ctx.rotate(p.spin);
-        ctx.fillStyle = { grenade: '#2f5d2f', cluster: '#7a2d6b', plasmagrenade: '#3ddc3d', smoke: '#9aa1ab' }[p.weapon];
+        ctx.fillStyle = { grenade: '#2f5d2f', cluster: '#7a2d6b', plasmagrenade: '#3ddc3d', smoke: '#9aa1ab', flashbang: '#e9ecef' }[p.weapon];
         ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#999'; ctx.fillRect(-1.5, -8, 3, 4);
         break;
@@ -3054,6 +3085,14 @@ class Game {
       ctx.strokeStyle = '#ff9d2e';
       ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.6 + t * 0.8), 0, Math.PI * 2); ctx.stroke();
+    } else if (e.type === 'flashbang') {
+      const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * (0.6 + t * 0.6));
+      g.addColorStop(0, `rgba(255,255,255,${1 - t})`);
+      g.addColorStop(0.6, `rgba(255,255,240,${(1 - t) * 0.7})`);
+      g.addColorStop(1, 'rgba(255,255,240,0)');
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.6 + t * 0.6), 0, Math.PI * 2); ctx.fill();
     } else if (e.type === 'swing') {
       const base = e.facing > 0 ? -e.aim * Math.PI / 180 : Math.PI + e.aim * Math.PI / 180;
       const sweep = (t - 0.5) * 2.4 * e.facing;

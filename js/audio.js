@@ -81,6 +81,7 @@ const Sound = {
         case 'plasma': this._tone('sawtooth', 90, 260, 0.5, 0.12); break;
         case 'squeak': this._tone('sine', 2200, 2600, 0.06, 0.05); break;
         case 'puff': this._noise(0.5, 400, 0.25); break;
+        case 'flashbang': this._noise(0.25, 6000, 0.7); this._tone('sine', 3200, 2800, 0.9, 0.08); break;
         case 'win': this._tone('triangle', 400, 1200, 0.9, 0.18); break;
       }
     } catch (e) { /* ignore audio errors */ }

@@ -138,7 +138,8 @@ Several human players share one keyboard (hot-seat).
 | Z | Plasma Frag Grenade | 2 | Bouncy grenade (timer 1–5 s). When it goes off, 5 big green plasma frags fly out; each bursts on impact and splits into 5 green cluster bomblets |
 | L | Smoke Grenade | 2 | No damage, no crater. Makes a smoke cloud of radius 100 that stays for the rest of the game. Characters inside it are invisible to the other teams (and the CPU can't target them) |
 | E | Boomerang | 2 | Hold to charge the throw. It flies out, curves back to you and can be caught. Anyone it passes through takes 20 damage and is knocked a long way |
-| Y | Mine Mouse | 1 | Scurries along the ground for 5 seconds, laying one of your mines every 0.5 s, then bursts with 35 pellets in every direction |
+| Y | Mine Mouse | 1 | Scurries along the ground for 6.5 seconds. From 1.5 s on it lays one of your mines every 0.5 s, then it bursts with 35 pellets in every direction |
+| O | Flashbang | 2 | Bouncy grenade (timer 1–5 s). A huge white flash, no damage and no crater. Everyone within its radius (160) is dazed on their next turn: their screen keeps washing out white and their aim drifts up and down by itself |
 | 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
 | G | Flamethrower | 3 | Sprays fire for 1.5 s and pushes targets back a little; you can keep aiming while it burns. Some flames stick and keep burning |
 | B | Baseball Bat | 2 | Hits someone right next to you for 30 damage and sends them flying |

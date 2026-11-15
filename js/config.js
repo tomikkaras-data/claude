@@ -73,6 +73,8 @@ const WEAPONS = [
   { id: 'plasmagrenade', name: 'Plasma Frag Grenade', icon: '🧪', key: 'Z', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true,
     radius: 40, damage: 40, blastKnock: 1.3, ammo: 2, frags: 5, fragClusters: 5, clusterDamage: 12, clusterRadius: 18,
     bombletDamage: 22, bombletRadius: 28, subLabel: 'Plasma frags', subNote: '5 frags, each splits into 5 green clusters' },
+  { id: 'flashbang', name: 'Flashbang',    icon: '🔆', key: 'O', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
+    radius: 160, ammo: 2, note: 'radius = how far the flash reaches · no damage · anyone caught is dazed on their next turn' },
   { id: 'smoke',     name: 'Smoke Grenade', icon: '🌫️', key: 'L', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
     smokeRadius: 100, ammo: 2, note: 'no damage · a cloud of radius 100 that stays all game and hides other teams inside it' },
   { id: 'shotgun',   name: 'Shotgun',      icon: '🔫', key: '4', group: 'weapon', kind: 'hitscan', range: 650, damage: 10, radius: 8, pellets: 6, spread: 5, shots: 2, knock: 1.3, ammo: Infinity,
@@ -88,8 +90,8 @@ const WEAPONS = [
     cluster: 5, bombletDamage: 25, bombletRadius: 26, subLabel: 'Drone bomblets', subNote: '5 bomblets scatter when it explodes' },
   { id: 'tornado',   name: 'Tornado',      icon: '🌪️', key: 'Q', group: 'weapon', kind: 'tornado', radius: 60, damage: 10, life: 480, speed: 1.1, ammo: 1,
     note: 'radius = full size it grows to · damage when it throws someone out' },
-  { id: 'mouse',     name: 'Mine Mouse',   icon: '🐭', key: 'Y', group: 'weapon', kind: 'mouse', life: 300, dropEvery: 30, radius: 25, damage: 20, pellets: 35, ammo: 1,
-    note: 'walks for 5 s laying a mine every 0.5 s, then bursts into 35 pellets' },
+  { id: 'mouse',     name: 'Mine Mouse',   icon: '🐭', key: 'Y', group: 'weapon', kind: 'mouse', life: 390, dropStart: 90, dropEvery: 30, radius: 25, damage: 20, pellets: 35, ammo: 1,
+    note: 'walks for 6.5 s; from 1.5 s on it lays a mine every 0.5 s; then bursts into 35 pellets' },
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'weapon', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
 
   // --- tools: moving around (they don't use up the attack) ------------------
