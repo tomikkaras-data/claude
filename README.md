@@ -90,6 +90,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 | 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
 | 🔨 Lava Anvil | 2 | Click a target; a red-hot anvil drops straight down, melts its way down through rock leaving fire along the shaft, and explodes at the bottom (or when it hits someone) |
 | 🟢 Star Cannon | 1 | Fires a toxic green plasma ball (radius 25) straight along your aim: slow, no gravity, no wind. It eats through rock and zaps anyone it passes through 5 times a second. Press FIRE again while it flies to detonate it: the ball stops, swells until it fills the whole blast area and the whole screen goes white. When the light fades it goes off: a huge blast (radius 180), a gush of toxic plasma from the centre in every direction, fire across the area, a shower of 20 green cluster bomblets, and 25 small plasma balls shooting off in random directions. Each small ball bursts when it hits rock, a character, a crate or a mine and splits into 5 more green cluster bomblets. If you don't, it goes off by itself after 15 seconds |
+| 👽 Alien Blaster | 1 | A small green bolt that flies straight through rock and characters, burning and zapping everyone it passes (25 each) and leaving a trail of fire and toxic plasma; it ends in a fire-and-plasma blast |
 | 🧱 Concrete Block | 3 | Click to place a slab of new ground; `R` rotates it. It's a tool, so it doesn't use up your attack |
 
 ## Controls (human players)
@@ -113,7 +114,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 
 Several human players share one keyboard (hot-seat).
 
-**Ninja Rope:** aim and press `Space` to shoot the rope. It sticks to any ground within reach. Swing with `←` `→`, climb up or down with `↑` `↓`, and let go with `Space` or `Enter`. You get 6 rope shots per turn, and using the rope doesn't use up your attack, so you can swing into position and then fire.
+**Ninja Rope:** aim and press `Space` to shoot the rope. Swinging into a wall bounces you off it, and pressing the arrow pointing away from a wall you're touching kicks you off it hard. It sticks to any ground within reach. Swing with `←` `→`, climb up or down with `↑` `↓`, and let go with `Space` or `Enter`. You get 6 rope shots per turn, and using the rope doesn't use up your attack, so you can swing into position and then fire.
 
 ## Phones and tablets
 
@@ -141,6 +142,9 @@ Several human players share one keyboard (hot-seat).
 | E | Boomerang | 2 | Hold to charge the throw. It flies out, curves back to you and can be caught. Anyone it passes through takes 20 damage and is knocked a long way |
 | Y | Mine Mouse | 1 | Scurries along the ground for 6.5 seconds. From 1.5 s on it lays one of your mines every 0.5 s, then it bursts with 35 pellets in every direction |
 | O | Flashbang | 2 | Bouncy grenade (timer 1–5 s). A huge white flash, no damage and no crater. Everyone within its radius (160) is dazed on their next turn: their screen keeps washing out white and their aim drifts up and down by itself |
+| I | H&K MP5 | 2 | Laser sight: a red line, and a red dot on whatever it points at within 300. Each press fires a 3-round burst (5 damage per round); 4 bursts per turn, and you can move between them |
+| — | Claymore | 2 | Planted facing the way you look. Goes off the instant an enemy touches it, with a blast and a fan of shrapnel thrown forward |
+| — | Gas Grenade | 2 | Bouncy grenade (timer 1–5 s). Leaves a green toxic gas cloud (radius 90) that never clears and hurts anyone inside it 3 times a second |
 | 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
 | G | Flamethrower | 3 | Sprays fire for 1.5 s and pushes targets back a little; you can keep aiming while it burns. Some flames stick and keep burning |
 | B | Baseball Bat | 2 | Hits someone right next to you for 30 damage and sends them flying |
@@ -153,7 +157,8 @@ Several human players share one keyboard (hot-seat).
 | 9 | Drill | ∞ | Tool: hold FIRE/Space to dig straight down (5 s per turn) |
 | 0 | Pickaxe | ∞ | Tool: hold FIRE/Space to tunnel in the aim direction (5 s per turn) |
 | T | Teleport | 2 | Click or tap any open spot to move there |
-| K | Skip Turn | ∞ | Pass the turn |
+| K | Rest & Heal | ∞ | Ends your turn: +50 health (up to your starting health) and 20% less damage taken for the next 3 rounds (🩹 by your name) |
+| — | Hazmat Suit | 1 | Tool: press Space to put it on or take it off (free after the first time). While worn you take no toxic, plasma or fire damage, but on your turn you only see the battlefield through the two lenses of a gas mask |
 
 Tools don't use up your attack. The drill and pickaxe also do 15 damage to a character they dig into, and they set off mines in their way.
 

@@ -25,6 +25,7 @@ const FALL_SAFE_SPEED = 6.8;         // landing faster than this hurts
 const FALL_DAMAGE_PER_SPEED = 7;
 const BARRELS = { perPixel: 1 / 520, radius: 32, damage: 25, flames: 24, fireDamage: 2 };
 const SMOKE_GROW = 40;
+const PLASMA_WEAPONS = new Set(['plasmafrag', 'greenlet', 'microlet', 'plasmagrenade', 'miniplasma']);
 const CRATE_BLAST = { radius: 22, damage: 15, fires: 12, fireDamage: 2, pellets: [10, 20], pellet: { range: 320, damage: 8, radius: 4, knock: 1.2 } };
 const DEATH_BLAST = { radius: 28, damage: 20, delay: 35 }; // knocked-out characters go off with a small bang
 
@@ -74,6 +75,12 @@ const WEAPONS = [
     radius: 40, damage: 40, blastKnock: 1.3, ammo: 2, frags: 5, fragClusters: 5, clusterDamage: 12, clusterRadius: 18,
     microClusters: 3, microDamage: 7, microRadius: 13,
     bombletDamage: 22, bombletRadius: 28, subLabel: 'Plasma frags', subNote: '5 frags → 5 green clusters each → 3 tiny ones each' },
+  { id: 'mp5',       name: 'H&K MP5',      icon: '🔴', key: 'I', group: 'weapon', kind: 'smg', laser: 300, burst: 3, shots: 4, range: 700, spread: 1.5, damage: 5, radius: 4, knock: 0.8, ammo: 2,
+    note: 'per round · 4 bursts of 3 rounds per turn · red laser dot on targets within 300' },
+  { id: 'claymore',  name: 'Claymore',     icon: '⚠️', group: 'weapon', kind: 'claymore', radius: 40, damage: 50, pellets: 14, ammo: 2,
+    note: 'goes off the moment an enemy touches it, spraying shrapnel the way it faces' },
+  { id: 'gas',       name: 'Gas Grenade',  icon: '☣️', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true, radius: 90, damage: 1, ammo: 2,
+    note: 'radius = size of the gas cloud · damage 3 times a second to anyone inside · the gas never clears' },
   { id: 'flashbang', name: 'Flashbang',    icon: '🔆', key: 'O', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
     radius: 160, ammo: 2, note: 'radius = how far the flash reaches · no damage · anyone caught is dazed on their next turn' },
   { id: 'smoke',     name: 'Smoke Grenade', icon: '🌫️', key: 'L', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
@@ -104,7 +111,10 @@ const WEAPONS = [
   { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', group: 'tool', kind: 'dig', dig: 'down', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
   { id: 'pickaxe',   name: 'Pickaxe',      icon: '⛏️', key: '0', group: 'tool', kind: 'dig', dig: 'aim', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
   { id: 'teleport',  name: 'Teleport',     icon: '🌀', key: 'T', group: 'tool', kind: 'target', ammo: 2 },
-  { id: 'skip',      name: 'Skip Turn',    icon: '⏭️', key: 'K', group: 'tool', kind: 'skip', ammo: Infinity },
+  { id: 'suit',      name: 'Hazmat Suit',  icon: '🦺', group: 'tool', kind: 'suit', tool: true, ammo: 1,
+    note: 'blocks toxic, plasma and fire damage while worn · you only see through the mask' },
+  { id: 'skip',      name: 'Rest & Heal',  icon: '🩹', key: 'K', group: 'tool', kind: 'skip', heal: 50, ammo: Infinity,
+    note: 'ends your turn · +50 health and 20% less damage for 3 rounds' },
 
   // --- special weapons: 1 each at the start, more from steel crates ----------
   { id: 'gatling',   name: 'Gatling Gun',  icon: '⚙️', group: 'crate', kind: 'burst', bullets: 24, spread: 3, range: 900, damage: 4, radius: 5, ammo: 1, crate: 1, note: 'per bullet · 24 bullets' },
@@ -119,6 +129,9 @@ const WEAPONS = [
     note: 'radius = size of the plasma ball · damage every 1/5 s while it passes through someone',
     bombletDamage: 85, bombletRadius: 180, subLabel: 'Detonation', subNote: 'press FIRE again while it flies',
     miniBalls: 25, miniDamage: 25, miniRadius: 30, miniClusters: 5, burstClusters: 20, toxicSpray: 110, clusterDamage: 15, clusterRadius: 20 },
+  { id: 'blaster',   name: 'Alien Blaster', icon: '👽', group: 'crate', kind: 'blaster', speed: 9, life: 80, damage: 25, radius: 45, ammo: 1, crate: 1,
+    note: 'damage to each character the bolt passes through · it goes through everything',
+    bombletDamage: 40, subLabel: 'End blast', subNote: 'fire and plasma where the bolt runs out' },
   { id: 'concrete',  name: 'Concrete Block', icon: '🧱', group: 'crate', kind: 'target', tool: true, ammo: 1, crate: 3 },
 ];
 

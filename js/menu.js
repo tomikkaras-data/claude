@@ -338,7 +338,7 @@ const App = {
         b.type = 'button';
         b.className = 'weapon' + (c.weapon === w.id ? ' on' : '');
         const ammo = team.ammo[w.id];
-        b.disabled = !humanCanPick || !(ammo > 0);
+        b.disabled = !humanCanPick || !(ammo > 0 || (w.id === 'suit' && c.ownsSuit));
         b.title = w.key ? `${w.name} (${w.key})` : w.name;
         b.innerHTML = (w.key ? `<span class="key">${w.key}</span>` : '') +
           (ammo !== Infinity ? `<span class="ammo">×${ammo}</span>` : '') +

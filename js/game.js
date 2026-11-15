@@ -32,6 +32,7 @@ class Game {
     this.fires = [];
     this.deathBlasts = [];
     this.smokes = [];
+    this.gases = [];
     this.jet = null;
     this.particles = [];
     this.effects = [];
@@ -182,6 +183,29 @@ class Game {
       c.dazed = 1;
       this.texts.push({ x: c.x, y: c.y - 40, text: '😵 Dazed!', color: '#fff', life: 80 });
       if (c === this.active && this.state === 'turn') this.dazedNow = true;
+    }
+  }
+
+  addGas(x, y, r, dmg, ownerTeam) {
+    const puffs = Array.from({ length: 20 }, () => {
+      const a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * r * 0.75;
+      return { dx: Math.cos(a) * d, dy: Math.sin(a) * d, r: rand(r * 0.3, r * 0.5), ph: rand(0, 6) };
+    });
+    this.gases.push({ x, y, r, dmg, ownerTeam, age: 0, puffs });
+    Sound.play('puff');
+  }
+
+  updateGas() {
+    for (const g of this.gases) g.age++;
+    if (this.tick % 20 !== 0 || !this.gases.length) return;
+    for (const c of this.chars) {
+      if (!c.alive || c.suit) continue;
+      const g = this.gases.find(g => dist(c.x, c.y, g.x, g.y) < g.r * Math.min(1, g.age / SMOKE_GROW) && (c.team !== g.ownerTeam || this.friendlyFire));
+      if (!g) continue;
+      const got = this.hurt(c, Math.max(1, Math.round(g.dmg)));
+      c.gasShown = (c.gasShown || 0) + got;
+      if (c.gasShown >= 3) { this.texts.push({ x: c.x, y: c.y - 30, text: `☣ -${c.gasShown}`, color: '#8ce99a', life: 50 }); c.gasShown = 0; }
+      if (c.hp <= 0) this.kill(c, false);
     }
   }
 
@@ -350,6 +374,8 @@ class Game {
     this.bannerTimer = 80;
     this.camManual = false;
     this.ai = this.active.isCPU ? new AIController(this, this.active) : null;
+    if (this.active.restArmor > 0) this.active.restArmor--; // Rest & Heal protection wears off over 3 rounds
+    this.ropeKickCd = 0;
     this.dazedNow = this.active.dazed > 0;
     if (this.dazedNow) this.active.dazed--;
     if (!(team.ammo[this.active.weapon] > 0)) this.active.weapon = 'bazooka';
@@ -395,7 +421,7 @@ class Game {
     if (this.state !== 'turn' && this.state !== 'banner') return;
     if (this.hasFired || this.charging || this.digging || this.lockedWeapon) return;
     const team = this.teams[this.active.team];
-    if (!(team.ammo[id] > 0)) return;
+    if (!(team.ammo[id] > 0) && !(id === 'suit' && this.active.ownsSuit)) return;
     // picking anything else takes the jetpack off (controls go back to normal)
     if (this.jet && id !== 'jetpack') {
       this.jet = null;
@@ -439,6 +465,7 @@ class Game {
     if (ball) { ball.detonate = true; return; }
     if (w.kind === 'rope') { this.fireRope(); return; }
     if (w.kind === 'jetpack') { this.toggleJetpack(); return; }
+    if (w.kind === 'suit') { this.toggleSuit(c); return; }
     if (w.kind === 'chute') {
       if (c.airborne && !c.chute) this.openChute(c);
       else if (!c.chute) this.texts.push({ x: c.x, y: c.y - 50, text: 'Jump or fall to open it', color: '#fff', life: 70 });
@@ -455,6 +482,24 @@ class Game {
       if (this.mouse.inside && !this.isTouch) this.fireAt(this.mouse.x, this.mouse.y);
       else this.texts.push({ x: c.x, y: c.y - 50, text: 'Tap the map to pick a target', color: '#fff', life: 90 });
     } else this.fire(1);
+  }
+
+  // Hazmat suit: put on once (uses the item), then it can be taken off and on for free
+  toggleSuit(c) {
+    if (this.state !== 'turn') return;
+    if (c.suit) { c.suit = false; this.texts.push({ x: c.x, y: c.y - 40, text: 'Suit off', color: '#fff', life: 50 }); }
+    else {
+      const team = this.teams[c.team];
+      if (!c.ownsSuit) {
+        if (!(team.ammo.suit > 0)) return;
+        team.ammo.suit--;
+        c.ownsSuit = true;
+      }
+      c.suit = true;
+      this.texts.push({ x: c.x, y: c.y - 40, text: '🦺 Suit on', color: '#ffd43b', life: 60 });
+    }
+    Sound.play('whoosh');
+    this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
   }
 
   // --- jetpack and parachute --------------------------------------------------
@@ -508,6 +553,7 @@ class Game {
     this.charging = false;
     this.camManual = false;
     const mult = w.kind === 'skip' ? 1 : this.attackMultiplier(c);
+    if (w.kind === 'smg') this.gunBurst = { w, left: w.burst, t: 0, mult }; // each "shot" is a 3-round burst
     if (!this.lockedWeapon) team.ammo[w.id]--;
     this.shotsFired++;
     if (this.shotsFired < (w.shots || 1)) this.lockedWeapon = w.id;
@@ -524,6 +570,7 @@ class Game {
       }
       if (w.id === 'smoke') p.smoke = true;
       if (w.id === 'flashbang') p.flash = true;
+      if (w.id === 'gas') p.gas = true;
       this.projectiles.push(p);
       Sound.play(w.bounce ? 'throw' : 'launch');
     } else if (w.kind === 'drop') {
@@ -575,6 +622,20 @@ class Game {
         owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, fuse: null,
       });
       Sound.play('drone');
+    } else if (w.kind === 'claymore') {
+      const m = this.makeMine(c.x + c.facing * 10, c.y, c.team, 60, w.damage * mult);
+      Object.assign(m, { claymore: true, facing: c.facing, radius: w.radius, pellets: w.pellets });
+      m.vy = -1;
+      this.mines.push(m);
+      Sound.play('throw');
+    } else if (w.kind === 'blaster') {
+      const { dx, dy } = c.aimVector();
+      this.projectiles.push({
+        weapon: 'blaster', blaster: true, x: c.x + dx * 14, y: c.y + dy * 14, vx: dx * w.speed, vy: dy * w.speed, life: w.life,
+        damage: w.damage * mult, radius: w.radius, bigDamage: w.bombletDamage * mult, hit: new Set(),
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('blaster');
     } else if (w.kind === 'boulder') {
       const { dx, dy } = c.aimVector();
       const sp = Math.max(0.1, power) * MAX_POWER_SPEED * 0.85;
@@ -612,8 +673,13 @@ class Game {
         age: 0, hop: 0, bounce: false, wind: false, cluster: 0, spin: 0,
       });
       Sound.play('croak');
-    } else if (w.kind === 'skip') {
-      this.texts.push({ x: c.x, y: c.y - 40, text: 'Skipped', color: '#fff', life: 70 });
+    } else if (w.kind === 'skip') { // Rest & Heal
+      const before = c.hp;
+      c.hp = Math.min(c.maxHp, c.hp + w.heal);
+      c.restArmor = 3;
+      this.texts.push({ x: c.x, y: c.y - 40, text: `+${c.hp - before} HP · 🩹 20% armor for 3 rounds`, color: '#8ce99a', life: 110 });
+      this.burst(c.x, c.y, '#8ce99a', 16);
+      Sound.play('heal');
       this.endTurn();
     }
     this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
@@ -883,6 +949,15 @@ class Game {
   // Pendulum physics while hanging on the rope
   updateRopeChar(c) {
     const r = this.rope, t = this.terrain;
+    // standing against a wall on the rope: push off it with the arrow key pointing away
+    if (this.ropeKickCd > 0) this.ropeKickCd--;
+    const away = this.ropeSwing || 0;
+    if (away && !this.ropeKickCd && t.collides(c.x - away * 3, c.y)) {
+      c.vx += away * 3.5;
+      c.vy -= 0.8;
+      this.ropeKickCd = 18;
+      Sound.play('jump');
+    }
     c.airborne = true;
     c.vy += GRAVITY;
     c.vx += (this.ropeSwing || 0) * 0.09;
@@ -900,7 +975,14 @@ class Game {
         const vr = c.vx * ux + c.vy * uy;
         if (vr > 0) { c.vx -= vr * ux; c.vy -= vr * uy; }
       }
-      if (t.collides(nx, ny)) { c.vx *= -0.35; c.vy *= -0.35; break; }
+      if (t.collides(nx, ny)) {
+        // bounce off the wall; pushing away from it with the arrows kicks off harder
+        c.vx = -c.vx * 0.75;
+        c.vy = -c.vy * 0.5;
+        const push = this.ropeSwing || 0;
+        if (push && Math.sign(push) === Math.sign(c.vx || push)) c.vx += push * 3;
+        break;
+      }
       c.x = nx;
       c.y = ny;
     }
@@ -956,6 +1038,7 @@ class Game {
 
   // Apply damage through armour; returns what actually got through
   hurt(c, amount) {
+    if (c.restArmor > 0) amount = Math.max(1, Math.round(amount * 0.8)); // resting: 20% less damage
     if (c.armor > 0) {
       const absorbed = Math.min(c.armor, Math.ceil(amount / 2));
       c.armor -= absorbed;
@@ -976,7 +1059,7 @@ class Game {
 
   // --- damage ----------------------------------------------------------------
 
-  explode(x, y, radius, damage, ownerTeam, knock = 1) {
+  explode(x, y, radius, damage, ownerTeam, knock = 1, kind) {
     this.terrain.carve(x, y, radius);
     const reach = radius + CHAR_R;
     if (damage > 0) {
@@ -989,7 +1072,7 @@ class Game {
         const force = f * damage * 0.09 * knock;
         const ang = d < 1 ? -Math.PI / 2 : Math.atan2(c.y - y, c.x - x);
         if (c === this.active) this.releaseRope();
-        this.damageChar(c, Math.max(1, Math.round(damage * f)), Math.cos(ang) * force, Math.sin(ang) * force - force * 0.6, ownerTeam);
+        this.damageChar(c, Math.max(1, Math.round(damage * f)), Math.cos(ang) * force, Math.sin(ang) * force - force * 0.6, ownerTeam, kind);
       }
     }
     // knock graves and mines around; blasts set off nearby mines
@@ -1032,8 +1115,14 @@ class Game {
     Sound.play('explosion', radius / 60);
   }
 
-  damageChar(c, amount, kx, ky, ownerTeam) {
+  // kind: 'toxic' | 'plasma' | 'fire' | undefined (the Hazmat suit blocks the first three)
+  damageChar(c, amount, kx, ky, ownerTeam, kind) {
     if (!c.alive || (c.team === ownerTeam && !this.friendlyFire)) return;
+    if (kind && c.suit) {
+      c.vx += kx; c.vy += ky; c.airborne = true;
+      this.texts.push({ x: c.x, y: c.y - 30, text: '🦺 0', color: '#ffd43b', life: 40 });
+      return;
+    }
     amount = this.hurt(c, amount);
     c.vx += kx;
     c.vy += ky;
@@ -1153,9 +1242,10 @@ class Game {
     if (m.arm > 0) m.arm--;
     else if (m.fuse == null) {
       for (const c of this.chars) {
-        if (c.alive && c.team !== m.ownerTeam && dist(c.x, c.y, m.x, m.y) < MINE_TRIGGER) {
-          m.fuse = MINE_FUSE;
-          Sound.play('beep');
+        if (!c.alive || c.team === m.ownerTeam) continue;
+        if (m.claymore ? dist(c.x, c.y, m.x, m.y) < CHAR_R + 8 : dist(c.x, c.y, m.x, m.y) < MINE_TRIGGER) {
+          m.fuse = m.claymore ? 1 : MINE_FUSE; // a claymore goes off the moment it's touched
+          if (!m.claymore) Sound.play('beep');
           break;
         }
       }
@@ -1163,6 +1253,13 @@ class Game {
     if (m.fuse != null && --m.fuse <= 0) {
       m.dead = true;
       this.explode(m.x, m.y, m.radius, m.damage, m.ownerTeam);
+      if (m.claymore) { // shrapnel thrown forward in a fan
+        const pellet = { range: 260, damage: 5, radius: 4, knock: 1.6 };
+        for (let i = 0; i < m.pellets; i++) {
+          const a = (rand(-35, 35) - 10) * Math.PI / 180;
+          this.shootRay(m.x, m.y - 4, Math.cos(a) * m.facing, Math.sin(a), pellet, 1, m.ownerTeam, -1, 4);
+        }
+      }
     }
   }
 
@@ -1177,6 +1274,11 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.blaster) {
+        const r = this.stepBlaster(p);
+        if (r) this.projectiles.splice(i, 1);
+        continue;
+      }
       if (p.boulder) {
         const r = this.stepBoulder(p);
         if (r) { this.projectiles.splice(i, 1); if (r === 'water') this.splash(p.x); }
@@ -1241,8 +1343,10 @@ class Game {
       if (r === 'water') { this.splash(p.x); continue; }
       if (r === 'lost') continue;
       if (p.smoke) { this.addSmoke(p.x, p.y); continue; } // smoke grenade: no blast at all
+      if (p.gas) { this.addGas(p.x, p.y, p.radius, p.damage, p.ownerTeam); continue; }
       if (p.flash) { this.flashbang(p); continue; }       // flashbang: light only
-      this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock || 1);
+      this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock || 1,
+        PLASMA_WEAPONS.has(p.weapon) ? 'plasma' : p.napalm ? 'fire' : undefined);
       for (let k = 0; k < (p.frags || 0); k++) { // plasma frag grenade: big green frags that split again
         this.projectiles.push({
           weapon: 'plasmafrag', x: p.x, y: p.y - 6, vx: rand(-4.2, 4.2), vy: rand(-8.5, -4), wind: false, bounce: false, fuse: null,
@@ -1349,7 +1453,7 @@ class Game {
       if (d > p.r + CHAR_R) continue;
       if (c.team === p.ownerTeam && !this.friendlyFire) continue;
       const ux = d > 1 ? (c.x - p.x) / d : 0;
-      this.damageChar(c, Math.max(1, Math.round(p.damage)), ux * 1.2, -0.9, p.ownerTeam);
+      this.damageChar(c, Math.max(1, Math.round(p.damage)), ux * 1.2, -0.9, p.ownerTeam, 'plasma');
     }
     for (const m of this.mines) if (!m.dead && dist(m.x, m.y, p.x, p.y) < p.r + 5) this.triggerMine(m);
     for (const k of this.crates) if (!k.dead && dist(k.x, k.y, p.x, p.y) < p.r + 9) this.destroyCrate(k);
@@ -1358,7 +1462,7 @@ class Game {
 
   plasmaDetonate(p) {
     const w = WEAPON.plasma;
-    this.explode(p.x, p.y, p.bigR, p.bigDamage, p.ownerTeam, 1.5);
+    this.explode(p.x, p.y, p.bigR, p.bigDamage, p.ownerTeam, 1.5, 'plasma');
     // toxic plasma gushes out of the centre in every direction
     for (let i = 0; i < w.toxicSpray; i++) {
       const a = rand(0, Math.PI * 2), sp = rand(0.8, 6.5);
@@ -1413,7 +1517,7 @@ class Game {
   }
 
   miniPlasmaBlast(p) {
-    this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam);
+    this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, 1, 'plasma');
     this.burst(p.x, p.y, '#7dff5a', 14);
     // each one splits into green cluster bomblets
     for (let k = 0; k < p.clusters; k++) {
@@ -1422,6 +1526,42 @@ class Game {
         fuse: null, radius: p.clusterRadius, damage: p.clusterDamage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
       });
     }
+  }
+
+  // Alien blaster bolt: straight through rock and bodies, burning and zapping as it goes; big blast when it runs out
+  stepBlaster(p) {
+    p.age++;
+    for (let s = 0; s < 3; s++) {
+      p.x += p.vx / 3;
+      p.y += p.vy / 3;
+      if (this.terrain.isSolid(p.x, p.y)) this.terrain.carve(p.x, p.y, 6);
+      for (const c of this.chars) {
+        if (!c.alive || p.hit.has(c) || (c === p.owner && p.age < 6)) continue;
+        if (dist(c.x, c.y, p.x, p.y) > CHAR_R + 5) continue;
+        p.hit.add(c);
+        this.damageChar(c, Math.max(1, Math.round(p.damage)), p.vx * 0.25, -1.5, p.ownerTeam, 'plasma');
+        this.spawnFire(c.x, c.y, 4, p.ownerTeam, 2);
+        this.burst(c.x, c.y, '#7dff5a', 14);
+      }
+      for (const k of this.crates) if (!k.dead && dist(k.x, k.y, p.x, p.y) < 12) this.destroyCrate(k);
+      for (const m of this.mines) if (!m.dead && dist(m.x, m.y, p.x, p.y) < 8) this.triggerMine(m);
+    }
+    if (p.age % 4 === 0) { // a trail of toxic plasma and fire
+      this.fires.push({ x: p.x, y: p.y, vx: rand(-0.5, 0.5), vy: rand(-0.5, 0.5), life: randInt(150, 240), airborne: true,
+        ownerTeam: p.ownerTeam, dmg: 1, toxic: p.age % 8 === 0, seed: Math.random() * 10 });
+    }
+    this.particles.push({ x: p.x, y: p.y, vx: rand(-0.4, 0.4), vy: rand(-0.4, 0.4), life: 16, max: 16, color: '#7dff5a', size: 2.5, grav: 0 });
+    if (p.x < -100 || p.x > WORLD_W + 100 || p.y < -500 || p.y > WATER_Y) return 'gone';
+    if (p.age >= p.life) {
+      this.explode(p.x, p.y, p.radius, p.bigDamage, p.ownerTeam, 1.3, 'plasma');
+      for (let k = 0; k < 18; k++) {
+        const a = rand(0, Math.PI * 2), sp = rand(1, 4.5);
+        this.fires.push({ x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, life: randInt(200, 320), airborne: true,
+          ownerTeam: p.ownerTeam, dmg: 2, toxic: k % 2 === 0, seed: Math.random() * 10 });
+      }
+      return 'blast';
+    }
+    return null;
   }
 
   // Lava boulder: every time it hits something it explodes, sets fire around and bounces on (6 times)
@@ -1439,7 +1579,7 @@ class Game {
       const hitChar = this.chars.some(c => c.alive && (c !== p.owner || p.age > 15) && dist(c.x, c.y, p.x, p.y) < CHAR_R + 7);
       const hitThing = this.crates.some(k => !k.dead && dist(k.x, k.y, p.x, p.y) < 15) || this.mines.some(m => !m.dead && dist(m.x, m.y, p.x, p.y) < 10);
       if (hitRock || hitChar || hitThing) {
-        this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock);
+        this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock, 'fire');
         for (let k = 0; k < 16; k++) {
           const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(1, 4.5);
           this.fires.push({ x: p.x + rand(-8, 8), y: p.y - 4, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: randInt(200, 320),
@@ -1766,7 +1906,7 @@ class Game {
       if (!c.alive) continue;
       const f = this.fires.find(f => (f.jet ? dist(f.x, f.y, c.x, c.y) < CHAR_R + 5 : dist(f.x, f.y, c.x, c.y + CHAR_R - 4) < 13) &&
         (c.team !== f.ownerTeam || this.friendlyFire));
-      if (!f) continue;
+      if (!f || c.suit) continue;
       if (f.jet) { // the flamethrower stream pushes a little
         c.vx = clamp(c.vx + Math.sign(f.vx || 1) * 0.9, -4, 4);
         c.vy = Math.min(c.vy, 0) - 0.7;
@@ -1803,6 +1943,7 @@ class Game {
     }
     if (this.deathBlasts.length) this.deathBlasts = this.deathBlasts.filter(b => b.t > 0);
     for (const sm of this.smokes) sm.age++;
+    this.updateGas();
     for (const k of this.crates) if (!k.dead) this.updateCrate(k);
     if (this.crates.some(k => k.dead)) this.crates = this.crates.filter(k => !k.dead);
     this.updateFires();
@@ -2233,6 +2374,7 @@ class Game {
     for (const p of this.projectiles) this.drawProjectile(ctx, p);
     this.drawRope(ctx);
     this.drawSmoke(ctx);
+    this.drawGas(ctx);
     for (const c of this.chars) if (c.alive && this.visibleChar(c)) this.drawChar(ctx, c);
     if (this.state === 'turn' && this.active.alive && !this.hasFired) this.drawAim(ctx, this.active);
 
@@ -2270,6 +2412,33 @@ class Game {
     ctx.setTransform(dpr * u, 0, 0, dpr * u, 0, 0);
     this.drawHUD(ctx, viewW / u, viewH / u);
     if (this.state === 'banner') this.drawBanner(ctx, viewW / u);
+
+    // Wearing the hazmat suit: you only see through the two lenses of the gas mask
+    if (this.active && this.active.suit && !this.active.isCPU && (this.state === 'turn' || this.state === 'banner')) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const W = this.canvas.width, H = this.canvas.height;
+      if (!this.maskCanvas || this.maskCanvas.width !== W || this.maskCanvas.height !== H) {
+        this.maskCanvas = document.createElement('canvas');
+        this.maskCanvas.width = W;
+        this.maskCanvas.height = H;
+      }
+      const m = this.maskCanvas.getContext('2d');
+      const R = Math.min(W, H) * 0.36, cy = H * 0.48, off = R * 0.82;
+      m.globalCompositeOperation = 'source-over';
+      m.clearRect(0, 0, W, H);
+      m.fillStyle = 'rgba(12,14,10,0.94)';
+      m.fillRect(0, 0, W, H);
+      m.globalCompositeOperation = 'destination-out';
+      for (const sx of [-off, off]) { m.beginPath(); m.arc(W / 2 + sx, cy, R, 0, Math.PI * 2); m.fill(); }
+      m.globalCompositeOperation = 'source-over';
+      m.fillStyle = 'rgba(255,225,120,0.07)'; // slightly yellow visor
+      for (const sx of [-off, off]) { m.beginPath(); m.arc(W / 2 + sx, cy, R, 0, Math.PI * 2); m.fill(); }
+      m.strokeStyle = '#3a3f47';
+      m.lineWidth = 8 * dpr;
+      for (const sx of [-off, off]) { m.beginPath(); m.arc(W / 2 + sx, cy, R, 0, Math.PI * 2); m.stroke(); }
+      ctx.drawImage(this.maskCanvas, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
 
     // Dazed by a flashbang: the screen keeps washing out white during your turn
     if (this.dazedNow && this.active && !this.active.isCPU && (this.state === 'turn' || this.state === 'banner')) {
@@ -2325,6 +2494,20 @@ class Game {
   }
 
   drawMine(ctx, m) {
+    if (m.claymore) {
+      ctx.save();
+      ctx.translate(m.x, m.y - 2);
+      ctx.scale(m.facing || 1, 1);
+      ctx.strokeStyle = '#2b2f36'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(-3, 3); ctx.lineTo(-5, 7); ctx.moveTo(3, 3); ctx.lineTo(5, 7); ctx.stroke();
+      ctx.fillStyle = '#556b2f';
+      ctx.beginPath(); ctx.moveTo(-6, -5); ctx.quadraticCurveTo(0, -2, 6, -5); ctx.lineTo(6, 3); ctx.quadraticCurveTo(0, 5, -6, 3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = m.arm > 0 ? '#999' : (this.tick % 30 < 15 ? '#ff2a2a' : '#7a0000');
+      ctx.fillRect(-1, -7, 2, 2);
+      if (m.ownerTeam >= 0) { ctx.strokeStyle = TEAMS[m.ownerTeam].color; ctx.lineWidth = 1.5; ctx.strokeRect(-7, -6, 14, 10); }
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.translate(m.x, m.y);
     ctx.fillStyle = '#3a3f47';
@@ -2378,7 +2561,7 @@ class Game {
       const team = TEAMS[c.team];
       const y = s.y - 12;
       this.outlinedText(ctx, String(Math.max(0, Math.round(c.shownHp))), s.x, y, 'bold 13px system-ui, sans-serif', team.color);
-      const buffs = (c.powerUp ? ' ⚡' : '') + (c.armor > 0 ? ' 🛡' : '') + (c.dazed > 0 || (c === this.active && this.dazedNow) ? ' 😵' : '');
+      const buffs = (c.powerUp ? ' ⚡' : '') + (c.armor > 0 ? ' 🛡' : '') + (c.restArmor > 0 ? ' 🩹' : '') + (c.suit ? ' 🦺' : '') + (c.dazed > 0 || (c === this.active && this.dazedNow) ? ' 😵' : '');
       this.outlinedText(ctx, c.name + (c.isCPU ? ' 🤖' : '') + buffs, s.x, y - 15, '12px system-ui, sans-serif', team.color);
       if (c === this.active && (this.state === 'turn' || this.state === 'banner')) {
         const by = y - 30 + Math.sin(this.tick * 0.12) * 4;
@@ -2548,14 +2731,20 @@ class Game {
       else if (w.kind === 'boulder') hint = `Hold ${press} to charge the throw · it explodes and spreads fire on each of its ${w.bounces} bounces`;
       else if (w.kind === 'boomerang') hint = `Hold ${press} to charge the throw · it curves back to you and sends anyone it hits flying`;
       else if (w.kind === 'mouse') hint = `${press} lets the mine mouse go · it lays a mine every 0.5 s for 5 s, then bursts`;
+      else if (w.id === 'gas') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · leaves a toxic gas cloud that never clears`;
+      else if (w.kind === 'smg') hint = `${press} fires a 3-round burst · ${w.shots} bursts per turn · the red dot shows a hit within ${w.laser}`;
+      else if (w.kind === 'claymore') hint = `${press} plants a claymore facing ${c.facing > 0 ? 'right' : 'left'} · it goes off as soon as an enemy touches it`;
+      else if (w.kind === 'blaster') hint = `${press} fires a bolt that goes through everything and bursts into fire and plasma`;
+      else if (w.kind === 'suit') hint = c.suit ? `${press} takes the suit off (no more tunnel vision)` : `${press} puts on the suit: no toxic, plasma or fire damage, but you only see through the mask`;
+      else if (w.kind === 'skip') hint = `${press} rests: +${w.heal} health and 20% less damage for 3 rounds (ends your turn)`;
       else if (w.id === 'flashbang') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · blinds and dazes everyone near it for their next turn`;
       else if (w.id === 'smoke') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · makes a smoke cloud that hides anyone inside from other teams`;
       else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
       else if (w.kind === 'drone') hint = `${press} launches the drone along your aim · then steer it with ${lr} for ${(w.ctrlTicks / TICK_RATE).toFixed(0)} s`;
-      else if (this.lockedWeapon) hint = `Move if you like, then press ${press} for the second shot`;
+      else if (this.lockedWeapon) hint = this.gunBurst ? '' : `Move if you like, then press ${press} for the next shot (${this.shotsFired + 1} of ${WEAPON[this.lockedWeapon].shots})`;
       else if (w.id === 'concrete') hint = `${this.isTouch ? 'Tap' : 'Click'} the map to place a block · ${this.isTouch ? '↻ button' : 'R'} rotates · doesn't use your attack`;
       else if (w.kind === 'target') hint = this.isTouch ? 'Tap the map to pick a target' : 'Click the map to pick a target';
-      else if (w.fuseSelect && w.id !== 'smoke' && w.id !== 'flashbang') hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
+      else if (w.fuseSelect && w.id !== 'smoke' && w.id !== 'flashbang' && w.id !== 'gas') hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
       else if (w.scope) hint = `Scope: ${this.isTouch ? '▲ ▼' : '↑/↓'} for fine aim, ${press} to fire`;
       else if (w.kind === 'burst') hint = `${press} fires ${w.bullets} rounds · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
       else if (w.kind === 'jetpack') hint = this.jet
@@ -2650,10 +2839,10 @@ class Game {
     ctx.ellipse(-5, CHAR_R - 1, 4, 2.5, 0, 0, Math.PI * 2);
     ctx.ellipse(5, CHAR_R - 1, 4, 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
-    // body
-    ctx.fillStyle = team.color;
-    ctx.strokeStyle = team.dark;
-    ctx.lineWidth = 2;
+    // body (yellow hazmat suit with a team-coloured trim when worn)
+    ctx.fillStyle = c.suit ? '#f2c94c' : team.color;
+    ctx.strokeStyle = c.suit ? team.color : team.dark;
+    ctx.lineWidth = c.suit ? 3 : 2;
     ctx.beginPath();
     ctx.ellipse(0, 0, CHAR_R, CHAR_R * 1.05, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -2663,6 +2852,16 @@ class Game {
     ctx.beginPath();
     ctx.ellipse(c.facing * 2, 4, 5, 4, 0, 0, Math.PI * 2);
     ctx.fill();
+    if (c.suit) { // gas mask instead of eyes
+      ctx.fillStyle = '#2b2f36';
+      ctx.beginPath(); ctx.ellipse(c.facing * 2.5, -2, 6.5, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(160,220,255,0.7)';
+      for (const ex of [-2.6, 2.6]) { ctx.beginPath(); ctx.arc(ex + c.facing * 2.5, -3, 1.8, 0, Math.PI * 2); ctx.fill(); }
+      ctx.fillStyle = '#555';
+      ctx.beginPath(); ctx.arc(c.facing * 4, 2.5, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      return;
+    }
     // eyes
     const blinking = (this.tick + c.blink) % 220 < 6;
     const { dx, dy } = c.aimVector();
@@ -2724,6 +2923,22 @@ class Game {
     ctx.beginPath();
     ctx.arc(hit.x, hit.y, 2.5 / this.zoom, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  drawGas(ctx) {
+    for (const g0 of this.gases) {
+      const grow = Math.min(1, g0.age / SMOKE_GROW);
+      for (const pf of g0.puffs) {
+        const wob = Math.sin(this.tick * 0.025 + pf.ph) * 4;
+        const cx = g0.x + pf.dx * grow + wob, cy = g0.y + pf.dy * grow, rr = (pf.r + wob) * grow + 1;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr);
+        g.addColorStop(0, 'rgba(120,230,90,0.35)');
+        g.addColorStop(0.7, 'rgba(90,200,70,0.25)');
+        g.addColorStop(1, 'rgba(90,200,70,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
 
   drawSmoke(ctx) {
@@ -2864,6 +3079,21 @@ class Game {
     if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'drop' || w.kind === 'mine' || w.dig === 'down' || w.kind === 'chute' || w.kind === 'jetpack') return;
     if (this.rope && this.rope.state === 'attached') return;
     if (w.scope) { this.drawScope(ctx, c); return; }
+    if (w.laser) { // red laser line; a dot on whatever it touches within range
+      const { dx, dy } = c.aimVector();
+      const hit = traceRay(this.env, c.x, c.y, dx, dy, w.laser, c.id);
+      ctx.strokeStyle = 'rgba(255,30,30,0.55)';
+      ctx.lineWidth = 1.2 / this.zoom;
+      ctx.beginPath(); ctx.moveTo(c.x + dx * 12, c.y + dy * 12); ctx.lineTo(hit.x, hit.y); ctx.stroke();
+      if (hit.hit || hit.solid) {
+        ctx.fillStyle = '#ff1a1a';
+        ctx.shadowColor = '#ff1a1a';
+        ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(hit.x, hit.y, 3 / Math.max(this.zoom, 0.6), 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      return;
+    }
     const { dx, dy } = c.aimVector();
     const cx = c.x + dx * 48, cy = c.y + dy * 48;
     ctx.strokeStyle = '#fff';
@@ -2914,8 +3144,9 @@ class Game {
       case 'plasmagrenade':
       case 'smoke':
       case 'flashbang':
+      case 'gas':
         ctx.rotate(p.spin);
-        ctx.fillStyle = { grenade: '#2f5d2f', cluster: '#7a2d6b', plasmagrenade: '#3ddc3d', smoke: '#9aa1ab', flashbang: '#e9ecef' }[p.weapon];
+        ctx.fillStyle = { grenade: '#2f5d2f', cluster: '#7a2d6b', plasmagrenade: '#3ddc3d', smoke: '#9aa1ab', flashbang: '#e9ecef', gas: '#8fbf3f' }[p.weapon];
         ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#999'; ctx.fillRect(-1.5, -8, 3, 4);
         break;
@@ -2938,6 +3169,14 @@ class Game {
       case 'microlet':
         ctx.fillStyle = '#7dff5a';
         ctx.beginPath(); ctx.arc(0, 0, 2.6, 0, Math.PI * 2); ctx.fill();
+        break;
+      case 'blaster':
+        ctx.rotate(Math.atan2(p.vy, p.vx));
+        ctx.shadowColor = '#7dff5a';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = '#b6ff9c';
+        ctx.beginPath(); ctx.ellipse(0, 0, 7, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
         break;
       case 'boulder': {
         ctx.rotate(p.spin);

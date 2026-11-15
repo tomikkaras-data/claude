@@ -173,7 +173,7 @@ class AIController {
     }
 
     // Guns: need a clear line of sight to an enemy
-    for (const id of ['shotgun', 'deagle', 'sniper', 'gatling']) {
+    for (const id of ['shotgun', 'deagle', 'sniper', 'gatling', 'mp5']) {
       if (!has(id)) continue;
       const w = WEAPON[id];
       for (const e of enemies) {
@@ -188,6 +188,7 @@ class AIController {
         let expected = w.damage;
         if (id === 'shotgun') expected = w.pellets * w.damage * clamp(110 / d, 0.25, 1);
         if (id === 'gatling') expected = w.bullets * w.damage * clamp(160 / d, 0.15, 0.7);
+        if (id === 'mp5') expected = w.burst * w.damage * clamp(250 / d, 0.4, 1) * (g.lockedWeapon ? 1 : 2);
         const s = like(id, killBonus(expected, e) + 15);
         if (s > best.score) best = { score: s, weapon: id, angle, facing, power: 1 };
       }
@@ -307,6 +308,10 @@ class AIController {
       // Still nothing after walking and the enemy is far away: teleport closer (big maps)
       const spot = this.findTeleportSpot(nearest);
       if (spot) best = { score: 0, weapon: 'teleport', angle: null, target: spot };
+    }
+    // hurt and nothing worth shooting at: rest and heal instead
+    if (!g.lockedWeapon && best.score < 30 && this.walked && c.hp < c.maxHp * 0.4 && has('skip')) {
+      best = { score: 0, weapon: 'skip', angle: null };
     }
     if (!best.weapon) {
       best = { ...best, weapon: 'bazooka', angle: 45, facing: c.facing, power: 0.6 };
