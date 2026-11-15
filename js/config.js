@@ -23,6 +23,8 @@ const MINE_FUSE = 70;                // ticks between trigger and blast
 const DIG_TICKS = 300;               // how long each digging tool can run per turn
 const FALL_SAFE_SPEED = 6.8;         // landing faster than this hurts
 const FALL_DAMAGE_PER_SPEED = 7;
+const BARRELS = { perPixel: 1 / 520, radius: 32, damage: 25, flames: 24, fireDamage: 2 };
+const SMOKE_GROW = 40;
 const CRATE_BLAST = { radius: 22, damage: 15, fires: 12, fireDamage: 2, pellets: [10, 20], pellet: { range: 320, damage: 8, radius: 4, knock: 1.2 } };
 const DEATH_BLAST = { radius: 28, damage: 20, delay: 35 }; // knocked-out characters go off with a small bang
 
@@ -68,9 +70,16 @@ const WEAPONS = [
   { id: 'grenade',   name: 'Grenade',      icon: '💣', key: '2', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 55, damage: 75, blastKnock: 1.6, ammo: Infinity },
   { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 40, damage: 50, blastKnock: 1.5, ammo: 3,
     cluster: 6, bombletDamage: 34, bombletRadius: 30, subLabel: 'Bomblets', subNote: '6 bomblets after the main blast' },
+  { id: 'plasmagrenade', name: 'Plasma Frag Grenade', icon: '🧪', key: 'Z', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true,
+    radius: 40, damage: 40, blastKnock: 1.3, ammo: 2, frags: 5, fragClusters: 5, clusterDamage: 12, clusterRadius: 18,
+    bombletDamage: 22, bombletRadius: 28, subLabel: 'Plasma frags', subNote: '5 frags, each splits into 5 green clusters' },
+  { id: 'smoke',     name: 'Smoke Grenade', icon: '🌫️', key: 'L', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
+    smokeRadius: 100, ammo: 2, note: 'no damage · a cloud of radius 100 that stays all game and hides other teams inside it' },
   { id: 'shotgun',   name: 'Shotgun',      icon: '🔫', key: '4', group: 'weapon', kind: 'hitscan', range: 650, damage: 10, radius: 8, pellets: 6, spread: 5, shots: 2, knock: 1.3, ammo: Infinity,
     note: 'per pellet · 6 pellets · 2 shots' },
   { id: 'flamer',    name: 'Flamethrower', icon: '🌋', key: 'G', group: 'weapon', kind: 'flame', bullets: 90, spread: 6, damage: 4, ammo: 3, note: 'burn damage, 6 times a second while in the flames' },
+  { id: 'boomerang', name: 'Boomerang',    icon: '🪃', key: 'E', group: 'weapon', kind: 'boomerang', charge: true, radius: 14, damage: 20, knock: 11, ammo: 2,
+    note: 'radius = how close it has to pass · huge knockback · comes back to you' },
   { id: 'bat',       name: 'Baseball Bat', icon: '🏏', key: 'B', group: 'weapon', kind: 'melee', radius: 14, damage: 30, knock: 12, ammo: 2, note: 'radius = how far it reaches · huge knockback' },
   { id: 'dynamite',  name: 'Dynamite',     icon: '🧨', key: '5', group: 'weapon', kind: 'drop', bounce: true, fuse: 300, radius: 70, damage: 50, ammo: 2 },
   { id: 'mine',      name: 'Mine',         icon: '💥', key: '6', group: 'weapon', kind: 'mine', radius: 40, damage: 45, ammo: 3 },
@@ -79,6 +88,8 @@ const WEAPONS = [
     cluster: 5, bombletDamage: 25, bombletRadius: 26, subLabel: 'Drone bomblets', subNote: '5 bomblets scatter when it explodes' },
   { id: 'tornado',   name: 'Tornado',      icon: '🌪️', key: 'Q', group: 'weapon', kind: 'tornado', radius: 60, damage: 10, life: 480, speed: 1.1, ammo: 1,
     note: 'radius = full size it grows to · damage when it throws someone out' },
+  { id: 'mouse',     name: 'Mine Mouse',   icon: '🐭', key: 'Y', group: 'weapon', kind: 'mouse', life: 300, dropEvery: 30, radius: 25, damage: 20, pellets: 35, ammo: 1,
+    note: 'walks for 5 s laying a mine every 0.5 s, then bursts into 35 pellets' },
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'weapon', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
 
   // --- tools: moving around (they don't use up the attack) ------------------
@@ -98,7 +109,7 @@ const WEAPONS = [
   { id: 'frog',      name: 'Frog Clone Bomb', icon: '🐸', group: 'crate', kind: 'walker', fuse: 300, radius: 75, damage: 80, blastKnock: 1.4, ammo: 1, crate: 2,
     babies: 5, bombletDamage: 25, bombletRadius: 32, subLabel: 'Frog clones', subNote: '5 clones hop around and go off after 1–3 s' },
   { id: 'napalm',    name: 'Napalm Strike', icon: '🔥', group: 'crate', kind: 'target', radius: 16, damage: 1, canisters: 4, ammo: 1, crate: 1, note: 'burn damage, 6 times a second' },
-  { id: 'anvil',     name: 'Anvil Drop',   icon: '🔨', group: 'crate', kind: 'target', radius: 24, damage: 55, ammo: 1, crate: 2 },
+  { id: 'anvil',     name: 'Lava Anvil',   icon: '🔨', group: 'crate', kind: 'target', radius: 24, damage: 55, ammo: 1, crate: 2 },
   { id: 'plasma',    name: 'Star Cannon', icon: '🌟', key: 'X', group: 'crate', kind: 'plasma', speed: 3.2, life: 900, radius: 25, damage: 7, ammo: 1, crate: 1,
     note: 'radius = size of the plasma ball · damage every 1/5 s while it passes through someone',
     bombletDamage: 85, bombletRadius: 180, subLabel: 'Detonation', subNote: 'press FIRE again while it flies',

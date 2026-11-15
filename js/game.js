@@ -31,6 +31,7 @@ class Game {
     this.crates = [];
     this.fires = [];
     this.deathBlasts = [];
+    this.smokes = [];
     this.jet = null;
     this.particles = [];
     this.effects = [];
@@ -50,6 +51,7 @@ class Game {
     this.spawnCharacters();
     this.spawnMines();
     this.spawnCrates();
+    this.spawnBarrels();
 
     this.teamOrder = shuffle(Object.keys(this.teams).map(Number));
     this.teamPtr = -1;
@@ -161,6 +163,38 @@ class Game {
     }
   }
 
+  // Explosive barrels: fire (red) and toxic (green), scattered around the map
+  spawnBarrels() {
+    const n = Math.round(WORLD_W * BARRELS.perPixel);
+    for (let i = 0; i < n; i++) {
+      const p = this.groundSpot(11, 70);
+      if (p) this.crates.push(this.makeCrate(p.x, p.y, Math.random() < 0.5 ? 'firebarrel' : 'toxicbarrel', false));
+    }
+  }
+
+  addSmoke(x, y) {
+    const r = WEAPON.smoke.smokeRadius;
+    const puffs = Array.from({ length: 22 }, () => {
+      const a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * r * 0.75;
+      return { dx: Math.cos(a) * d, dy: Math.sin(a) * d, r: rand(r * 0.3, r * 0.5), ph: rand(0, 6) };
+    });
+    this.smokes.push({ x, y, r, age: 0, puffs });
+    Sound.play('puff');
+  }
+
+  inSmoke(x, y) {
+    return this.smokes.some(s => dist(x, y, s.x, s.y) < s.r * Math.min(1, s.age / SMOKE_GROW));
+  }
+
+  // Characters inside smoke can't be seen by other teams (whoever's turn it is is the viewer)
+  visibleChar(c) {
+    if (!this.smokes.length || c === this.active) return true;
+    if (this.active && c.team === this.active.team) return true;
+    return !this.inSmoke(c.x, c.y);
+  }
+
+  isBarrel(k) { return k.type === 'firebarrel' || k.type === 'toxicbarrel'; }
+
   // Supply drop: crates float down on parachutes
   dropCrates() {
     const n = this.settings.crates === 'lots' ? randInt(2, 3) : randInt(1, 2);
@@ -201,6 +235,7 @@ class Game {
       if (k.y > WATER_Y) this.splash(k.x);
       return;
     }
+    if (this.isBarrel(k)) return; // barrels can't be opened, only blown up
     for (const c of this.chars) {
       if (c.alive && Math.abs(c.x - k.x) < CHAR_R + 10 && Math.abs(c.y - k.y) < CHAR_R + 10) {
         k.dead = true;
@@ -467,6 +502,11 @@ class Game {
       const p = launchProjectile(w, c, Math.max(0.05, power), w.fuseSelect ? c.fuse * TICK_RATE : null);
       p.damage *= mult;
       if (w.cluster) { p.bombletDamage = w.bombletDamage * mult; p.bombletRadius = w.bombletRadius; }
+      if (w.frags) {
+        Object.assign(p, { frags: w.frags, fragDamage: w.bombletDamage * mult, fragRadius: w.bombletRadius,
+          fragClusters: w.fragClusters, clusterDamage: w.clusterDamage * mult, clusterRadius: w.clusterRadius });
+      }
+      if (w.id === 'smoke') p.smoke = true;
       this.projectiles.push(p);
       Sound.play(w.bounce ? 'throw' : 'launch');
     } else if (w.kind === 'drop') {
@@ -518,6 +558,22 @@ class Game {
         owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, fuse: null,
       });
       Sound.play('drone');
+    } else if (w.kind === 'boomerang') {
+      const { dx, dy } = c.aimVector();
+      const sp = Math.max(0.15, power) * 11;
+      this.projectiles.push({
+        weapon: 'boomerang', boomer: true, x: c.x + dx * 14, y: c.y + dy * 14, vx: dx * sp, vy: dy * sp, bx: -dx, by: -dy,
+        radius: w.radius, damage: w.damage * mult, knock: w.knock, hit: new Set(), owner: c, ownerId: c.id, ownerTeam: c.team,
+        age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('whoosh');
+    } else if (w.kind === 'mouse') {
+      this.projectiles.push({
+        weapon: 'mouse', mouse: true, x: c.x + c.facing * 12, y: c.y, vx: 0, vy: -1.5, dir: c.facing, life: w.life, dropEvery: w.dropEvery,
+        radius: w.radius, damage: w.damage * mult, pellets: w.pellets, owner: c, ownerId: c.id, ownerTeam: c.team,
+        age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('squeak');
     } else if (w.kind === 'melee') {
       this.swingBat(c, w, mult);
     } else if (w.kind === 'flame') {
@@ -609,13 +665,25 @@ class Game {
   destroyCrate(k) {
     if (k.dead) return;
     k.dead = true;
-    this.burst(k.x, k.y, k.type === 'steel' ? '#b9c2cc' : '#c08a4a', 16);
-    this.deathBlasts.push({ crate: true, steel: k.type === 'steel', x: k.x, y: k.y, t: 5 });
+    const col = { steel: '#b9c2cc', wood: '#c08a4a', firebarrel: '#e5484d', toxicbarrel: '#3ddc3d' }[k.type];
+    this.burst(k.x, k.y, col, 16);
+    this.deathBlasts.push({ crate: true, type: k.type, x: k.x, y: k.y, t: 5 });
   }
 
-  crateBlast(x, y, steel) {
+  crateBlast(x, y, type) {
+    if (type === 'firebarrel' || type === 'toxicbarrel') {
+      // barrels: a bigger bang and a fountain of burning fuel or toxic sludge
+      const toxic = type === 'toxicbarrel';
+      this.explode(x, y, BARRELS.radius, BARRELS.damage, -1, 1.2);
+      for (let i = 0; i < BARRELS.flames; i++) {
+        const a = rand(Math.PI * 1.02, Math.PI * 1.98), sp = rand(1.5, 5);
+        this.fires.push({ x: x + rand(-5, 5), y: y - 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: randInt(220, 330),
+          airborne: true, ownerTeam: -1, dmg: BARRELS.fireDamage, toxic, seed: Math.random() * 10 });
+      }
+      return;
+    }
     this.explode(x, y, CRATE_BLAST.radius, CRATE_BLAST.damage, -1);
-    if (steel) { // steel crates also spray burning fuel all around
+    if (type === 'steel') { // steel crates also spray burning fuel all around
       for (let i = 0; i < CRATE_BLAST.fires; i++) {
         const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(1.5, 4.5); // mostly upwards and sideways
         this.fires.push({ x: x + rand(-4, 4), y: y - 4, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: randInt(200, 300),
@@ -676,7 +744,7 @@ class Game {
         }
         Sound.play('launch');
       } else if (w.id === 'anvil') {
-        this.projectiles.push({ ...base, weapon: 'anvil', x, y: top, vx: 0, vy: 7, wind: false, radius: w.radius, damage: w.damage * mult });
+        this.projectiles.push({ ...base, weapon: 'anvil', lava: true, x, y: top, vx: 0, vy: 7, wind: false, radius: w.radius, damage: w.damage * mult, drilled: 0 });
         Sound.play('drop');
       }
     }
@@ -1083,6 +1151,20 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.boomer) {
+        const r = this.stepBoomerang(p);
+        if (r) this.projectiles.splice(i, 1);
+        continue;
+      }
+      if (p.mouse) {
+        const r = this.stepMouse(p);
+        if (r) {
+          this.projectiles.splice(i, 1);
+          if (r === 'burst') this.mouseBurst(p);
+          else if (r === 'water') this.splash(p.x);
+        }
+        continue;
+      }
       if (p.mini) {
         const r = this.stepMiniPlasma(p);
         if (r) {
@@ -1105,7 +1187,7 @@ class Game {
         if (this.stepTornado(p)) { this.endTornado(p); this.projectiles.splice(i, 1); }
         continue;
       }
-      let r = p.walker ? this.stepWalker(p) : p.drilling ? this.stepDriller(p) : p.drone ? this.stepDrone(p) : stepProjectile(p, env);
+      let r = p.walker ? this.stepWalker(p) : p.drilling ? this.stepDriller(p) : p.drone ? this.stepDrone(p) : p.lava ? this.stepAnvil(p) : stepProjectile(p, env);
       // flying straight into a crate or a mine counts as a hit
       if (!r && !p.bounce && !p.walker && (this.crates.some(k => !k.dead && dist(k.x, k.y, p.x, p.y) < 11) ||
           this.mines.some(m => !m.dead && dist(m.x, m.y, p.x, p.y) < 7))) r = 'impact';
@@ -1120,14 +1202,22 @@ class Game {
         Sound.play('dig');
         r = null;
       }
-      if (p.age % 2 === 0 && !p.bounce && !p.walker && p.weapon !== 'anvil' && !p.drone) {
+      if (p.age % 2 === 0 && !p.bounce && !p.walker && p.weapon !== 'anvil' && !p.drone && p.weapon !== 'plasmafrag' && p.weapon !== 'greenlet') {
         this.particles.push({ x: p.x, y: p.y, vx: rand(-0.3, 0.3), vy: rand(-0.3, 0.3), life: 30, max: 30, color: 'rgba(230,230,230,0.6)', size: 3, grav: -0.01 });
       }
       if (!r) continue;
       this.projectiles.splice(i, 1);
       if (r === 'water') { this.splash(p.x); continue; }
       if (r === 'lost') continue;
+      if (p.smoke) { this.addSmoke(p.x, p.y); continue; } // smoke grenade: no blast at all
       this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock || 1);
+      for (let k = 0; k < (p.frags || 0); k++) { // plasma frag grenade: big green frags that split again
+        this.projectiles.push({
+          weapon: 'plasmafrag', x: p.x, y: p.y - 6, vx: rand(-4.2, 4.2), vy: rand(-8.5, -4), wind: false, bounce: false, fuse: null,
+          radius: p.fragRadius, damage: p.fragDamage, cluster: p.fragClusters, clusterWeapon: 'greenlet',
+          bombletDamage: p.clusterDamage, bombletRadius: p.clusterRadius, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
+        });
+      }
       if (p.napalm) this.spawnFire(p.x, p.y - 4, 7, p.ownerTeam, p.burn);
       for (let k = 0; k < (p.babies || 0); k++) {
         this.projectiles.push({
@@ -1138,7 +1228,7 @@ class Game {
       }
       for (let k = 0; k < p.cluster; k++) {
         this.projectiles.push({
-          weapon: 'bomblet', x: p.x, y: p.y - 4, vx: rand(-3, 3), vy: rand(-6, -3), wind: false, bounce: false,
+          weapon: p.clusterWeapon || 'bomblet', x: p.x, y: p.y - 4, vx: rand(-3, 3), vy: rand(-6, -3), wind: false, bounce: false,
           fuse: null, radius: p.bombletRadius || 24, damage: p.bombletDamage || 25, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
         });
       }
@@ -1296,6 +1386,104 @@ class Game {
         fuse: null, radius: p.clusterRadius, damage: p.clusterDamage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
       });
     }
+  }
+
+  // Boomerang: flies out, curves back to the thrower; hits each character once with a big knock
+  stepBoomerang(p) {
+    p.age++;
+    p.spin += 0.55;
+    p.vx += p.bx * 0.16;
+    p.vy += p.by * 0.16;
+    for (let s = 0; s < 2; s++) {
+      p.x += p.vx / 2;
+      p.y += p.vy / 2;
+      if (this.terrain.isSolid(p.x, p.y)) { this.burst(p.x, p.y, this.theme.burn, 6); return 'drop'; }
+      for (const c of this.chars) {
+        if (!c.alive || p.hit.has(c)) continue;
+        const d = dist(c.x, c.y, p.x, p.y);
+        if (c === p.owner) { if (p.age > 40 && d < CHAR_R + 6) { this.texts.push({ x: c.x, y: c.y - 40, text: 'Caught!', color: '#fff', life: 50 }); return 'caught'; } continue; }
+        if (d > CHAR_R + p.radius * 0.6) continue;
+        if (c.team === p.ownerTeam && !this.friendlyFire) continue;
+        p.hit.add(c);
+        const sp = Math.hypot(p.vx, p.vy) || 1;
+        c.y -= 2;
+        this.damageChar(c, Math.max(1, Math.round(p.damage)), p.vx / sp * p.knock, p.vy / sp * p.knock - 3, p.ownerTeam);
+        this.burst(c.x, c.y, '#fff', 10);
+        Sound.play('bat');
+      }
+      for (const k of this.crates) if (!k.dead && dist(k.x, k.y, p.x, p.y) < 12) this.destroyCrate(k);
+      for (const m of this.mines) if (!m.dead && dist(m.x, m.y, p.x, p.y) < 8) this.triggerMine(m);
+    }
+    if (p.y > WATER_Y) { this.splash(p.x); return 'water'; }
+    if (p.x < -200 || p.x > WORLD_W + 200 || p.y < -600 || p.age > 400) return 'lost';
+    return null;
+  }
+
+  // Lava anvil: falls, then melts its way down through rock leaving fire behind, and blows up at the end
+  stepAnvil(p) {
+    p.age++;
+    const t = this.terrain;
+    if (!p.melting) p.vy = Math.min(p.vy + GRAVITY, 10);
+    const steps = Math.max(1, Math.ceil(p.vy / 2));
+    for (let i = 0; i < steps; i++) {
+      p.y += p.vy / steps;
+      if (this.chars.some(c => c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + 12)) return 'impact';
+      const rock = t.isSolid(p.x, p.y + 9) || t.isSolid(p.x - 8, p.y + 9) || t.isSolid(p.x + 8, p.y + 9);
+      if (rock && !p.melting) { p.melting = true; p.vy = 2.4; Sound.play('dig'); }
+      if (p.melting && !rock && !t.isSolid(p.x, p.y + 20)) { p.melting = false; } // fell into a cave: drop again
+    }
+    if (p.melting) {
+      p.drilled += p.vy;
+      if (p.age % 3 === 0) t.carve(p.x, p.y + 6, 13);
+      if (p.age % 8 === 0) {
+        for (const side of [-1, 1]) {
+          this.fires.push({ x: p.x + side * 10, y: p.y, vx: side * rand(0.3, 1.3), vy: rand(-1.5, -0.3), life: randInt(150, 240),
+            airborne: true, ownerTeam: p.ownerTeam, dmg: 1, seed: Math.random() * 10 });
+        }
+      }
+      if (p.drilled > 220) return 'impact';
+    }
+    if (p.y > WATER_Y) return 'water';
+    if (p.y > WORLD_H + 40) return 'lost';
+    return null;
+  }
+
+  // Mine mouse: scurries along the ground dropping mines, then bursts into pellets
+  stepMouse(p) {
+    p.age++;
+    const t = this.terrain, foot = 5;
+    if (t.isSolid(p.x, p.y + foot + 1) && p.vy >= 0) {
+      p.vy = 0;
+      const nx = p.x + p.dir * 1.3;
+      let moved = false;
+      for (let dy = 0; dy >= -7; dy--) {
+        if (!t.isSolid(nx, p.y + dy) && !t.isSolid(nx + p.dir * 4, p.y + dy - 3)) { p.x = nx; p.y += dy; moved = true; break; }
+      }
+      if (!moved || nx < 10 || nx > WORLD_W - 10) p.dir = -p.dir;
+      for (let k = 0; k < 6; k++) { if (t.isSolid(p.x, p.y + foot + 1)) break; p.y++; }
+    } else {
+      p.vy = Math.min(p.vy + GRAVITY, 9);
+      const ny = p.y + p.vy;
+      if (t.isSolid(p.x, ny + foot)) { p.vy = 0; } else p.y = ny;
+    }
+    p.spin += 0.4;
+    if (p.age % p.dropEvery === 0 && p.age < p.life) {
+      this.mines.push(this.makeMine(p.x, p.y + 1, p.ownerTeam, 60));
+      Sound.play('squeak');
+    }
+    if (p.y > WATER_Y) return 'water';
+    if (p.age >= p.life) return 'burst';
+    return null;
+  }
+
+  mouseBurst(p) {
+    this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam);
+    const pellet = { range: 320, damage: 8, radius: 4, knock: 1.2 };
+    for (let i = 0; i < p.pellets; i++) {
+      const a = (i / p.pellets) * Math.PI * 2 + rand(-0.08, 0.08);
+      this.shootRay(p.x, p.y - 2, Math.cos(a), Math.sin(a), pellet, 1, p.ownerTeam, -1, 4);
+    }
+    Sound.play('shot');
   }
 
   // First solid ground at or below (x, y); the water line if there is none
@@ -1536,10 +1724,11 @@ class Game {
     if (this.mines.some(m => m.dead)) this.mines = this.mines.filter(m => !m.dead);
     for (const b of this.deathBlasts.slice()) {
       if (--b.t > 0) continue;
-      if (b.crate) this.crateBlast(b.x, b.y, b.steel);
+      if (b.crate) this.crateBlast(b.x, b.y, b.type);
       else this.explode(b.c.x, b.c.y, DEATH_BLAST.radius, DEATH_BLAST.damage, -1);
     }
     if (this.deathBlasts.length) this.deathBlasts = this.deathBlasts.filter(b => b.t > 0);
+    for (const sm of this.smokes) sm.age++;
     for (const k of this.crates) if (!k.dead) this.updateCrate(k);
     if (this.crates.some(k => k.dead)) this.crates = this.crates.filter(k => !k.dead);
     this.updateFires();
@@ -1968,7 +2157,8 @@ class Game {
     for (const k of this.crates) this.drawCrate(ctx, k);
     for (const p of this.projectiles) this.drawProjectile(ctx, p);
     this.drawRope(ctx);
-    for (const c of this.chars) if (c.alive) this.drawChar(ctx, c);
+    this.drawSmoke(ctx);
+    for (const c of this.chars) if (c.alive && this.visibleChar(c)) this.drawChar(ctx, c);
     if (this.state === 'turn' && this.active.alive && !this.hasFired) this.drawAim(ctx, this.active);
 
     for (const p of this.particles) {
@@ -2096,7 +2286,7 @@ class Game {
 
   drawLabels(ctx) {
     for (const c of this.chars) {
-      if (!c.alive) continue;
+      if (!c.alive || !this.visibleChar(c)) continue;
       const s = this.worldToScreen(c.x, c.y - CHAR_R);
       if (s.x < -60 || s.x > this.viewW + 60 || s.y < -60 || s.y > this.viewH + 80) continue;
       const team = TEAMS[c.team];
@@ -2168,8 +2358,10 @@ class Game {
     ctx.fillRect(x, y + WATER_Y * k, w, h);
     ctx.fillStyle = '#222';
     for (const m of this.mines) ctx.fillRect(x + m.x * k - 1, y + m.y * k - 1, 2, 2);
+    ctx.fillStyle = 'rgba(220,222,228,0.75)';
+    for (const sm of this.smokes) { ctx.beginPath(); ctx.arc(x + sm.x * k, y + sm.y * k, sm.r * k, 0, Math.PI * 2); ctx.fill(); }
     for (const c of this.chars) {
-      if (!c.alive) continue;
+      if (!c.alive || !this.visibleChar(c)) continue;
       ctx.fillStyle = TEAMS[c.team].color;
       ctx.strokeStyle = c === this.active ? '#fff' : '#000';
       ctx.lineWidth = 1;
@@ -2267,12 +2459,15 @@ class Game {
       if (myBall) hint = `Press ${press} to detonate the plasma ball`;
       else if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
       else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
+      else if (w.kind === 'boomerang') hint = `Hold ${press} to charge the throw · it curves back to you and sends anyone it hits flying`;
+      else if (w.kind === 'mouse') hint = `${press} lets the mine mouse go · it lays a mine every 0.5 s for 5 s, then bursts`;
+      else if (w.id === 'smoke') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · makes a smoke cloud that hides anyone inside from other teams`;
       else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
       else if (w.kind === 'drone') hint = `${press} launches the drone along your aim · then steer it with ${lr} for ${(w.ctrlTicks / TICK_RATE).toFixed(0)} s`;
       else if (this.lockedWeapon) hint = `Move if you like, then press ${press} for the second shot`;
       else if (w.id === 'concrete') hint = `${this.isTouch ? 'Tap' : 'Click'} the map to place a block · ${this.isTouch ? '↻ button' : 'R'} rotates · doesn't use your attack`;
       else if (w.kind === 'target') hint = this.isTouch ? 'Tap the map to pick a target' : 'Click the map to pick a target';
-      else if (w.fuseSelect) hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
+      else if (w.fuseSelect && w.id !== 'smoke') hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
       else if (w.scope) hint = `Scope: ${this.isTouch ? '▲ ▼' : '↑/↓'} for fine aim, ${press} to fire`;
       else if (w.kind === 'burst') hint = `${press} fires ${w.bullets} rounds · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
       else if (w.kind === 'jetpack') hint = this.jet
@@ -2443,7 +2638,42 @@ class Game {
     ctx.fill();
   }
 
+  drawSmoke(ctx) {
+    for (const sm of this.smokes) {
+      const grow = Math.min(1, sm.age / SMOKE_GROW);
+      for (const pf of sm.puffs) {
+        const wob = Math.sin(this.tick * 0.02 + pf.ph) * 4;
+        const g = ctx.createRadialGradient(sm.x + pf.dx * grow, sm.y + pf.dy * grow, 0, sm.x + pf.dx * grow, sm.y + pf.dy * grow, (pf.r + wob) * grow + 1);
+        g.addColorStop(0, 'rgba(214,216,222,0.95)');
+        g.addColorStop(0.7, 'rgba(200,202,210,0.85)');
+        g.addColorStop(1, 'rgba(190,192,200,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(sm.x + pf.dx * grow + wob, sm.y + pf.dy * grow, (pf.r + wob) * grow + 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   drawCrate(ctx, k) {
+    if (this.isBarrel(k)) {
+      const toxic = k.type === 'toxicbarrel';
+      ctx.save();
+      ctx.translate(k.x, k.y - 2);
+      ctx.fillStyle = toxic ? '#2f9e44' : '#c92a2a';
+      ctx.fillRect(-8, -10, 16, 21);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(-8, -5, 16, 2); ctx.fillRect(-8, 5, 16, 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(-6, -10, 3, 21);
+      ctx.fillStyle = toxic ? '#d3f9d8' : '#ffd43b';
+      ctx.font = 'bold 9px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(toxic ? '☣' : '🔥', 0, 1);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.translate(k.x, k.y);
     if (k.chute) {
@@ -2593,8 +2823,10 @@ class Game {
         break;
       case 'grenade':
       case 'cluster':
+      case 'plasmagrenade':
+      case 'smoke':
         ctx.rotate(p.spin);
-        ctx.fillStyle = p.weapon === 'grenade' ? '#2f5d2f' : '#7a2d6b';
+        ctx.fillStyle = { grenade: '#2f5d2f', cluster: '#7a2d6b', plasmagrenade: '#3ddc3d', smoke: '#9aa1ab' }[p.weapon];
         ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#999'; ctx.fillRect(-1.5, -8, 3, 4);
         break;
@@ -2755,8 +2987,45 @@ class Game {
         ctx.fillRect(-7, -3.5, 14, 7);
         ctx.fillStyle = '#ffb000'; ctx.fillRect(-2, -3.5, 3, 7);
         break;
+      case 'boomerang':
+        ctx.rotate(p.spin);
+        ctx.strokeStyle = '#a0612a';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(-9, 4); ctx.lineTo(0, -4); ctx.lineTo(9, 4); ctx.stroke();
+        ctx.lineCap = 'butt';
+        break;
+      case 'plasmafrag': {
+        const gf = ctx.createRadialGradient(0, 0, 1, 0, 0, 10);
+        gf.addColorStop(0, 'rgba(220,255,190,1)');
+        gf.addColorStop(0.5, 'rgba(70,230,70,0.85)');
+        gf.addColorStop(1, 'rgba(30,160,40,0)');
+        ctx.fillStyle = gf;
+        ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'mouse': {
+        ctx.scale(p.dir, 1);
+        const leg = Math.sin(p.spin * 3) * 2;
+        ctx.strokeStyle = '#8d8d8d'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(-7, 1); ctx.quadraticCurveTo(-13, -3, -15, 2); ctx.stroke(); // tail
+        ctx.fillStyle = '#9ea4ab';
+        ctx.beginPath(); ctx.ellipse(0, 0, 7, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(3, -4, 2.5, 0, Math.PI * 2); ctx.fill(); // ear
+        ctx.fillStyle = '#f4a6b4';
+        ctx.beginPath(); ctx.arc(8, 0, 1.3, 0, Math.PI * 2); ctx.fill(); // nose
+        ctx.fillStyle = '#111';
+        ctx.beginPath(); ctx.arc(5, -1.5, 0.9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#555'; ctx.fillRect(-4 + leg, 3.5, 1.5, 2); ctx.fillRect(3 - leg, 3.5, 1.5, 2);
+        ctx.fillStyle = this.tick % 10 < 5 ? '#ff2a2a' : '#7a0000'; ctx.fillRect(-2, -6, 2, 2); // bomb light
+        break;
+      }
       case 'anvil':
-        ctx.fillStyle = '#3d4249';
+        if (p.lava) {
+          ctx.shadowColor = '#ff6a00';
+          ctx.shadowBlur = 14;
+        }
+        ctx.fillStyle = p.lava ? (this.tick % 8 < 4 ? '#e8590c' : '#c92a2a') : '#3d4249';
         ctx.beginPath();
         ctx.moveTo(-13, -8); ctx.lineTo(13, -8); ctx.lineTo(9, -2); ctx.lineTo(5, -2); ctx.lineTo(7, 6);
         ctx.lineTo(10, 9); ctx.lineTo(-10, 9); ctx.lineTo(-7, 6); ctx.lineTo(-5, -2); ctx.lineTo(-11, -4);

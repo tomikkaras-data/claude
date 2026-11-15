@@ -59,6 +59,10 @@ Every map is generated randomly. The theme changes both the look and the shape o
 | Winter | Tall snowy ridges | Falling snow |
 | Volcanic | Jagged basalt peaks with lots of caves and a glowing crust | Lava instead of water, rising embers |
 
+## Barrels
+
+Red **fire barrels** and green **toxic barrels** are scattered around every map. They can't be opened. Hit one with anything (a blast, a bullet, a flame, a projectile, a tornado) and it explodes and sprays burning fuel or toxic sludge around it.
+
 ## Weapon settings
 
 The **Weapon settings** button in the menu opens a table of every weapon. You can change its damage, blast radius and how much ammo each team starts with (leave ammo empty for unlimited). Changed values are highlighted and remembered. **Reset all to defaults** undoes everything.
@@ -84,7 +88,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 | ☢️ Nuka Bomb | 1 | Launched like the bazooka; enormous blast (75 damage, very wide radius) |
 | 🐸 Frog Clone Bomb | 2 | Big frog that hops forward, turns at walls and explodes after 5 seconds or when it reaches an enemy. The blast releases 5 frog clones that hop around at random and go off after 1–3 seconds each |
 | 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
-| 🔨 Anvil Drop | 2 | Click a target; a heavy anvil drops straight down |
+| 🔨 Lava Anvil | 2 | Click a target; a red-hot anvil drops straight down, melts its way down through rock leaving fire along the shaft, and explodes at the bottom (or when it hits someone) |
 | 🟢 Star Cannon | 1 | Fires a toxic green plasma ball (radius 25) straight along your aim: slow, no gravity, no wind. It eats through rock and zaps anyone it passes through 5 times a second. Press FIRE again while it flies to detonate it: the ball stops, swells until it fills the whole blast area and the whole screen goes white. When the light fades it goes off: a huge blast (radius 180), a gush of toxic plasma from the centre in every direction, fire across the area, a shower of 20 green cluster bomblets, and 25 small plasma balls shooting off in random directions. Each small ball bursts when it hits rock, a character, a crate or a mine and splits into 5 more green cluster bomblets. If you don't, it goes off by itself after 15 seconds |
 | 🧱 Concrete Block | 3 | Click to place a slab of new ground; `R` rotates it. It's a tool, so it doesn't use up your attack |
 
@@ -131,6 +135,10 @@ Several human players share one keyboard (hot-seat).
 | V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it keeps boring through in the same direction for up to 3 seconds, then explodes. If it breaks out of the rock into open air first, it explodes right there |
 | Q | Tornado | 1 | Sets off a tornado that travels along the ground the way you face (turning back at steep walls) and grows to a radius of 60. Characters, mines and crates that get close are sucked in and spun up to the top. Characters are thrown out in a random direction (10 damage) and always take fall damage when they land; crates burst and mines explode at the top. It dies out after 8 seconds |
 | N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact and scatters 5 cluster bomblets |
+| Z | Plasma Frag Grenade | 2 | Bouncy grenade (timer 1–5 s). When it goes off, 5 big green plasma frags fly out; each bursts on impact and splits into 5 green cluster bomblets |
+| L | Smoke Grenade | 2 | No damage, no crater. Makes a smoke cloud of radius 100 that stays for the rest of the game. Characters inside it are invisible to the other teams (and the CPU can't target them) |
+| E | Boomerang | 2 | Hold to charge the throw. It flies out, curves back to you and can be caught. Anyone it passes through takes 20 damage and is knocked a long way |
+| Y | Mine Mouse | 1 | Scurries along the ground for 5 seconds, laying one of your mines every 0.5 s, then bursts with 35 pellets in every direction |
 | 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
 | G | Flamethrower | 3 | Sprays fire for 1.5 s and pushes targets back a little; you can keep aiming while it burns. Some flames stick and keep burning |
 | B | Baseball Bat | 2 | Hits someone right next to you for 30 damage and sends them flying |

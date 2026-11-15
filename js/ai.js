@@ -142,7 +142,8 @@ class AIController {
     const g = this.g, c = this.c;
     const ammo = g.teams[c.team].ammo;
     const has = id => !g.lockedWeapon ? ammo[id] > 0 : g.lockedWeapon === id;
-    const enemies = g.chars.filter(o => o.alive && o.team !== c.team);
+    // enemies hidden in smoke can't be seen
+    const enemies = g.chars.filter(o => o.alive && o.team !== c.team && !g.inSmoke(o.x, o.y));
     const friends = g.chars.filter(o => o.alive && o.team === c.team);
     const noise = DIFFICULTY[g.settings.difficulty] || DIFFICULTY.normal;
     let best = { score: -Infinity };
@@ -160,8 +161,8 @@ class AIController {
       if (!has(id)) continue;
       const w = WEAPON[id];
       for (const facing of [-1, 1]) {
-        for (let angle = -60; angle <= 85; angle += 3) {
-          for (let power = 0.2; power <= 1.0001; power += 0.05) {
+        for (let angle = -60; angle <= 85; angle += 4) {
+          for (let power = 0.2; power <= 1.0001; power += 0.06) {
             const pt = this.simulate(w, angle, facing, power);
             if (!pt) continue;
             const s = like(id, this.scoreBlast(pt.x, pt.y, w.radius, w.damage, enemies, friends));
@@ -231,6 +232,22 @@ class AIController {
       }
     }
 
+    // Boomerang: a throw straight at a nearby enemy in sight
+    if (has('boomerang')) {
+      for (const e of enemies) {
+        const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);
+        if (d > 220 || d < 25) continue;
+        const angle = Math.atan2(-dy, Math.abs(dx)) * 180 / Math.PI;
+        if (Math.abs(angle) > 70) continue;
+        const a = angle * Math.PI / 180;
+        const facing = dx >= 0 ? 1 : -1;
+        const hit = traceRay(this.env(), c.x, c.y, Math.cos(a) * facing, -Math.sin(a), d + 10, c.id);
+        if (hit.hit !== e) continue;
+        const s = like('boomerang', killBonus(WEAPON.boomerang.damage + 10, e) + 10);
+        if (s > best.score) best = { score: s, weapon: 'boomerang', angle: clamp(angle + 4, -85, 85), facing, power: clamp(0.35 + d / 400, 0.4, 0.95) };
+      }
+    }
+
     // Up close: flamethrower or baseball bat
     for (const e of enemies) {
       const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);
@@ -268,6 +285,9 @@ class AIController {
       }
     }
 
+    // the plasma frag grenade flies exactly like a grenade: sometimes throw that instead
+    if (best.weapon === 'grenade' && has('plasmagrenade') && Math.random() < 0.5) best.weapon = 'plasmagrenade';
+
     let nearest = enemies[0];
     for (const e of enemies) if (dist(e.x, e.y, c.x, c.y) < dist(nearest.x, nearest.y, c.x, c.y)) nearest = e;
 
@@ -279,7 +299,7 @@ class AIController {
       }
     } else if ((best.score < 50 || !best.weapon) && !this.walked && nearest) {
       // Nothing worth shooting at: walk to a nearby crate, or towards the nearest enemy
-      const crate = g.crates.filter(k => !k.airborne && Math.abs(k.x - c.x) < 450 && Math.abs(k.y - c.y) < 120)
+      const crate = g.crates.filter(k => !k.airborne && (k.type === 'wood' || k.type === 'steel') && Math.abs(k.x - c.x) < 450 && Math.abs(k.y - c.y) < 120)
         .sort((a, b) => Math.abs(a.x - c.x) - Math.abs(b.x - c.x))[0];
       best.walkDir = (crate ? crate.x : nearest.x) >= c.x ? 1 : -1;
     } else if (best.score < 0 && this.walked && nearest && ammo.teleport > 0 &&
