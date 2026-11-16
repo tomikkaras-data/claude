@@ -27,6 +27,7 @@ python3 -m http.server 8000
 | Map size | Small (1600×900), Medium (2400×1100) or Large (3200×1300) |
 | Mines | None, A few or Lots (scattered around the map at the start) |
 | Crates | None, Normal (supply drop every 3 turns) or Lots (every 2 turns) |
+| Arsenal | **Standard** (the normal ammo, at least one of every weapon), **Minimal** (only basic weapons and movement items, all unlimited; no rare, huge-blast or high-damage weapons, and only wooden crates) or **Everything unlimited** |
 | Weapon settings | Damage, blast radius and starting ammo for every weapon (see below) |
 | Friendly fire | On (default: anyone can be hurt, including yourself) or Off (teammates and yourself are safe) |
 | Theme | Random, Grassy land, Sand, Winter or Volcanic |
@@ -78,7 +79,8 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
   * ⚡ a power-up (your next attack does +50% damage)
   * 🛡 armor (halves incoming damage until it has absorbed 40)
   * more ammo for a weapon your team already has
-* **Steel crates** hold more special weapons. Every team starts with **one of each** special weapon:
+* **Alien crates** (dark purple with a glowing green alien face, the rarest kind) hold a 🌟 Star Cannon or a 👽 Alien Blaster. When they burst they spray toxic plasma.
+* **Steel crates** hold more special weapons (not the alien ones). Every team starts with **one of each** special weapon:
 
 | Weapon | Per crate | What it does |
 |---|---|---|
@@ -133,7 +135,7 @@ Several human players share one keyboard (hot-seat).
 | 1 | Bazooka | ∞ | Explodes on impact with a big knockback, affected by wind |
 | 2 | Grenade | ∞ | Bounces, explodes with a big knockback when its timer runs out (1–5 s, set with `F`) |
 | 3 | Cluster Bomb | 3 | Like the grenade, then bursts into 6 bomblets |
-| V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it bores a wide tunnel in the same direction for up to 3 seconds, then explodes with a big blast (radius 64). If it breaks out of the rock into open air first, it explodes right there |
+| V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it bores a very wide tunnel in the same direction for up to 3 seconds, then explodes with a big blast (radius 64). If it breaks out of the rock into open air first, it explodes right there |
 | — | Robo Dozer | 1 | A big bulldozer that sets off the way you face. Steer it with ←/→ like the drone, but it can't fly: it drives along the ground, or digs a tunnel twice the size of the pickaxe's through rock, pushing characters aside. After 8 seconds, or when you press FIRE again, it stops, drops 3 mini dynamites and blows up |
 | Q | Tornado | 1 | Sets off a tornado that travels along the ground the way you face (turning back at steep walls) and grows to a radius of 60. Characters, mines and crates that get close are sucked in and spun up to the top. Characters are thrown out in a random direction (10 damage) and always take fall damage when they land; crates burst and mines explode at the top. It dies out after 8 seconds |
 | N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact and scatters 5 cluster bomblets |

@@ -23,7 +23,7 @@ const App = {
       version: SETTINGS_VERSION,
       crates: 'normal',
       weapons: {},
-      unlimitedAmmo: false,
+      arsenal: 'standard',
       players: DEFAULT_NAMES.map((name, i) => ({ name, cpu: i !== 0, team: i % 2 })),
     };
   },
@@ -35,6 +35,8 @@ const App = {
       if (saved && Array.isArray(saved.players) && saved.players.length === 8) {
         // settings from older versions pick up new defaults
         if (!(saved.version >= 2)) saved.friendlyFire = true;
+        if (!saved.arsenal) saved.arsenal = saved.unlimitedAmmo ? 'unlimited' : 'standard';
+        delete saved.unlimitedAmmo;
         saved.version = SETTINGS_VERSION;
         s = { ...s, ...saved };
       }
@@ -65,15 +67,15 @@ const App = {
     bindRange('turnTime', 'turnTime', v => `${v}s`);
     bindRange('health', 'health', v => `${v} HP`);
 
-    for (const id of ['difficulty', 'theme', 'mapSize', 'mines', 'crates']) {
+    for (const id of ['difficulty', 'theme', 'mapSize', 'mines', 'crates', 'arsenal']) {
       $(id).value = s[id];
-      $(id).onchange = () => { s[id] = $(id).value; this.save(); };
+      $(id).onchange = () => { s[id] = $(id).value; this.save(); this.updateWeaponsSummary(); };
     }
     $('friendlyFire').value = s.friendlyFire ? 'on' : 'off';
     $('friendlyFire').onchange = () => { s.friendlyFire = $('friendlyFire').value === 'on'; this.save(); };
     $('weaponsBtn').onclick = () => this.showWeaponConfig(true);
     $('weaponsDone').onclick = () => this.showWeaponConfig(false);
-    $('weaponsReset').onclick = () => { s.weapons = {}; s.unlimitedAmmo = false; this.save(); this.renderWeaponConfig(); };
+    $('weaponsReset').onclick = () => { s.weapons = {}; s.arsenal = 'standard'; $('arsenal').value = 'standard'; this.save(); this.renderWeaponConfig(); };
     $('weaponToggle').onclick = () => this.toggleWeaponPanel();
     $('optBtn').onclick = () => { if (this.game) this.game.cycleOption(); $('optBtn').blur(); };
     this.updateWeaponsSummary();
@@ -185,7 +187,7 @@ const App = {
       friendlyFire: s.friendlyFire,
       crates: s.crates,
       weapons: s.weapons,
-      unlimitedAmmo: !!s.unlimitedAmmo,
+      arsenal: s.arsenal,
     }, {
       onWeaponsChanged: () => this.renderWeapons(),
       onPause: paused => this.showPause(paused),
@@ -210,7 +212,8 @@ const App = {
   updateWeaponsSummary() {
     const n = Object.keys(this.settings.weapons || {}).length;
     const parts = [];
-    if (this.settings.unlimitedAmmo) parts.push('All weapons unlimited');
+    if (this.settings.arsenal === 'unlimited') parts.push('All weapons unlimited');
+    if (this.settings.arsenal === 'minimal') parts.push('Minimal arsenal');
     if (n) parts.push(`${n} weapon${n > 1 ? 's' : ''} changed`);
     $('weaponsSummary').textContent = parts.length ? parts.join(' · ') : 'All weapons at default values';
   },
@@ -221,8 +224,8 @@ const App = {
     const body = $('weaponRows');
     body.innerHTML = '';
     const unl = $('unlimitedAmmo');
-    unl.checked = !!s.unlimitedAmmo;
-    unl.onchange = () => { s.unlimitedAmmo = unl.checked; this.save(); this.renderWeaponConfig(); };
+    unl.checked = s.arsenal === 'unlimited';
+    unl.onchange = () => { s.arsenal = unl.checked ? 'unlimited' : 'standard'; $('arsenal').value = s.arsenal; this.save(); this.renderWeaponConfig(); };
     const LIMITS = { damage: 500, radius: 300, ammo: 99, bombletDamage: 500 };
 
     const input = (w, field) => {
@@ -238,7 +241,12 @@ const App = {
       if (field === 'ammo') el.placeholder = '∞';
       const show = v => (v === Infinity || v < 0 ? '' : String(v));
       el.value = show(o != null ? o : d);
-      if (field === 'ammo' && s.unlimitedAmmo) { el.value = ''; el.disabled = true; el.title = 'All weapons unlimited is on'; }
+      if (field === 'ammo' && s.arsenal !== 'standard') {
+        const on = s.arsenal === 'unlimited' || MINIMAL_WEAPONS.has(w.id);
+        el.value = on ? '' : '0';
+        el.disabled = true;
+        el.title = s.arsenal === 'unlimited' ? 'All weapons unlimited is on' : 'Set by the Minimal arsenal';
+      }
       const mark = () => el.classList.toggle('changed', o != null || (s.weapons[w.id] || {})[field] != null);
       el.onchange = () => {
         const raw = el.value.trim();
@@ -326,7 +334,7 @@ const App = {
     const GROUPS = [['weapon', 'Weapons'], ['tool', 'Tools'], ['crate', 'Special']];
     for (const [gid, label] of GROUPS) {
       // special weapons only show once the team has some
-      const items = WEAPONS.filter(w => w.group === gid && !(w.crate && !(team.ammo[w.id] > 0)));
+      const items = WEAPONS.filter(w => w.group === gid && !((w.crate || g.arsenal === 'minimal') && !(team.ammo[w.id] > 0) && !(w.id === 'suit' && c.ownsSuit)));
       if (!items.length) continue;
       const sec = document.createElement('div');
       sec.className = 'wgroup';

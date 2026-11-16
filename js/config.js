@@ -66,7 +66,7 @@ const TEAMS = [
 const WEAPONS = [
   // --- standard arsenal ---------------------------------------------------
   { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', group: 'weapon', kind: 'projectile', charge: true, wind: true, radius: 50, damage: 60, blastKnock: 1.6, ammo: Infinity },
-  { id: 'drillrocket', name: 'Drilling Rocket', icon: '🪛', key: 'V', group: 'weapon', kind: 'projectile', charge: true, wind: true, driller: true, drillTicks: 180, drillHole: 16, radius: 64, damage: 50, blastKnock: 1.4, ammo: 2,
+  { id: 'drillrocket', name: 'Drilling Rocket', icon: '🪛', key: 'V', group: 'weapon', kind: 'projectile', charge: true, wind: true, driller: true, drillTicks: 180, drillHole: 24, radius: 64, damage: 50, blastKnock: 1.4, ammo: 2,
     note: 'bores a wide tunnel through rock for up to 3 s, then a big blast' },
   { id: 'grenade',   name: 'Grenade',      icon: '💣', key: '2', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 55, damage: 75, blastKnock: 1.6, ammo: Infinity },
   { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 40, damage: 50, blastKnock: 1.5, ammo: 3,
@@ -130,13 +130,14 @@ const WEAPONS = [
     babies: 5, bombletDamage: 25, bombletRadius: 32, subLabel: 'Frog clones', subNote: '5 clones hop around and go off after 1–3 s' },
   { id: 'napalm',    name: 'Napalm Strike', icon: '🔥', group: 'crate', kind: 'target', radius: 16, damage: 1, canisters: 4, ammo: 1, crate: 1, note: 'burn damage, 6 times a second' },
   { id: 'anvil',     name: 'Lava Anvil',   icon: '🔨', group: 'crate', kind: 'target', radius: 24, damage: 55, ammo: 1, crate: 2 },
-  { id: 'plasma',    name: 'Star Cannon', icon: '🌟', key: 'X', group: 'crate', kind: 'plasma', speed: 3.2, life: 900, radius: 25, damage: 7, ammo: 1, crate: 1,
+  { id: 'plasma',    name: 'Star Cannon', icon: '🌟', key: 'X', group: 'crate', kind: 'plasma', speed: 3.2, life: 900, radius: 25, damage: 7, ammo: 1, crate: 1, alien: true,
     note: 'radius = size of the plasma ball · damage every 1/5 s while it passes through someone',
     bombletDamage: 85, bombletRadius: 180, subLabel: 'Detonation', subNote: 'press FIRE again while it flies',
     miniBalls: 25, miniDamage: 25, miniRadius: 30, miniClusters: 5, burstClusters: 20, toxicSpray: 110, clusterDamage: 15, clusterRadius: 20 },
-  { id: 'blaster',   name: 'Alien Blaster', icon: '👽', group: 'crate', kind: 'blaster', speed: 9, life: 80, damage: 25, radius: 45, ammo: 1, crate: 1,
+  { id: 'blaster',   name: 'Alien Blaster', icon: '👽', group: 'crate', kind: 'blaster', speed: 9, life: 80, damage: 25, radius: 45, ammo: 1, crate: 1, alien: true,
     note: 'damage to each character the bolt passes through · it goes through everything',
     bombletDamage: 40, subLabel: 'End blast', subNote: 'fire and plasma where the bolt runs out' },
+  // (the Star Cannon and the Alien Blaster come only from alien crates)
   { id: 'concrete',  name: 'Concrete Block', icon: '🧱', group: 'crate', kind: 'target', tool: true, ammo: 1, crate: 3 },
 ];
 
@@ -145,27 +146,41 @@ const WEAPON_DEFAULTS = Object.fromEntries(WEAPONS.map(w => [w.id, { ...w }]));
 const WEAPON_FIELDS = ['damage', 'radius', 'ammo', 'bombletDamage'];
 
 // overrides = { weaponId: { damage, radius, ammo (-1 = unlimited), bombletDamage } }
-// unlimited = true gives every weapon, special ones included, unlimited ammo from the start
-function applyWeaponConfig(overrides, unlimited) {
+// Arsenal presets for the menu
+//   standard  - the normal ammo, at least one of every weapon
+//   minimal   - only basic weapons and movement items, all unlimited; nothing rare or huge
+//   unlimited - every weapon, special ones included, unlimited
+const ARSENALS = {
+  standard:  { label: 'Standard (at least 1 of everything)' },
+  minimal:   { label: 'Minimal (basic weapons + movement, unlimited)' },
+  unlimited: { label: 'Everything unlimited' },
+};
+const MINIMAL_WEAPONS = new Set(['bazooka', 'grenade', 'shotgun', 'mp5', 'bat', 'mine',
+  'rope', 'sling', 'jetpack', 'parachute', 'drill', 'pickaxe', 'teleport', 'skip']);
+
+function applyWeaponConfig(overrides, arsenal) {
   const over = overrides || {};
+  const unlimited = arsenal === 'unlimited' || arsenal === true;
+  const minimal = arsenal === 'minimal';
   for (const w of WEAPONS) {
     const d = WEAPON_DEFAULTS[w.id];
     for (const f of WEAPON_FIELDS) if (f in d) w[f] = d[f];
     if (unlimited) w.ammo = Infinity;
+    if (minimal) w.ammo = MINIMAL_WEAPONS.has(w.id) ? Infinity : 0;
     const o = over[w.id];
     if (!o) continue;
     for (const f of WEAPON_FIELDS) {
       if (!(f in d) || o[f] == null || !isFinite(o[f])) continue;
-      if (f === 'ammo' && unlimited) continue;
+      if (f === 'ammo' && (unlimited || minimal)) continue; // presets decide the ammo
       w[f] = f === 'ammo' && o[f] < 0 ? Infinity : o[f];
     }
   }
 }
 
 const CRATE_AMOUNTS = {
-  off:    { wood: 0, steel: 0, every: 0 },
-  normal: { wood: 1 / 700, steel: 1 / 1400, every: 3 },   // per horizontal pixel; airdrop every N turns
-  lots:   { wood: 1 / 380, steel: 1 / 700, every: 2 },
+  off:    { wood: 0, steel: 0, alien: 0, every: 0 },
+  normal: { wood: 1 / 700, steel: 1 / 1400, alien: 1 / 2400, every: 3 },   // per horizontal pixel; airdrop every N turns
+  lots:   { wood: 1 / 380, steel: 1 / 700, alien: 1 / 1200, every: 2 },
 };
 const WEAPON = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 

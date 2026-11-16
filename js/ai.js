@@ -310,7 +310,7 @@ class AIController {
       }
     } else if ((best.score < 50 || !best.weapon) && !this.walked && nearest) {
       // Nothing worth shooting at: walk to a nearby crate, or towards the nearest enemy
-      const crate = g.crates.filter(k => !k.airborne && (k.type === 'wood' || k.type === 'steel') && Math.abs(k.x - c.x) < 450 && Math.abs(k.y - c.y) < 120)
+      const crate = g.crates.filter(k => !k.airborne && (k.type === 'wood' || k.type === 'steel' || k.type === 'alien') && Math.abs(k.x - c.x) < 450 && Math.abs(k.y - c.y) < 120)
         .sort((a, b) => Math.abs(a.x - c.x) - Math.abs(b.x - c.x))[0];
       best.walkDir = (crate ? crate.x : nearest.x) >= c.x ? 1 : -1;
     } else if (best.score < 0 && this.walked && nearest && ammo.teleport > 0 &&

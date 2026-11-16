@@ -10,7 +10,8 @@ class Game {
     this.ctx = canvas.getContext('2d');
     this.settings = settings;
     this.hooks = hooks || {};
-    applyWeaponConfig(settings.weapons, settings.unlimitedAmmo);
+    this.arsenal = settings.arsenal || (settings.unlimitedAmmo ? 'unlimited' : 'standard');
+    applyWeaponConfig(settings.weapons, this.arsenal);
 
     const size = MAP_SIZES[settings.mapSize] || MAP_SIZES.medium;
     setWorldSize(size.w, size.h);
@@ -151,16 +152,21 @@ class Game {
     return null;
   }
 
+  // Minimal arsenal: no rare weapons, so only wooden crates
+  crateType(type) {
+    return this.arsenal === 'minimal' ? 'wood' : type;
+  }
+
   makeCrate(x, y, type, chute) {
     return { x, y, vx: 0, vy: 0, type, chute, airborne: true, dead: false };
   }
 
   spawnCrates() {
     const cfg = CRATE_AMOUNTS[this.settings.crates] || CRATE_AMOUNTS.normal;
-    const wood = Math.round(WORLD_W * cfg.wood), steel = Math.round(WORLD_W * cfg.steel);
-    for (let i = 0; i < wood + steel; i++) {
+    const wood = Math.round(WORLD_W * cfg.wood), steel = Math.round(WORLD_W * cfg.steel), alien = Math.max(cfg.alien ? 1 : 0, Math.round(WORLD_W * cfg.alien));
+    for (let i = 0; i < wood + steel + alien; i++) {
       const p = this.groundSpot(9);
-      if (p) this.crates.push(this.makeCrate(p.x, p.y, i < wood ? 'wood' : 'steel', false));
+      if (p) this.crates.push(this.makeCrate(p.x, p.y, this.crateType(i < wood ? 'wood' : i < wood + steel ? 'steel' : 'alien'), false));
     }
   }
 
@@ -241,7 +247,8 @@ class Game {
         const spots = this.terrain.standSpots(x);
         if (!spots.length) continue;
         const y = Math.max(-30, spots[0] - 420);
-        const type = Math.random() < 0.6 ? 'wood' : 'steel';
+        const r = Math.random();
+        const type = this.crateType(r < 0.55 ? 'wood' : r < 0.88 ? 'steel' : 'alien');
         this.crates.push(this.makeCrate(x, y, type, true));
         this.texts.push({ x, y: y + 40, text: 'Supply drop!', color: '#fff', life: 100 });
         break;
@@ -285,8 +292,13 @@ class Game {
   openCrate(k, c) {
     const team = this.teams[c.team];
     let text;
-    if (k.type === 'steel') {
-      const pool = WEAPONS.filter(w => w.crate);
+    if (k.type === 'alien') { // alien crates: the out-of-this-world weapons
+      const pool = WEAPONS.filter(w => w.alien);
+      const w = pool[randInt(0, pool.length - 1)];
+      team.ammo[w.id] = (team.ammo[w.id] || 0) + 1;
+      text = `Alien crate: ${w.icon} ${w.name}`;
+    } else if (k.type === 'steel') {
+      const pool = WEAPONS.filter(w => w.crate && !w.alien);
       const w = pool[randInt(0, pool.length - 1)];
       team.ammo[w.id] = (team.ammo[w.id] || 0) + w.crate;
       text = `${w.icon} ${w.name}${w.crate > 1 ? ' ×' + w.crate : ''}`;
@@ -303,7 +315,7 @@ class Game {
         text = '🛡 Armor: half damage';
       } else {
         // more ammo for something the team already has (with unlimited ammo there's nothing to refill: heal instead)
-        const pool = WEAPONS.filter(w => !w.tool && w.kind !== 'skip' && isFinite(team.ammo[w.id]) && (!w.crate || team.ammo[w.id] > 0));
+        const pool = this.arsenal === 'minimal' ? [] : WEAPONS.filter(w => !w.tool && w.kind !== 'skip' && isFinite(team.ammo[w.id]) && (!w.crate || team.ammo[w.id] > 0));
         if (!pool.length) {
           c.hp += 35;
           text = '+35 HP';
@@ -785,7 +797,7 @@ class Game {
   destroyCrate(k) {
     if (k.dead) return;
     k.dead = true;
-    const col = { steel: '#b9c2cc', wood: '#c08a4a', firebarrel: '#e5484d', toxicbarrel: '#3ddc3d' }[k.type];
+    const col = { steel: '#b9c2cc', wood: '#c08a4a', alien: '#7dff5a', firebarrel: '#e5484d', toxicbarrel: '#3ddc3d' }[k.type];
     this.burst(k.x, k.y, col, 16);
     this.deathBlasts.push({ crate: true, type: k.type, x: k.x, y: k.y, t: 5 });
   }
@@ -803,11 +815,11 @@ class Game {
       return;
     }
     this.explode(x, y, CRATE_BLAST.radius, CRATE_BLAST.damage, -1);
-    if (type === 'steel') { // steel crates also spray burning fuel all around
+    if (type === 'steel' || type === 'alien') { // steel crates spray burning fuel, alien ones toxic plasma
       for (let i = 0; i < CRATE_BLAST.fires; i++) {
         const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(1.5, 4.5); // mostly upwards and sideways
         this.fires.push({ x: x + rand(-4, 4), y: y - 4, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: randInt(200, 300),
-          airborne: true, ownerTeam: -1, dmg: CRATE_BLAST.fireDamage, seed: Math.random() * 10 });
+          airborne: true, ownerTeam: -1, dmg: CRATE_BLAST.fireDamage, toxic: type === 'alien', seed: Math.random() * 10 });
       }
     }
     const n = randInt(CRATE_BLAST.pellets[0], CRATE_BLAST.pellets[1]);
@@ -3100,14 +3112,27 @@ class Game {
       ctx.moveTo(-8, -8); ctx.lineTo(-16, -30);
       ctx.moveTo(8, -8); ctx.lineTo(16, -30);
       ctx.stroke();
-      ctx.fillStyle = k.type === 'steel' ? '#d9534f' : '#f2f2f2';
+      ctx.fillStyle = k.type === 'steel' ? '#d9534f' : k.type === 'alien' ? '#7dff5a' : '#f2f2f2';
       ctx.beginPath();
       ctx.ellipse(0, -30, 22, 12, 0, Math.PI, 0);
       ctx.fill();
       ctx.strokeStyle = 'rgba(0,0,0,0.3)';
       ctx.stroke();
     }
-    if (k.type === 'steel') {
+    if (k.type === 'alien') { // dark purple box glowing green
+      ctx.shadowColor = '#7dff5a';
+      ctx.shadowBlur = 8 + 4 * Math.sin(this.tick * 0.1);
+      ctx.fillStyle = '#3b1f5c';
+      ctx.fillRect(-9, -9, 18, 18);
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#7dff5a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-9, -9, 18, 18);
+      ctx.fillStyle = '#7dff5a'; // alien face
+      ctx.beginPath(); ctx.ellipse(0, 0, 5, 6.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.beginPath(); ctx.ellipse(-2.2, -1, 1.6, 2.4, -0.4, 0, Math.PI * 2); ctx.ellipse(2.2, -1, 1.6, 2.4, 0.4, 0, Math.PI * 2); ctx.fill();
+    } else if (k.type === 'steel') {
       ctx.fillStyle = '#8d96a0';
       ctx.fillRect(-9, -9, 18, 18);
       ctx.strokeStyle = '#4e555d';
