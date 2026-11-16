@@ -133,7 +133,8 @@ Several human players share one keyboard (hot-seat).
 | 1 | Bazooka | ∞ | Explodes on impact with a big knockback, affected by wind |
 | 2 | Grenade | ∞ | Bounces, explodes with a big knockback when its timer runs out (1–5 s, set with `F`) |
 | 3 | Cluster Bomb | 3 | Like the grenade, then bursts into 6 bomblets |
-| V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it keeps boring through in the same direction for up to 3 seconds, then explodes. If it breaks out of the rock into open air first, it explodes right there |
+| V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it bores a wide tunnel in the same direction for up to 3 seconds, then explodes with a big blast (radius 64). If it breaks out of the rock into open air first, it explodes right there |
+| — | Robo Dozer | 1 | A big bulldozer that sets off the way you face. Steer it with ←/→ like the drone, but it can't fly: it drives along the ground, or digs a tunnel twice the size of the pickaxe's through rock, pushing characters aside. After 8 seconds, or when you press FIRE again, it stops, drops 3 mini dynamites and blows up |
 | Q | Tornado | 1 | Sets off a tornado that travels along the ground the way you face (turning back at steep walls) and grows to a radius of 60. Characters, mines and crates that get close are sucked in and spun up to the top. Characters are thrown out in a random direction (10 damage) and always take fall damage when they land; crates burst and mines explode at the top. It dies out after 8 seconds |
 | N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact and scatters 5 cluster bomblets |
 | Z | Plasma Frag Grenade | 2 | Bouncy grenade (timer 1–5 s). When it goes off, 5 big green plasma frags fly out; each bursts on impact and splits into 5 green cluster bomblets, and each of those splits once more into 3 tiny ones |
@@ -152,6 +153,7 @@ Several human players share one keyboard (hot-seat).
 | 6 | Mine | 3 | Drops a proximity mine (only enemies set it off) |
 | 7 | Air Strike | 1 | Click or tap a target, 5 missiles rain down |
 | 8 | Ninja Rope | ∞ | Tool: swing around the map |
+| — | Slingshot | 2 | Tool: aim, hold Space to stretch it and let go to fling yourself across the map. Doesn't use your attack; fall damage still counts (a parachute helps) |
 | J | Jetpack | 2 | Tool: press Space to put it on, ↑ to fly, ←/→ to steer; 6 s of fuel. Pressing Space again or picking another weapon takes it off, and the controls go back to normal |
 | U | Parachute | 3 | Tool: keep it selected and it opens by itself when you fall; no fall damage while it's open; ←/→ steer |
 | 9 | Drill | ∞ | Tool: hold FIRE/Space to dig straight down (5 s per turn) |

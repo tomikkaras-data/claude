@@ -461,6 +461,8 @@ class Game {
     const c = this.active;
     const w = WEAPON[c.weapon];
     this.camManual = false;
+    const dozer = this.projectiles.find(p => p.dozer && p.owner === c && !p.detonate);
+    if (dozer) { dozer.detonate = true; return; }
     const ball = this.projectiles.find(p => p.plasma && p.owner === c);
     if (ball) { ball.detonate = true; return; }
     if (w.kind === 'rope') { this.fireRope(); return; }
@@ -548,6 +550,24 @@ class Game {
     if (this.lockedWeapon && this.lockedWeapon !== w.id) return;
     if (!this.lockedWeapon && !(team.ammo[w.id] > 0)) return;
     if (w.kind === 'target' || w.kind === 'rope' || w.kind === 'dig' || w.kind === 'jetpack' || w.kind === 'chute') return;
+    if (w.kind === 'sling') { // fling yourself; doesn't use up the attack
+      const { dx, dy } = c.aimVector();
+      const sp = Math.max(0.15, power) * w.power;
+      this.releaseRope();
+      this.jet = null;
+      this.charging = false;
+      team.ammo[w.id]--;
+      c.y -= 2;
+      c.vx = dx * sp;
+      c.vy = dy * sp;
+      c.airborne = true;
+      this.camManual = false;
+      this.effects.push({ type: 'tracer', x1: c.x, y1: c.y, x2: c.x - dx * 14, y2: c.y - dy * 14, life: 10, max: 10 });
+      Sound.play('twang');
+      if (!(team.ammo[w.id] > 0)) c.weapon = 'bazooka';
+      this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
+      return;
+    }
 
     this.releaseRope();
     this.charging = false;
@@ -622,6 +642,14 @@ class Game {
         owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, fuse: null,
       });
       Sound.play('drone');
+    } else if (w.kind === 'dozer') {
+      this.projectiles.push({
+        weapon: 'dozer', dozer: true, x: c.x + c.facing * 22, y: c.y - 4, vy: 0, heading: c.facing > 0 ? 0 : Math.PI,
+        life: w.life, speed: w.speed, digR: w.digRadius, radius: w.radius, damage: w.damage * mult,
+        dynDamage: w.bombletDamage * mult, dynRadius: w.bombletRadius,
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('engine');
     } else if (w.kind === 'claymore') {
       const m = this.makeMine(c.x + c.facing * 10, c.y, c.team, 60, w.damage * mult);
       Object.assign(m, { claymore: true, facing: c.facing, radius: w.radius, pellets: w.pellets });
@@ -1274,6 +1302,15 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.dozer) {
+        const r = this.stepDozer(p);
+        if (r) {
+          this.projectiles.splice(i, 1);
+          if (r === 'boom') this.dozerBoom(p);
+          else if (r === 'water') this.splash(p.x);
+        }
+        continue;
+      }
       if (p.blaster) {
         const r = this.stepBlaster(p);
         if (r) this.projectiles.splice(i, 1);
@@ -1382,7 +1419,7 @@ class Game {
     p.y += p.vy;
     p.spin += 0.6;
     if (--p.drillLeft % 5 === 0) {
-      this.terrain.carve(p.x, p.y, 10);
+      this.terrain.carve(p.x, p.y, WEAPON.drillrocket.drillHole || 10);
       if (p.drillLeft % 15 === 0) Sound.play('dig');
       for (let i = 0; i < 2; i++) {
         this.particles.push({ x: p.x, y: p.y, vx: rand(-1.5, 1.5) - p.vx, vy: rand(-2, 0), life: 18, max: 18, color: this.theme.burn, size: 2.5, grav: 0.15 });
@@ -1526,6 +1563,79 @@ class Game {
         fuse: null, radius: p.clusterRadius, damage: p.clusterDamage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
       });
     }
+  }
+
+  // Robo dozer: drives along the ground (it can't fly), steered like the drone, and digs a wide tunnel through rock
+  stepDozer(p) {
+    p.age++;
+    p.spin += 0.3;
+    const t = this.terrain, R = 13;
+    // steering
+    const own = p.owner;
+    if (own && own.alive && !own.isCPU && own === this.active) {
+      const k = this.keys;
+      p.heading += (((k.ArrowRight || k.KeyD) ? 1 : 0) - ((k.ArrowLeft || k.KeyA) ? 1 : 0)) * 0.035;
+    } else if (own && own.isCPU) { // CPU drivers head for the nearest enemy and stop next to it
+      let best = null;
+      for (const e of this.chars) if (e.alive && e.team !== own.team && (!best || dist(e.x, e.y, p.x, p.y) < dist(best.x, best.y, p.x, p.y))) best = e;
+      if (best) {
+        const want = best.x >= p.x ? 0 : Math.PI;
+        let diff = want - p.heading;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        p.heading += clamp(diff, -0.035, 0.035);
+        if (dist(best.x, best.y, p.x, p.y) < 45) p.detonate = true;
+      }
+    }
+    if (p.detonate || p.age >= p.life) return 'boom';
+    const hx = Math.cos(p.heading), hy = Math.sin(p.heading);
+    const ax = p.x + hx * (R + 4), ay = p.y + hy * (R + 4);
+    const rockAhead = t.isSolid(ax, ay) || t.isSolid(ax, ay - 6) || t.isSolid(ax, ay + R - 4); // blade height, top and track level
+    const supported = t.isSolid(p.x, p.y + R + 1) || t.isSolid(p.x - 8, p.y + R + 1) || t.isSolid(p.x + 8, p.y + R + 1);
+    if (rockAhead) { // dig: a tunnel twice the size of the pickaxe's
+      if (p.age % 4 === 0) {
+        // keep the tunnel floor level with the tracks so it doesn't sink when driving sideways
+        t.carve(p.x + hx * (R + 6), p.y + hy * (R + 6) - (p.digR - R - 1) * Math.abs(hx), p.digR);
+        for (let i = 0; i < 3; i++) {
+          this.particles.push({ x: p.x + hx * R, y: p.y + hy * R, vx: rand(-2, 2) - hx, vy: rand(-3, -0.5), life: 22, max: 22, color: this.theme.burn, size: rand(2, 4), grav: 0.15 });
+        }
+      }
+      p.x += hx * p.speed * 0.8;
+      p.y += hy * p.speed * 0.8;
+      p.vy = 0;
+    } else if (!supported) { // no flying: fall, still rolling forward a little
+      p.vy = Math.min(p.vy + GRAVITY, 9);
+      p.x += hx * p.speed * 0.5;
+      const ny = p.y + p.vy;
+      if (t.isSolid(p.x, ny + R)) p.vy = 0; else p.y = ny;
+    } else { // drive along the surface, over small bumps
+      p.vy = 0;
+      const nx = p.x + (hx >= 0 ? 1 : -1) * Math.max(0.4, Math.abs(hx)) * p.speed;
+      let moved = false;
+      for (let dy = 0; dy >= -6; dy--) if (!t.isSolid(nx + (hx >= 0 ? R : -R), p.y + dy + R - 3)) { p.x = nx; p.y += dy; moved = true; break; }
+      if (moved) for (let k = 0; k < 4; k++) { if (t.isSolid(p.x, p.y + R + 1)) break; p.y++; }
+    }
+    // shove characters out of the way; set off mines, smash crates
+    for (const c of this.chars) {
+      if (!c.alive || c === own || dist(c.x, c.y, p.x, p.y) > R + CHAR_R) continue;
+      c.vx += (c.x >= p.x ? 1 : -1) * 2.2; c.vy -= 1.5; c.airborne = true;
+    }
+    for (const m of this.mines) if (!m.dead && dist(m.x, m.y, p.x, p.y) < R + 5) this.triggerMine(m);
+    for (const k of this.crates) if (!k.dead && dist(k.x, k.y, p.x, p.y) < R + 9) this.destroyCrate(k);
+    if (p.age % 20 === 0) Sound.play('engine');
+    if (p.y > WATER_Y) return 'water';
+    if (p.x < -60 || p.x > WORLD_W + 60) return 'gone';
+    return null;
+  }
+
+  dozerBoom(p) {
+    for (let k = 0; k < 3; k++) { // three mini dynamites hop out first
+      this.projectiles.push({
+        weapon: 'minidyn', x: p.x + rand(-6, 6), y: p.y - 10, vx: rand(-3, 3), vy: rand(-5.5, -3), wind: false, bounce: true,
+        fuse: randInt(70, 140), radius: p.dynRadius, damage: p.dynDamage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 0, spin: 0,
+      });
+    }
+    this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, 1.3);
   }
 
   // Alien blaster bolt: straight through rock and bodies, burning and zapping as it goes; big blast when it runs out
@@ -2126,7 +2236,7 @@ class Game {
       if (left || right || up || down) this.camManual = false;
       return;
     }
-    if (this.projectiles.some(p => p.drone && p.ctrl > 0 && p.owner === c)) return; // arrows steer the drone
+    if (this.projectiles.some(p => (p.drone && p.ctrl > 0 || p.dozer) && p.owner === c)) return; // arrows steer the drone / dozer
     if (this.jet) {
       const j = this.jet;
       const grounded = !c.airborne;
@@ -2718,16 +2828,20 @@ class Game {
     });
 
     // Contextual hint for the active human player
-    const myDrone = this.isHumanTurn() && this.projectiles.find(p => (p.drone && p.ctrl > 0 || p.plasma && p.phase === 'fly' && !p.detonate) && p.owner === c);
+    const myDrone = this.isHumanTurn() && this.projectiles.find(p => (p.drone && p.ctrl > 0 || p.dozer && !p.detonate || p.plasma && p.phase === 'fly' && !p.detonate) && p.owner === c);
     if (this.isHumanTurn() && (!this.hasFired || myDrone)) {
       const w = WEAPON[c.weapon];
       let hint = '';
       const press = this.isTouch ? 'FIRE' : 'Space';
       const lr = this.isTouch ? '◀ ▶' : '←/→';
       const myBall = this.projectiles.find(p => p.plasma && p.owner === c && p.phase === 'fly' && !p.detonate);
-      if (myBall) hint = `Press ${press} to detonate the plasma ball`;
+      const myDozer = this.projectiles.find(p => p.dozer && p.owner === c && !p.detonate);
+      if (myDozer) hint = `${lr} steer the dozer · ${press} stops it and blows it up · ${((myDozer.life - myDozer.age) / TICK_RATE).toFixed(1)} s left`;
+      else if (myBall) hint = `Press ${press} to detonate the plasma ball`;
       else if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
       else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
+      else if (w.kind === 'sling') hint = `Aim, hold ${press} to stretch the slingshot and let go to fling yourself · doesn't use your attack`;
+      else if (w.kind === 'dozer') hint = `${press} sends the robo dozer the way you face · steer it with ${lr} · ${press} again blows it up`;
       else if (w.kind === 'boulder') hint = `Hold ${press} to charge the throw · it explodes and spreads fire on each of its ${w.bounces} bounces`;
       else if (w.kind === 'boomerang') hint = `Hold ${press} to charge the throw · it curves back to you and sends anyone it hits flying`;
       else if (w.kind === 'mouse') hint = `${press} lets the mine mouse go · it lays a mine every 0.5 s for 5 s, then bursts`;
@@ -3150,6 +3264,31 @@ class Game {
         ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#999'; ctx.fillRect(-1.5, -8, 3, 4);
         break;
+      case 'dozer': {
+        const flip = Math.cos(p.heading) < 0;
+        ctx.rotate(flip ? p.heading - Math.PI : p.heading);
+        if (flip) ctx.scale(-1, 1);
+        ctx.fillStyle = '#2b2f36'; // tracks
+        ctx.beginPath(); ctx.ellipse(0, 9, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#6c737d';
+        for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.arc(k * 6 + Math.sin(p.spin) * 0.8, 9, 2, 0, Math.PI * 2); ctx.fill(); }
+        ctx.fillStyle = '#f2b705'; // body + cab
+        ctx.fillRect(-13, -4, 22, 11);
+        ctx.fillRect(-11, -12, 11, 9);
+        ctx.fillStyle = 'rgba(160,220,255,0.8)';
+        ctx.fillRect(-9, -10, 7, 5);
+        ctx.fillStyle = '#9aa1ab'; // blade
+        ctx.beginPath(); ctx.moveTo(10, -8); ctx.lineTo(17, -6); ctx.lineTo(17, 12); ctx.lineTo(10, 10); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = this.tick % 12 < 6 ? '#ff6b00' : '#7a3300'; // beacon
+        ctx.fillRect(-7, -15, 3, 3);
+        break;
+      }
+      case 'minidyn':
+        ctx.rotate(p.spin);
+        ctx.fillStyle = '#c22';
+        ctx.fillRect(-2.5, -5, 5, 10);
+        if (this.tick % 6 < 3) { ctx.fillStyle = '#ff0'; ctx.beginPath(); ctx.arc(0, -7, 1.8, 0, Math.PI * 2); ctx.fill(); }
+        break;
       case 'dynamite':
         ctx.fillStyle = '#c22';
         ctx.fillRect(-4, -8, 8, 14);
@@ -3383,6 +3522,9 @@ class Game {
         ctx.beginPath(); ctx.arc(0, 0, 3.5, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+    if (p.dozer) {
+      this.outlinedText(ctx, ((p.life - p.age) / TICK_RATE).toFixed(1), p.x, p.y - 26, 'bold 12px system-ui, sans-serif', '#ffd43b');
+    }
     if (p.drone && p.ctrl > 0) {
       this.outlinedText(ctx, (p.ctrl / TICK_RATE).toFixed(1), p.x, p.y - 18, 'bold 12px system-ui, sans-serif', '#4ade80');
     }

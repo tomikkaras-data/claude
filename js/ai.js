@@ -249,6 +249,16 @@ class AIController {
       }
     }
 
+    // Robo dozer: drive it at an enemy on roughly the same level
+    if (has('dozer')) {
+      for (const e of enemies) {
+        const dx = e.x - c.x, dy = e.y - c.y;
+        if (Math.abs(dx) > 450 || Math.abs(dx) < 60 || Math.abs(dy) > 120) continue;
+        const s = like('dozer', killBonus(WEAPON.dozer.damage * 0.8 + 20, e) + 10);
+        if (s > best.score) best = { score: s, weapon: 'dozer', angle: null, facing: dx >= 0 ? 1 : -1, power: 1 };
+      }
+    }
+
     // Up close: flamethrower or baseball bat
     for (const e of enemies) {
       const dx = e.x - c.x, dy = e.y - c.y, d = Math.hypot(dx, dy);

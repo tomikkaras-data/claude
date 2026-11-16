@@ -66,8 +66,8 @@ const TEAMS = [
 const WEAPONS = [
   // --- standard arsenal ---------------------------------------------------
   { id: 'bazooka',   name: 'Bazooka',      icon: '🚀', key: '1', group: 'weapon', kind: 'projectile', charge: true, wind: true, radius: 50, damage: 60, blastKnock: 1.6, ammo: Infinity },
-  { id: 'drillrocket', name: 'Drilling Rocket', icon: '🪛', key: 'V', group: 'weapon', kind: 'projectile', charge: true, wind: true, driller: true, drillTicks: 180, radius: 32, damage: 40, blastKnock: 1.3, ammo: 2,
-    note: 'bores through rock for 3 s, then explodes' },
+  { id: 'drillrocket', name: 'Drilling Rocket', icon: '🪛', key: 'V', group: 'weapon', kind: 'projectile', charge: true, wind: true, driller: true, drillTicks: 180, drillHole: 16, radius: 64, damage: 50, blastKnock: 1.4, ammo: 2,
+    note: 'bores a wide tunnel through rock for up to 3 s, then a big blast' },
   { id: 'grenade',   name: 'Grenade',      icon: '💣', key: '2', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 55, damage: 75, blastKnock: 1.6, ammo: Infinity },
   { id: 'cluster',   name: 'Cluster Bomb', icon: '🎆', key: '3', group: 'weapon', kind: 'projectile', charge: true, bounce: true, fuse: 180, fuseSelect: true, radius: 40, damage: 50, blastKnock: 1.5, ammo: 3,
     cluster: 6, bombletDamage: 34, bombletRadius: 30, subLabel: 'Bomblets', subNote: '6 bomblets after the main blast' },
@@ -102,10 +102,15 @@ const WEAPONS = [
     note: 'radius = full size it grows to · damage when it throws someone out' },
   { id: 'mouse',     name: 'Mine Mouse',   icon: '🐭', key: 'Y', group: 'weapon', kind: 'mouse', life: 390, dropStart: 90, dropEvery: 30, radius: 25, damage: 20, pellets: 35, ammo: 1,
     note: 'walks for 6.5 s; from 1.5 s on it lays a mine every 0.5 s; then bursts into 35 pellets' },
+  { id: 'dozer',     name: 'Robo Dozer',   icon: '🚜', group: 'weapon', kind: 'dozer', life: 480, speed: 1.4, digRadius: 28, radius: 40, damage: 40, ammo: 1,
+    bombletDamage: 30, bombletRadius: 35, subLabel: 'Mini dynamites', subNote: '3 dropped when it stops',
+    note: 'drive it with ←/→ for 8 s · digs a big tunnel · FIRE stops it early' },
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'weapon', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
 
   // --- tools: moving around (they don't use up the attack) ------------------
   { id: 'rope',      name: 'Ninja Rope',   icon: '🪝', key: '8', group: 'tool', kind: 'rope', tool: true, ammo: Infinity },
+  { id: 'sling',     name: 'Slingshot',    icon: '🏹', group: 'tool', kind: 'sling', charge: true, tool: true, power: 14, ammo: 2,
+    note: 'fling yourself across the map (fall damage still counts)' },
   { id: 'jetpack',   name: 'Jetpack',      icon: '🎒', key: 'J', group: 'tool', kind: 'jetpack', tool: true, fuel: 360, ammo: 2, note: '6 s of thrust per use' },
   { id: 'parachute', name: 'Parachute',    icon: '🪂', key: 'U', group: 'tool', kind: 'chute', tool: true, ammo: 3, note: 'opens by itself when you fall while it is selected' },
   { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', group: 'tool', kind: 'dig', dig: 'down', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
