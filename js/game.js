@@ -1441,7 +1441,8 @@ class Game {
     // broke out of the rock into open air: blow up right away
     if (p.drillTicks - p.drillLeft > 8) {
       const ux = p.vx / 1.4, uy = p.vy / 1.4, t = this.terrain;
-      if (!t.isSolid(p.x + ux * 14, p.y + uy * 14) && !t.isSolid(p.x + ux * 20, p.y + uy * 20) && !t.isSolid(p.x + ux * 26, p.y + uy * 26)) return 'impact';
+      const h = WEAPON.drillrocket.drillHole || 10; // look just beyond the edge of its own tunnel
+      if (!t.isSolid(p.x + ux * (h + 4), p.y + uy * (h + 4)) && !t.isSolid(p.x + ux * (h + 10), p.y + uy * (h + 10)) && !t.isSolid(p.x + ux * (h + 16), p.y + uy * (h + 16))) return 'impact';
     }
     if (p.y > WATER_Y) return 'water';
     if (p.x < -60 || p.x > WORLD_W + 60 || p.y < -400) return 'lost';
