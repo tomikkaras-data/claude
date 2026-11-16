@@ -30,7 +30,8 @@ python3 -m http.server 8000
 | Arsenal | **Standard** (the normal ammo, at least one of every weapon), **Minimal** (only basic weapons and movement items, all unlimited; no rare, huge-blast or high-damage weapons, and only wooden crates) or **Everything unlimited** |
 | Weapon settings | Damage, blast radius and starting ammo for every weapon (see below) |
 | Friendly fire | On (default: anyone can be hurt, including yourself) or Off (teammates and yourself are safe) |
-| Theme | Random, Grassy land, Sand, Winter or Volcanic |
+| Theme | Random, Grassy land, Sand, Winter, Volcanic or City (mixed) |
+| Crate labels | Hidden (surprise) or show what's inside each crate as small text above it |
 
 You need at least two different teams to start. The menu remembers your setup.
 
@@ -59,10 +60,17 @@ Every map is generated randomly. The theme changes both the look and the shape o
 | Sand | Smooth, low dunes with few caves | |
 | Winter | Tall snowy ridges | Falling snow |
 | Volcanic | Jagged basalt peaks with lots of caves and a glowing crust | Lava instead of water, rising embers |
+| City (mixed) | Indestructible concrete and steel buildings, loose blocks and girders on top of normal grass and soil, which can still be blown up | A skyline in the background, wind-blown leaves |
+
+Leaves (grassy land, city), sand (desert), snow (winter) and embers (volcanic) blow across the screen with the wind, so you can see how strong it is; the clouds move with it too.
 
 ## Barrels
 
 Red **fire barrels** and green **toxic barrels** are scattered around every map. They can't be opened. Hit one with anything (a blast, a bullet, a flame, a projectile, a tornado) and it explodes and sprays burning fuel or toxic sludge around it.
+
+## Weapon categories
+
+Weapons are grouped into **Basic**, **Rare**, **Epic**, **Legendary** and **Tools & items**, with similar things next to each other. On desktop the weapon bar shows one category at a time with tabs to switch (it follows the weapon you pick by key); on phones the picker lists them all by category; the Weapon settings table uses the same groups.
 
 ## Weapon settings
 
@@ -79,7 +87,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
   * ⚡ a power-up (your next attack does +50% damage)
   * 🛡 armor (halves incoming damage until it has absorbed 40)
   * more ammo for a weapon your team already has
-* **Alien crates** (dark purple with a glowing green alien face, the rarest kind) hold a 🌟 Star Cannon or a 👽 Alien Blaster. When they burst they spray toxic plasma.
+* **Alien crates** (dark purple with a glowing green alien face, the rarest kind) hold a 🌟 Star Cannon or a 👽 Alien Blaster. When one is destroyed it goes off like a plasma frag grenade.
 * **Steel crates** hold more special weapons (not the alien ones). Every team starts with **one of each** special weapon:
 
 | Weapon | Per crate | What it does |
@@ -88,7 +96,8 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 | 🎯 Sniper Rifle | 2 | Scoped aim with a laser sight and fine aiming; long range, high damage |
 | 🦅 Desert Eagle | 2 | Single high-damage pistol shot with strong knockback |
 | ☢️ Nuka Bomb | 1 | Launched like the bazooka; enormous blast (75 damage, very wide radius) |
-| 🐸 Frog Clone Bomb | 2 | Big frog that hops forward, turns at walls and explodes after 5 seconds or when it reaches an enemy. The blast releases 5 frog clones that hop around at random and go off after 1–3 seconds each |
+| 💀 Tsar Bomb | 1 | Like the Nuka Bomb with twice the blast radius (250) |
+| 🐸 Frog Clone Bomb | 2 | Big frog that hops forward (high hops) – press FIRE again to set it off early – turns at walls and explodes after 5 seconds or when it reaches an enemy. The blast releases 5 frog clones that hop around at random and go off after 1–3 seconds each |
 | 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
 | 🔨 Lava Anvil | 2 | Click a target; a red-hot anvil drops straight down, melts its way down through rock leaving fire along the shaft, and explodes at the bottom (or when it hits someone) |
 | 🟢 Star Cannon | 1 | Fires a toxic green plasma ball (radius 25) straight along your aim: slow, no gravity, no wind. It eats through rock and zaps anyone it passes through 5 times a second. Press FIRE again while it flies to detonate it: the ball stops, swells until it fills the whole blast area and the whole screen goes white. When the light fades it goes off: a huge blast (radius 180), a gush of toxic plasma from the centre in every direction, fire across the area, a shower of 20 green cluster bomblets, and 25 small plasma balls shooting off in random directions. Each small ball bursts when it hits rock, a character, a crate or a mine and splits into 5 more green cluster bomblets. If you don't, it goes off by itself after 15 seconds |
@@ -139,7 +148,7 @@ Several human players share one keyboard (hot-seat).
 | — | Robo Dozer | 1 | A big bulldozer that sets off the way you face. Steer it with ←/→ like the drone, but it can't fly: it drives along the ground, or digs a tunnel twice the size of the pickaxe's through rock, pushing characters aside. After 8 seconds, or when you press FIRE again, it stops, drops 3 mini dynamites and blows up |
 | Q | Tornado | 1 | Sets off a tornado that travels along the ground the way you face (turning back at steep walls) and grows to a radius of 60. Characters, mines and crates that get close are sucked in and spun up to the top. Characters are thrown out in a random direction (10 damage) and always take fall damage when they land; crates burst and mines explode at the top. It dies out after 8 seconds |
 | N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact and scatters 5 cluster bomblets |
-| Z | Plasma Frag Grenade | 2 | Bouncy grenade (timer 1–5 s). When it goes off, 5 big green plasma frags fly out; each bursts on impact and splits into 5 green cluster bomblets, and each of those splits once more into 3 tiny ones |
+| Z | Plasma Frag Grenade | 2 | Bouncy grenade (timer 1–5 s). When it goes off, 10 big green plasma frags fly out; each bursts on impact and splits into 5 green cluster bomblets, and each of those splits once more into 3 tiny ones |
 | H | Lava Boulder | 2 | Hold to charge the throw. The glowing boulder explodes (radius 50) every time it hits the ground, a character or a crate, sets fire all around, and bounces on – 6 times in all |
 | L | Smoke Grenade | 2 | No damage, no crater. Makes a smoke cloud of radius 100 that stays for the rest of the game. Characters inside it are invisible to the other teams (and the CPU can't target them) |
 | E | Boomerang | 2 | Hold to charge the throw. It flies out, curves back to you and can be caught. Anyone it passes through takes 20 damage and is knocked a long way |
@@ -155,12 +164,13 @@ Several human players share one keyboard (hot-seat).
 | 6 | Mine | 3 | Drops a proximity mine (only enemies set it off) |
 | 7 | Air Strike | 1 | Click or tap a target, 5 missiles rain down |
 | 8 | Ninja Rope | ∞ | Tool: swing around the map |
-| — | Slingshot | 2 | Tool: aim, hold Space to stretch it and let go to fling yourself across the map. Doesn't use your attack; fall damage still counts (a parachute helps) |
+| — | Slingshot | 2 | Tool: a big red Y appears next to you. Drag your character back like a catapult (or aim and hold Space) and let go: you fly the opposite way, further the more you pulled. No fall damage, and it doesn't use your attack |
+| — | Supply Call | 0 | Item from steel crates: click a spot and a gold parachute crate holding a specific epic or legendary weapon lands there (its label shows which) |
 | J | Jetpack | 2 | Tool: press Space to put it on, ↑ to fly, ←/→ to steer; 6 s of fuel. Pressing Space again or picking another weapon takes it off, and the controls go back to normal |
 | U | Parachute | 3 | Tool: keep it selected and it opens by itself when you fall; no fall damage while it's open; ←/→ steer |
 | 9 | Drill | ∞ | Tool: hold FIRE/Space to dig straight down (5 s per turn) |
 | 0 | Pickaxe | ∞ | Tool: hold FIRE/Space to tunnel in the aim direction (5 s per turn) |
-| T | Teleport | 2 | Click or tap any open spot to move there |
+| T | Teleport | 2 | Click or tap any open spot to move there (no fall damage when you drop in) |
 | K | Rest & Heal | ∞ | Ends your turn: +50 health (up to your starting health) and 20% less damage taken for the next 3 rounds (🩹 by your name) |
 | — | Hazmat Suit | 1 | Tool: press Space to put it on or take it off (free after the first time). While worn you take no toxic, plasma or fire damage, but on your turn you only see the battlefield through the two lenses of a gas mask |
 

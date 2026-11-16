@@ -19,8 +19,11 @@ class Terrain {
     this.canvas.width = w;
     this.canvas.height = h;
     this.ctx = this.canvas.getContext('2d');
+    this.hard = new Uint8Array(w * h);   // indestructible pixels (city buildings and blocks)
+    this.hardCanvas = null;
     this.generate();
     this.paint();
+    if (theme.city) this.buildCity();
   }
 
   isSolid(x, y) {
@@ -68,6 +71,7 @@ class Terrain {
       let y = base;
       for (const wv of waves) y += wv.amp * Math.sin((x / 1600) * Math.PI * 2 * wv.freq + wv.phase);
       heights[x] = Math.max(140, y);
+      this.heights = heights;
     }
 
     // Sometimes cut watery channels through the land
@@ -161,12 +165,18 @@ class Terrain {
     bctx.putImageData(bimg, 0, 0);
   }
 
+  isHard(x, y) {
+    x = Math.floor(x); y = Math.floor(y);
+    if (x < 0 || x >= this.w || y < 0 || y >= this.h) return false;
+    return this.hard[y * this.w + x] === 1;
+  }
+
   carve(cx, cy, r) {
     const r2 = r * r;
     for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(this.h - 1, cy + r); y++) {
       for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(this.w - 1, cx + r); x++) {
-        const dx = x - cx, dy = y - cy;
-        if (dx * dx + dy * dy <= r2) this.mask[y * this.w + x] = 0;
+        const dx = x - cx, dy = y - cy, i = y * this.w + x;
+        if (dx * dx + dy * dy <= r2 && !this.hard[i]) this.mask[i] = 0; // buildings can't be destroyed
       }
     }
     const ctx = this.ctx;
@@ -183,6 +193,71 @@ class Terrain {
     ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
+  }
+
+  // City theme: indestructible concrete and steel buildings on top of normal (destructible) ground,
+  // plus a few loose blocks and steel girders. They're drawn on their own layer so blasts can't erase them.
+  buildCity() {
+    const { w, h } = this, H = this.heights;
+    this.hardCanvas = document.createElement('canvas');
+    this.hardCanvas.width = w;
+    this.hardCanvas.height = h;
+    const ctx = this.hardCanvas.getContext('2d');
+    const solidRect = (x0, y0, x1, y1) => {
+      for (let y = Math.max(0, Math.floor(y0)); y < Math.min(h, y1); y++) {
+        for (let x = Math.max(0, Math.floor(x0)); x < Math.min(w, x1); x++) { const i = y * w + x; this.mask[i] = 1; this.hard[i] = 1; }
+      }
+    };
+    const concrete = (x0, y0, bw, bh) => {
+      ctx.fillStyle = '#b9bdc4';
+      ctx.fillRect(x0, y0, bw, bh);
+      ctx.fillStyle = '#9ea3ab';
+      ctx.fillRect(x0, y0, bw, 4);
+      ctx.fillStyle = 'rgba(40,60,90,0.75)';                     // windows
+      for (let y = y0 + 12; y < y0 + bh - 16; y += 18) for (let x = x0 + 8; x < x0 + bw - 10; x += 16) ctx.fillRect(x, y, 8, 10);
+      ctx.strokeStyle = '#7d828a'; ctx.lineWidth = 2; ctx.strokeRect(x0 + 1, y0 + 1, bw - 2, bh - 2);
+    };
+    const steel = (x0, y0, bw, bh) => {
+      ctx.fillStyle = '#5c6a79';
+      ctx.fillRect(x0, y0, bw, bh);
+      ctx.fillStyle = '#4a5664';
+      for (let y = y0 + 14; y < y0 + bh; y += 22) ctx.fillRect(x0, y, bw, 4);   // girders
+      ctx.fillStyle = '#8b97a5';
+      for (let y = y0 + 6; y < y0 + bh; y += 22) for (let x = x0 + 5; x < x0 + bw - 3; x += 12) ctx.fillRect(x, y, 2, 2); // rivets
+      ctx.fillStyle = 'rgba(255,220,120,0.55)';
+      for (let y = y0 + 20; y < y0 + bh - 12; y += 22) for (let x = x0 + 10; x < x0 + bw - 12; x += 22) if ((x + y) % 3) ctx.fillRect(x, y - 4, 7, 6);
+      ctx.strokeStyle = '#323b45'; ctx.lineWidth = 2; ctx.strokeRect(x0 + 1, y0 + 1, bw - 2, bh - 2);
+    };
+    // buildings along the surface
+    for (let x = rand(40, 120); x < w - 80;) {
+      const bw = rand(60, 150);
+      const x0 = Math.floor(x), x1 = Math.floor(Math.min(w - 20, x + bw));
+      let top = Infinity, low = -Infinity;
+      for (let xi = x0; xi < x1; xi++) { top = Math.min(top, H[xi]); low = Math.max(low, H[xi]); }
+      if (low < WATER_Y - 40 && x1 - x0 > 40) {
+        const bh = rand(60, 210);
+        const roof = Math.max(60, top - bh);
+        solidRect(x0, roof, x1, low + 14);
+        (Math.random() < 0.5 ? concrete : steel)(x0, roof, x1 - x0, low + 14 - roof);
+      }
+      x += bw + rand(70, 220);
+    }
+    // loose concrete/steel blocks and floating girders
+    const extras = Math.round(randInt(3, 6) * w / 1600);
+    for (let i = 0; i < extras; i++) {
+      const bx = rand(40, w - 100);
+      if (Math.random() < 0.5) {                      // a girder in the air
+        const gw = rand(70, 120), gy = H[Math.floor(bx)] - rand(110, 200);
+        if (gy < 80) continue;
+        solidRect(bx, gy, bx + gw, gy + 10);
+        steel(bx, gy, gw, 10);
+      } else {                                         // a block sitting on the ground
+        const bw = rand(26, 44), bh = rand(18, 32), gy = H[Math.floor(bx + bw / 2)];
+        if (gy > WATER_Y - 30) continue;
+        solidRect(bx, gy - bh, bx + bw, gy + 6);
+        (Math.random() < 0.5 ? concrete : steel)(bx, gy - bh, bw, bh + 6);
+      }
+    }
   }
 
   // All the spots in a column where a character can stand
@@ -203,6 +278,18 @@ function paintBackground(theme) {
   const ctx = c.getContext('2d');
   // (the sky gradient and sun are painted in screen space by the game)
 
+  if (theme.city) { // a far-off skyline instead of hills
+    theme.hills.forEach((col, layer) => {
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.5 + layer * 0.2;
+      for (let x = -20; x < WORLD_W; x += rand(30, 70)) {
+        const bw = rand(28, 70), bh = rand(80, 260) - layer * 40;
+        ctx.fillRect(x, WORLD_H - 420 + layer * 60 - bh, bw, bh + 400);
+      }
+    });
+    ctx.globalAlpha = 1;
+    return c;
+  }
   theme.hills.forEach((col, layer) => {
     const base = WORLD_H - 495 + layer * 90;
     const ph1 = rand(0, 6), ph2 = rand(0, 6);

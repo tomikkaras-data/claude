@@ -157,8 +157,34 @@ class Game {
     return this.arsenal === 'minimal' ? 'wood' : type;
   }
 
-  makeCrate(x, y, type, chute) {
-    return { x, y, vx: 0, vy: 0, type, chute, airborne: true, dead: false };
+  makeCrate(x, y, type, chute, content) {
+    return { x, y, vx: 0, vy: 0, type, chute, airborne: true, dead: false, content: content || this.rollCrate(type) };
+  }
+
+  // What's inside a crate: { kind: 'heal' | 'power' | 'armor' | 'ammo' | 'weapon', id?, amount? }
+  rollCrate(type) {
+    const pick = arr => arr[randInt(0, arr.length - 1)];
+    if (type === 'alien') return { kind: 'weapon', id: pick(WEAPONS.filter(w => w.alien)).id, amount: 1 };
+    if (type === 'steel') { const w = pick(WEAPONS.filter(w => w.crate && !w.alien)); return { kind: 'weapon', id: w.id, amount: w.crate }; }
+    if (type !== 'wood') return null; // barrels
+    const r = Math.random();
+    if (r < 0.35) return { kind: 'heal', amount: 35 };
+    if (r < 0.5) return { kind: 'power' };
+    if (r < 0.65) return { kind: 'armor' };
+    const pool = this.arsenal === 'minimal' ? [] : WEAPONS.filter(w => !w.tool && w.kind !== 'skip' && !w.crate && isFinite(WEAPON_DEFAULTS[w.id].ammo));
+    if (!pool.length) return { kind: 'heal', amount: 35 };
+    const w = pick(pool);
+    return { kind: 'ammo', id: w.id, amount: w.id === 'mine' || w.id === 'cluster' ? 2 : 1 };
+  }
+
+  crateLabel(k) {
+    const ct = k.content;
+    if (!ct) return '';
+    if (ct.kind === 'heal') return `+${ct.amount} HP`;
+    if (ct.kind === 'power') return '⚡ Power-up';
+    if (ct.kind === 'armor') return '🛡 Armor';
+    const w = WEAPON[ct.id];
+    return ct.kind === 'ammo' ? `${w.icon} +${ct.amount} ${w.name}` : `${w.icon} ${w.name}${ct.amount > 1 ? ' ×' + ct.amount : ''}`;
   }
 
   spawnCrates() {
@@ -291,48 +317,32 @@ class Game {
 
   openCrate(k, c) {
     const team = this.teams[c.team];
+    const ct = k.content || this.rollCrate(k.type) || { kind: 'heal', amount: 35 };
     let text;
-    if (k.type === 'alien') { // alien crates: the out-of-this-world weapons
-      const pool = WEAPONS.filter(w => w.alien);
-      const w = pool[randInt(0, pool.length - 1)];
-      team.ammo[w.id] = (team.ammo[w.id] || 0) + 1;
-      text = `Alien crate: ${w.icon} ${w.name}`;
-    } else if (k.type === 'steel') {
-      const pool = WEAPONS.filter(w => w.crate && !w.alien);
-      const w = pool[randInt(0, pool.length - 1)];
-      team.ammo[w.id] = (team.ammo[w.id] || 0) + w.crate;
-      text = `${w.icon} ${w.name}${w.crate > 1 ? ' ×' + w.crate : ''}`;
-    } else {
-      const r = Math.random();
-      if (r < 0.35) {
-        c.hp += 35;
-        text = '+35 HP';
-      } else if (r < 0.5) {
-        c.powerUp = true;
-        text = '⚡ Power-up: next attack +50%';
-      } else if (r < 0.65) {
-        c.armor += 40;
-        text = '🛡 Armor: half damage';
-      } else {
-        // more ammo for something the team already has (with unlimited ammo there's nothing to refill: heal instead)
-        const pool = this.arsenal === 'minimal' ? [] : WEAPONS.filter(w => !w.tool && w.kind !== 'skip' && isFinite(team.ammo[w.id]) && (!w.crate || team.ammo[w.id] > 0));
-        if (!pool.length) {
-          c.hp += 35;
-          text = '+35 HP';
-          return this.crateOpened(k, c, text);
-        }
-        const w = pool[randInt(0, pool.length - 1)];
-        const amount = w.crate ? 1 : (w.id === 'mine' || w.id === 'cluster' ? 2 : 1);
-        team.ammo[w.id] += amount;
-        text = `${w.icon} +${amount} ${w.name}`;
-      }
+    if (ct.kind === 'weapon') {
+      const w = WEAPON[ct.id];
+      team.ammo[w.id] = (team.ammo[w.id] || 0) + ct.amount;
+      text = (k.type === 'alien' ? 'Alien crate: ' : k.type === 'supply' ? 'Supply drop: ' : '') + `${w.icon} ${w.name}${ct.amount > 1 ? ' ×' + ct.amount : ''}`;
+    } else if (ct.kind === 'power') {
+      c.powerUp = true;
+      text = '⚡ Power-up: next attack +50%';
+    } else if (ct.kind === 'armor') {
+      c.armor += 40;
+      text = '🛡 Armor: half damage';
+    } else if (ct.kind === 'ammo' && isFinite(team.ammo[ct.id])) {
+      const w = WEAPON[ct.id];
+      team.ammo[w.id] += ct.amount;
+      text = `${w.icon} +${ct.amount} ${w.name}`;
+    } else { // health (also what ammo turns into when that weapon is already unlimited)
+      c.hp += ct.amount || 35;
+      text = `+${ct.amount || 35} HP`;
     }
     this.crateOpened(k, c, text);
   }
 
   crateOpened(k, c, text) {
     this.texts.push({ x: c.x, y: c.y - 50, text, color: '#fff', life: 130 });
-    this.burst(k.x, k.y, k.type === 'steel' ? '#b9c2cc' : '#c08a4a', 18);
+    this.burst(k.x, k.y, { steel: '#b9c2cc', alien: '#7dff5a', supply: '#ffd43b' }[k.type] || '#c08a4a', 18);
     Sound.play('pickup');
     this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
   }
@@ -473,6 +483,8 @@ class Game {
     const c = this.active;
     const w = WEAPON[c.weapon];
     this.camManual = false;
+    const frog = this.projectiles.find(p => p.walker && !p.baby && p.ownerId === c.id && p.fuse > 1);
+    if (frog) { frog.fuse = 1; return; } // set the frog off right now
     const dozer = this.projectiles.find(p => p.dozer && p.owner === c && !p.detonate);
     if (dozer) { dozer.detonate = true; return; }
     const ball = this.projectiles.find(p => p.plasma && p.owner === c);
@@ -570,6 +582,7 @@ class Game {
       this.charging = false;
       team.ammo[w.id]--;
       c.y -= 2;
+      c.noFall = true;
       c.vx = dx * sp;
       c.vy = dy * sp;
       c.airborne = true;
@@ -797,7 +810,7 @@ class Game {
   destroyCrate(k) {
     if (k.dead) return;
     k.dead = true;
-    const col = { steel: '#b9c2cc', wood: '#c08a4a', alien: '#7dff5a', firebarrel: '#e5484d', toxicbarrel: '#3ddc3d' }[k.type];
+    const col = { steel: '#b9c2cc', wood: '#c08a4a', alien: '#7dff5a', supply: '#ffd43b', firebarrel: '#e5484d', toxicbarrel: '#3ddc3d' }[k.type];
     this.burst(k.x, k.y, col, 16);
     this.deathBlasts.push({ crate: true, type: k.type, x: k.x, y: k.y, t: 5 });
   }
@@ -815,6 +828,7 @@ class Game {
       return;
     }
     this.explode(x, y, CRATE_BLAST.radius, CRATE_BLAST.damage, -1);
+    if (type === 'alien') this.plasmaBurst(x, y, -1, 1); // same blast as a plasma frag grenade
     if (type === 'steel' || type === 'alien') { // steel crates spray burning fuel, alien ones toxic plasma
       for (let i = 0; i < CRATE_BLAST.fires; i++) {
         const a = rand(Math.PI * 1.05, Math.PI * 1.95), sp = rand(1.5, 4.5); // mostly upwards and sideways
@@ -837,6 +851,20 @@ class Game {
     const team = this.teams[c.team];
     if (w.kind !== 'target' || !(team.ammo[w.id] > 0)) return;
 
+    if (w.id === 'supply') { // call in a parachute crate holding a specific epic or legendary weapon
+      const spots = this.terrain.standSpots(clamp(x, 30, WORLD_W - 30));
+      if (!spots.length) { this.texts.push({ x, y: y - 20, text: 'Nowhere to land there', color: '#fff', life: 60 }); return; }
+      const pool = WEAPONS.filter(o => o.group === 'epic' || o.group === 'legendary');
+      const pick = pool[randInt(0, pool.length - 1)];
+      const k = this.makeCrate(clamp(x, 30, WORLD_W - 30), Math.max(-30, spots[0] - 420), 'supply', true, { kind: 'weapon', id: pick.id, amount: 1 });
+      this.crates.push(k);
+      team.ammo[w.id]--;
+      this.texts.push({ x: k.x, y: k.y + 40, text: `📻 ${pick.icon} ${pick.name} incoming!`, color: '#ffd43b', life: 130 });
+      Sound.play('drop');
+      if (!(team.ammo[w.id] > 0)) c.weapon = 'bazooka';
+      this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
+      return;
+    }
     if (w.id === 'concrete') { // building tool: doesn't use up the attack
       if (!this.placeConcrete(x, y, c.buildAngle)) {
         this.texts.push({ x, y: y - 20, text: "Can't build there", color: '#fff', life: 60 });
@@ -855,7 +883,7 @@ class Game {
       }
       this.releaseRope();
       this.burst(c.x, c.y, '#b9f', 20);
-      c.x = x; c.y = y; c.vx = 0; c.vy = 0; c.airborne = true;
+      c.x = x; c.y = y; c.vx = 0; c.vy = 0; c.airborne = true; c.noFall = true;
       this.burst(x, y, '#b9f', 20);
       Sound.play('teleport');
     } else {
@@ -1234,9 +1262,11 @@ class Game {
           const ny = c.y + c.vy / steps;
           if (t.collides(c.x, ny)) {
             if (c.vy > 0) {
-              if (c.alive && c.tornadoFlung && !c.chute) this.fallDamage(c, Math.max(c.vy, FALL_SAFE_SPEED + 1.5));
+              if (c.noFall) { /* teleport / slingshot landing: no fall damage */ }
+              else if (c.alive && c.tornadoFlung && !c.chute) this.fallDamage(c, Math.max(c.vy, FALL_SAFE_SPEED + 1.5));
               else if (c.alive && c.vy > FALL_SAFE_SPEED && !c.chute && !jet) this.fallDamage(c, c.vy);
               c.tornadoFlung = false;
+              c.noFall = false;
               c.vy = 0; c.vx = 0; c.airborne = false; c.chute = false;
               break;
             }
@@ -1438,6 +1468,7 @@ class Game {
       }
     }
     for (const c of this.chars) if (c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + 5) return 'impact';
+    if (this.terrain.isHard(p.x + p.vx * 6, p.y + p.vy * 6)) return 'impact'; // can't drill through buildings
     // broke out of the rock into open air: blow up right away
     if (p.drillTicks - p.drillLeft > 8) {
       const ux = p.vx / 1.4, uy = p.vy / 1.4, t = this.terrain;
@@ -1605,7 +1636,9 @@ class Game {
     const ax = p.x + hx * (R + 4), ay = p.y + hy * (R + 4);
     const rockAhead = t.isSolid(ax, ay) || t.isSolid(ax, ay - 6) || t.isSolid(ax, ay + R - 4); // blade height, top and track level
     const supported = t.isSolid(p.x, p.y + R + 1) || t.isSolid(p.x - 8, p.y + R + 1) || t.isSolid(p.x + 8, p.y + R + 1);
-    if (rockAhead) { // dig: a tunnel twice the size of the pickaxe's
+    if (t.isHard(ax, ay) || t.isHard(ax, ay + R - 4)) { // a building it can't dig: turn round
+      p.heading = Math.PI - p.heading;
+    } else if (rockAhead) { // dig: a tunnel twice the size of the pickaxe's
       if (p.age % 4 === 0) {
         // keep the tunnel floor level with the tracks so it doesn't sink when driving sideways
         t.carve(p.x + hx * (R + 6), p.y + hy * (R + 6) - (p.digR - R - 1) * Math.abs(hx), p.digR);
@@ -1625,8 +1658,9 @@ class Game {
       p.vy = 0;
       const nx = p.x + (hx >= 0 ? 1 : -1) * Math.max(0.4, Math.abs(hx)) * p.speed;
       let moved = false;
-      for (let dy = 0; dy >= -6; dy--) if (!t.isSolid(nx + (hx >= 0 ? R : -R), p.y + dy + R - 3)) { p.x = nx; p.y += dy; moved = true; break; }
-      if (moved) for (let k = 0; k < 4; k++) { if (t.isSolid(p.x, p.y + R + 1)) break; p.y++; }
+      for (let dy = 0; dy >= -12; dy--) if (!t.isSolid(nx + (hx >= 0 ? R : -R), p.y + dy + R - 3)) { p.x = nx; p.y += dy; moved = true; break; }
+      if (moved) for (let k = 0; k < 8; k++) { if (t.isSolid(p.x, p.y + R + 1)) break; p.y++; }
+      else p.heading = Math.PI - p.heading; // a wall it can't climb: turn round
     }
     // shove characters out of the way; set off mines, smash crates
     for (const c of this.chars) {
@@ -1685,6 +1719,20 @@ class Game {
       return 'blast';
     }
     return null;
+  }
+
+  // Plasma frag grenade blast (also what an alien crate does when it bursts)
+  plasmaBurst(x, y, ownerTeam, mult) {
+    const w = WEAPON.plasmagrenade;
+    this.explode(x, y, w.radius, w.damage * mult, ownerTeam, w.blastKnock, 'plasma');
+    for (let k = 0; k < w.frags; k++) {
+      this.projectiles.push({
+        weapon: 'plasmafrag', x, y: y - 6, vx: rand(-4.2, 4.2), vy: rand(-8.5, -4), wind: false, bounce: false, fuse: null,
+        radius: w.bombletRadius, damage: w.bombletDamage * mult, cluster: w.fragClusters, clusterWeapon: 'greenlet',
+        bombletDamage: w.clusterDamage * mult, bombletRadius: w.clusterRadius, ownerId: -1, ownerTeam, age: 20, spin: 0,
+        nest: { n: w.microClusters, weapon: 'microlet', damage: w.microDamage * mult, radius: w.microRadius },
+      });
+    }
   }
 
   // Lava boulder: every time it hits something it explodes, sets fire around and bounces on (6 times)
@@ -1765,6 +1813,7 @@ class Game {
     for (let i = 0; i < steps; i++) {
       p.y += p.vy / steps;
       if (this.chars.some(c => c.alive && dist(c.x, c.y, p.x, p.y) < CHAR_R + 12)) return 'impact';
+      if (t.isHard(p.x, p.y + 10)) return 'impact'; // landed on a building
       const rock = t.isSolid(p.x, p.y + 9) || t.isSolid(p.x - 8, p.y + 9) || t.isSolid(p.x + 8, p.y + 9);
       if (rock && !p.melting) { p.melting = true; p.vy = 2.4; Sound.play('dig'); }
       if (p.melting && !rock && !t.isSolid(p.x, p.y + 20)) { p.melting = false; } // fell into a cave: drop again
@@ -1793,7 +1842,7 @@ class Game {
       p.vy = 0;
       const nx = p.x + p.dir * 1.3;
       let moved = false;
-      for (let dy = 0; dy >= -7; dy--) {
+      for (let dy = 0; dy >= -14; dy--) {
         if (!t.isSolid(nx, p.y + dy) && !t.isSolid(nx + p.dir * 4, p.y + dy - 3)) { p.x = nx; p.y += dy; moved = true; break; }
       }
       if (!moved || nx < 10 || nx > WORLD_W - 10) p.dir = -p.dir;
@@ -1954,13 +2003,13 @@ class Game {
     const foot = p.foot || 6;
     p.age++;
     p.fuse--;
-    const grounded = t.isSolid(p.x, p.y + foot);
+    const grounded = t.isSolid(p.x, p.y + foot + 1.5); // a little slack so a landed frog counts as standing
     if (grounded && p.vy >= 0) {
       p.vx = 0; p.vy = 0;
       if (++p.hop >= (p.baby ? 14 : 26)) {
         p.hop = 0;
         if (p.baby) p.dir = Math.random() < 0.5 ? -1 : 1; // babies bounce around at random
-        p.vy = p.baby ? -rand(2.8, 4.2) : -4.4;
+        p.vy = p.baby ? -rand(2.8, 4.2) : -6.2; // the big frog jumps twice as high
         p.vx = p.dir * (p.baby ? rand(1, 2.2) : 1.9);
         p.y -= 1;
         if (!p.baby && p.age % 3 === 0) Sound.play('croak');
@@ -2082,7 +2131,7 @@ class Game {
       if (--this.texts[i].life <= 0) this.texts.splice(i, 1);
     }
     for (const cl of this.clouds) {
-      cl.x += this.wind * 0.4 * cl.s + 0.05;
+      cl.x += this.wind * 1.1 * cl.s + 0.05;
       if (cl.x > WORLD_W + 120) cl.x = -120;
       if (cl.x < -120) cl.x = WORLD_W + 120;
     }
@@ -2283,7 +2332,7 @@ class Game {
     const aimSpeed = WEAPON[c.weapon].scope ? 0.3 : 1.2;
     if (up) c.aim = Math.min(85, c.aim + aimSpeed);
     if (down) c.aim = Math.max(-85, c.aim - aimSpeed);
-    if (this.charging) {
+    if (this.charging && !this.slingDrag) {
       this.chargePower += 1 / CHARGE_TICKS;
       if (this.chargePower >= 1) this.fire(1);
     }
@@ -2349,6 +2398,18 @@ class Game {
       Sound.init();
       if (e.pointerType === 'touch') this.isTouch = true;
       try { this.canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      // slingshot: grab your character and pull back
+      const c = this.active;
+      if (this.isHumanTurn() && !this.paused && !this.hasFired && c && !c.airborne && WEAPON[c.weapon].kind === 'sling' &&
+          (this.teams[c.team].ammo.sling > 0)) {
+        const r = this.canvas.getBoundingClientRect(), sc = this.worldToScreen(c.x, c.y);
+        if (Math.hypot(e.clientX - r.left - sc.x, e.clientY - r.top - sc.y) < 48) {
+          this.slingDrag = { id: e.pointerId };
+          this.charging = true;
+          this.chargePower = 0;
+          return;
+        }
+      }
       this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false });
       if (this.pointers.size === 2) {
         const [a, b] = [...this.pointers.values()];
@@ -2359,6 +2420,16 @@ class Game {
     this._onPointerMove = e => {
       const w = this.toWorld(e);
       this.mouse.x = w.x; this.mouse.y = w.y; this.mouse.inside = true;
+      if (this.slingDrag && this.slingDrag.id === e.pointerId) {
+        const c = this.active, dx = w.x - c.x, dy = w.y - c.y, len = Math.hypot(dx, dy);
+        if (len > 4) { // you fly the opposite way to the pull
+          const lx = -dx / len, ly = -dy / len;
+          c.facing = lx >= 0 ? 1 : -1;
+          c.aim = clamp(Math.atan2(-ly, Math.abs(lx)) * 180 / Math.PI, -85, 85);
+        }
+        this.chargePower = clamp(len / SLING_PULL, 0, 1);
+        return;
+      }
       const ptr = this.pointers.get(e.pointerId);
       if (!ptr) return;
       const dx = e.clientX - ptr.x, dy = e.clientY - ptr.y;
@@ -2379,6 +2450,12 @@ class Game {
       }
     };
     this._onPointerUp = e => {
+      if (this.slingDrag && this.slingDrag.id === e.pointerId) {
+        this.slingDrag = null;
+        if (this.chargePower > 0.08 && e.type === 'pointerup') this.fire(this.chargePower);
+        else { this.charging = false; this.chargePower = 0; }
+        return;
+      }
       const ptr = this.pointers.get(e.pointerId);
       this.pointers.delete(e.pointerId);
       if (this.pointers.size < 2) this.pinch = null;
@@ -2490,6 +2567,7 @@ class Game {
     this.drawClouds(ctx);
     ctx.drawImage(this.terrain.backdrop, 0, 0);
     ctx.drawImage(this.terrain.canvas, 0, 0);
+    if (this.terrain.hardCanvas) ctx.drawImage(this.terrain.hardCanvas, 0, 0);
 
     for (const c of this.chars) if (!c.alive && c.grave) this.drawGrave(ctx, c);
     for (const m of this.mines) this.drawMine(ctx, m);
@@ -2497,8 +2575,11 @@ class Game {
     for (const p of this.projectiles) this.drawProjectile(ctx, p);
     this.drawRope(ctx);
     this.drawSmoke(ctx);
+    this.slingOffset = this.slingPullOffset();
+    this.drawSlingFrame(ctx, false);
     this.drawGas(ctx);
     for (const c of this.chars) if (c.alive && this.visibleChar(c)) this.drawChar(ctx, c);
+    this.drawSlingFrame(ctx, true);
     if (this.state === 'turn' && this.active.alive && !this.hasFired) this.drawAim(ctx, this.active);
 
     for (const p of this.particles) {
@@ -2676,7 +2757,59 @@ class Game {
     ctx.fill();
   }
 
+  // Slingshot: how far the active character is pulled back into the band
+  slingPullOffset() {
+    const c = this.active;
+    if (!c || this.state !== 'turn' || this.hasFired || c.airborne || WEAPON[c.weapon].kind !== 'sling' || !this.charging) return null;
+    const { dx, dy } = c.aimVector();
+    return { x: -dx * this.chargePower * 30, y: -dy * this.chargePower * 30 };
+  }
+
+  // A big red Y planted next to the character; front=false draws the frame and back band, front=true the front band
+  drawSlingFrame(ctx, front) {
+    const c = this.active;
+    if (!c || !c.alive || this.state !== 'turn' || this.hasFired || c.airborne || WEAPON[c.weapon].kind !== 'sling') return;
+    if (!(this.teams[c.team].ammo.sling > 0)) return;
+    const base = { x: c.x, y: c.y + CHAR_R };
+    const tipL = { x: c.x - 11, y: c.y - 20 }, tipR = { x: c.x + 11, y: c.y - 20 };
+    const so = this.slingOffset || { x: 0, y: 0 };
+    const pouch = { x: c.x + so.x, y: c.y + so.y - 2 };
+    ctx.lineCap = 'round';
+    if (!front) {
+      ctx.strokeStyle = '#7a1010';
+      ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(c.x, c.y - 4); ctx.lineTo(tipL.x, tipL.y);
+      ctx.moveTo(c.x, c.y - 4); ctx.lineTo(tipR.x, tipR.y); ctx.stroke();
+      ctx.strokeStyle = '#d62828';
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(base.x, base.y); ctx.lineTo(c.x, c.y - 4); ctx.lineTo(tipL.x, tipL.y);
+      ctx.moveTo(c.x, c.y - 4); ctx.lineTo(tipR.x, tipR.y); ctx.stroke();
+      ctx.strokeStyle = '#4a2c17';                       // back band
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(tipR.x, tipR.y); ctx.lineTo(pouch.x, pouch.y); ctx.stroke();
+    } else {
+      ctx.strokeStyle = '#4a2c17';                       // front band over the character
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(tipL.x, tipL.y); ctx.lineTo(pouch.x, pouch.y); ctx.stroke();
+      if (this.charging && this.chargePower > 0.05) {  // where you'll fly
+        const { dx, dy } = c.aimVector();
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        for (let i = 1; i <= 5; i++) {
+          const d = 16 + i * 10 * (0.4 + this.chargePower);
+          ctx.beginPath(); ctx.arc(c.x + dx * d, c.y + dy * d, 2.2 - i * 0.25, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+    ctx.lineCap = 'butt';
+  }
+
   drawLabels(ctx) {
+    for (const k of this.crates) { // what's inside (option), always for called-in supply crates
+      if (k.dead || !k.content || !(this.settings.crateLabels || k.type === 'supply')) continue;
+      const sc = this.worldToScreen(k.x, k.y - 14);
+      if (sc.x < -80 || sc.x > this.viewW + 80 || sc.y < -40 || sc.y > this.viewH + 40) continue;
+      this.outlinedText(ctx, this.crateLabel(k), sc.x, sc.y - (k.chute ? 30 : 0), '10.5px system-ui, sans-serif', k.type === 'supply' ? '#ffd43b' : '#f1f3f5');
+    }
     for (const c of this.chars) {
       if (!c.alive || !this.visibleChar(c)) continue;
       const s = this.worldToScreen(c.x, c.y - CHAR_R);
@@ -2745,6 +2878,7 @@ class Game {
     ctx.fillRect(x, y, w, h);
     ctx.globalAlpha = 1;
     ctx.drawImage(this.terrain.canvas, x, y, w, h);
+    if (this.terrain.hardCanvas) ctx.drawImage(this.terrain.hardCanvas, x, y, w, h);
     const k = w / WORLD_W;
     ctx.fillStyle = this.theme.water;
     ctx.fillRect(x, y + WATER_Y * k, w, h);
@@ -2853,7 +2987,7 @@ class Game {
       else if (myBall) hint = `Press ${press} to detonate the plasma ball`;
       else if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
       else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
-      else if (w.kind === 'sling') hint = `Aim, hold ${press} to stretch the slingshot and let go to fling yourself · doesn't use your attack`;
+      else if (w.kind === 'sling') hint = `Drag your character back like a catapult (or aim and hold ${press}) and let go · you fly the opposite way, no fall damage`;
       else if (w.kind === 'dozer') hint = `${press} sends the robo dozer the way you face · steer it with ${lr} · ${press} again blows it up`;
       else if (w.kind === 'boulder') hint = `Hold ${press} to charge the throw · it explodes and spreads fire on each of its ${w.bounces} bounces`;
       else if (w.kind === 'boomerang') hint = `Hold ${press} to charge the throw · it curves back to you and sends anyone it hits flying`;
@@ -2937,7 +3071,8 @@ class Game {
     const bob = !c.airborne && c === this.active && this.state === 'turn' ? Math.sin(this.tick * 0.15) * 0.6 : 0;
     ctx.save();
     const shake = c === this.active && this.digging ? rand(-1, 1) : 0;
-    ctx.translate(c.x + shake, c.y + bob);
+    const so = c === this.active && this.slingOffset ? this.slingOffset : null;
+    ctx.translate(c.x + shake + (so ? so.x : 0), c.y + bob + (so ? so.y : 0));
     if (c.chute) { // parachute canopy
       ctx.strokeStyle = 'rgba(30,30,30,0.6)';
       ctx.lineWidth = 1;
@@ -3113,7 +3248,7 @@ class Game {
       ctx.moveTo(-8, -8); ctx.lineTo(-16, -30);
       ctx.moveTo(8, -8); ctx.lineTo(16, -30);
       ctx.stroke();
-      ctx.fillStyle = k.type === 'steel' ? '#d9534f' : k.type === 'alien' ? '#7dff5a' : '#f2f2f2';
+      ctx.fillStyle = k.type === 'steel' ? '#d9534f' : k.type === 'alien' ? '#7dff5a' : k.type === 'supply' ? '#ffd43b' : '#f2f2f2';
       ctx.beginPath();
       ctx.ellipse(0, -30, 22, 12, 0, Math.PI, 0);
       ctx.fill();
@@ -3133,6 +3268,17 @@ class Game {
       ctx.beginPath(); ctx.ellipse(0, 0, 5, 6.5, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#111';
       ctx.beginPath(); ctx.ellipse(-2.2, -1, 1.6, 2.4, -0.4, 0, Math.PI * 2); ctx.ellipse(2.2, -1, 1.6, 2.4, 0.4, 0, Math.PI * 2); ctx.fill();
+    } else if (k.type === 'supply') { // called-in supply crate: gold with a star
+      ctx.fillStyle = '#d4a017';
+      ctx.fillRect(-9, -9, 18, 18);
+      ctx.strokeStyle = '#7a5a00';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-9, -9, 18, 18);
+      ctx.fillStyle = '#fff3bf';
+      ctx.font = 'bold 11px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('★', 0, 1);
     } else if (k.type === 'steel') {
       ctx.fillStyle = '#8d96a0';
       ctx.fillRect(-9, -9, 18, 18);
@@ -3166,10 +3312,30 @@ class Game {
     const kind = this.theme.ambient;
     if (!kind) return;
     if (!this.ambient) {
-      this.ambient = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: rand(0.5, 1.4), p: rand(0, 6) }));
+      this.ambient = Array.from({ length: 70 }, (_, i) => ({ x: Math.random(), y: Math.random(), s: rand(0.5, 1.4), p: rand(0, 6), i }));
     }
     const { viewW, viewH } = this;
     for (const a of this.ambient) {
+      if (kind === 'leaves' || kind === 'dust') {
+        if (a.i > 22) continue; // fewer of these
+        // blown along by the wind: the stronger it is, the faster they go
+        a.x += (this.wind * 0.0045 + 0.00015) * a.s;
+        a.y += (Math.sin((this.tick + a.p * 60) * 0.03) * 0.0009 + 0.00025 * (1 - Math.abs(this.wind))) * a.s;
+        if (a.y > 1.02) a.y = -0.02; else if (a.y < -0.02) a.y = 1.02;
+        if (a.x > 1.02) a.x = -0.02; else if (a.x < -0.02) a.x = 1.02;
+        ctx.save();
+        ctx.translate(a.x * viewW, a.y * viewH);
+        if (kind === 'leaves') {
+          ctx.rotate(this.tick * 0.05 * a.s + a.p);
+          ctx.fillStyle = ['#6a9f3a', '#a8c45a', '#d98c2b', '#b5651d'][a.i % 4];
+          ctx.beginPath(); ctx.ellipse(0, 0, 4 * a.s, 2 * a.s, 0, 0, Math.PI * 2); ctx.fill();
+        } else {
+          ctx.fillStyle = 'rgba(214,180,120,0.6)';
+          ctx.fillRect(-1.5 * a.s, -0.8, 3 * a.s, 1.6);
+        }
+        ctx.restore();
+        continue;
+      }
       if (kind === 'snow') {
         a.y += 0.0012 * a.s;
         a.x += (this.wind * 0.0009 + Math.sin((this.tick + a.p * 50) * 0.02) * 0.0003) * a.s;
@@ -3216,6 +3382,7 @@ class Game {
 
   drawAim(ctx, c) {
     const w = WEAPON[c.weapon];
+    if (w.kind === 'sling') return;
     if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'drop' || w.kind === 'mine' || w.dig === 'down' || w.kind === 'chute' || w.kind === 'jetpack') return;
     if (this.rope && this.rope.state === 'attached') return;
     if (w.scope) { this.drawScope(ctx, c); return; }
@@ -3466,6 +3633,9 @@ class Game {
         }
         if (!p.drilling) { ctx.fillStyle = '#fa0'; ctx.fillRect(-12, -2, 3, 4); }
         break;
+      case 'tsar':
+        ctx.scale(1.35, 1.35);
+        // falls through to the nuke drawing
       case 'nuke':
         ctx.rotate(Math.atan2(p.vy, p.vx));
         ctx.fillStyle = '#e8c21a';

@@ -22,6 +22,7 @@ const App = {
       friendlyFire: true,
       version: SETTINGS_VERSION,
       crates: 'normal',
+      crateLabels: false,
       weapons: {},
       arsenal: 'standard',
       players: DEFAULT_NAMES.map((name, i) => ({ name, cpu: i !== 0, team: i % 2 })),
@@ -71,6 +72,8 @@ const App = {
       $(id).value = s[id];
       $(id).onchange = () => { s[id] = $(id).value; this.save(); this.updateWeaponsSummary(); };
     }
+    $('crateLabels').value = s.crateLabels ? 'on' : 'off';
+    $('crateLabels').onchange = () => { s.crateLabels = $('crateLabels').value === 'on'; this.save(); };
     $('friendlyFire').value = s.friendlyFire ? 'on' : 'off';
     $('friendlyFire').onchange = () => { s.friendlyFire = $('friendlyFire').value === 'on'; this.save(); };
     $('weaponsBtn').onclick = () => this.showWeaponConfig(true);
@@ -186,6 +189,7 @@ const App = {
       mines: s.mines,
       friendlyFire: s.friendlyFire,
       crates: s.crates,
+      crateLabels: !!s.crateLabels,
       weapons: s.weapons,
       arsenal: s.arsenal,
     }, {
@@ -285,8 +289,16 @@ const App = {
       body.appendChild(tr);
     };
 
+    let lastGroup = null;
     for (const w of WEAPONS) {
-      if (w.kind === 'skip' || w.kind === 'rope') continue;
+      if (w.kind === 'rope') continue;
+      if (w.group !== lastGroup) { // category heading
+        lastGroup = w.group;
+        const tr = document.createElement('tr');
+        tr.className = 'group-row';
+        tr.innerHTML = `<th colspan="4" scope="colgroup">${(WEAPON_GROUPS.find(g => g[0] === w.group) || [, w.group])[1]}</th>`;
+        body.appendChild(tr);
+      }
       addRow(w, w.name, w.note || '', ['damage', 'radius', 'ammo']);
       if (w.bombletDamage != null) addRow(w, w.subLabel, w.subNote, ['bombletDamage', null, null], true);
     }
@@ -331,13 +343,28 @@ const App = {
     head.appendChild(close);
     bar.appendChild(head);
 
-    const GROUPS = [['weapon', 'Weapons'], ['tool', 'Tools'], ['crate', 'Special']];
+    const GROUPS = WEAPON_GROUPS;
+    // desktop: category tabs, one category shown at a time (follows the selected weapon)
+    if (this.lastWeapon !== c.weapon || !this.weaponTab) { this.weaponTab = WEAPON[c.weapon].group; this.lastWeapon = c.weapon; }
+    const tabs = document.createElement('div');
+    tabs.className = 'wtabs';
+    for (const [gid, label] of GROUPS) {
+      const has = WEAPONS.some(w => w.group === gid && !((w.crate || g.arsenal === 'minimal') && !(team.ammo[w.id] > 0) && !(w.id === 'suit' && c.ownsSuit)));
+      if (!has) continue;
+      const tb = document.createElement('button');
+      tb.type = 'button';
+      tb.className = 'wtab' + (gid === this.weaponTab ? ' on' : '') + (gid === WEAPON[c.weapon].group ? ' current' : '');
+      tb.textContent = label;
+      tb.onclick = () => { this.weaponTab = gid; tb.blur(); this.renderWeapons(); };
+      tabs.appendChild(tb);
+    }
+    bar.appendChild(tabs);
     for (const [gid, label] of GROUPS) {
       // special weapons only show once the team has some
       const items = WEAPONS.filter(w => w.group === gid && !((w.crate || g.arsenal === 'minimal') && !(team.ammo[w.id] > 0) && !(w.id === 'suit' && c.ownsSuit)));
       if (!items.length) continue;
       const sec = document.createElement('div');
-      sec.className = 'wgroup';
+      sec.className = 'wgroup' + (gid === this.weaponTab ? ' active' : '');
       sec.innerHTML = `<span class="wgroup-label">${label}</span>`;
       const row = document.createElement('div');
       row.className = 'wgroup-items';
