@@ -36,6 +36,7 @@ class Game {
     this.gases = [];
     this.jet = null;
     this.particles = [];
+    this.rubble = [];
     this.effects = [];
     this.texts = [];
     this.teams = {};
@@ -2094,8 +2095,84 @@ class Game {
     }
   }
 
+  // City theme: an undermined building falls apart into chunks of concrete/steel that stay on the map
+  collapseBuilding(b) {
+    const bw = b.x1 - b.x0, bh = b.base - b.roof;
+    const cols = b.kind === 'steel' ? ['#5c6a79', '#4a5664', '#6d7a88'] : ['#b9bdc4', '#a4a9b1', '#c9ccd2', '#8f949c'];
+    const n = Math.min(70, Math.max(10, Math.round(bw * bh / 260)));
+    for (let i = 0; i < n; i++) {
+      const s = randInt(6, 13);
+      this.rubble.push({
+        x: b.x0 + rand(0, bw - s), y: b.roof + rand(0, bh - s), w: s, h: randInt(5, s),
+        vx: rand(-1.4, 1.4), vy: rand(-1.5, 0.5), rot: rand(0, 6), spin: rand(-0.2, 0.2),
+        color: cols[randInt(0, cols.length - 1)], hit: false, life: 600,
+      });
+    }
+    for (let i = 0; i < 60; i++) {
+      this.particles.push({ x: b.x0 + rand(0, bw), y: b.roof + rand(0, bh), vx: rand(-0.8, 0.8), vy: rand(-0.8, 0.2), life: randInt(40, 90), max: 90, color: 'rgba(200,195,185,0.55)', size: rand(4, 8), grav: -0.005 });
+    }
+    // anything standing on or in it now drops
+    for (const c of this.chars) if (c.alive && c.x > b.x0 - CHAR_R && c.x < b.x1 + CHAR_R && c.y < b.base + CHAR_R) c.airborne = true;
+    for (const k of this.crates) if (k.x > b.x0 - 10 && k.x < b.x1 + 10) k.airborne = true;
+    for (const m of this.mines) if (m.x > b.x0 - 6 && m.x < b.x1 + 6) m.airborne = true;
+    this.texts.push({ x: (b.x0 + b.x1) / 2, y: b.roof - 20, text: 'Collapse!', color: '#ddd', life: 70 });
+    Sound.play('explosion', 1.2);
+    Sound.play('thud');
+  }
+
+  updateRubble() {
+    const t = this.terrain;
+    for (const r of this.rubble) {
+      r.vy = Math.min(9, r.vy + GRAVITY);
+      r.vx *= 0.995;
+      r.rot += r.spin;
+      const nx = r.x + r.vx;
+      if (nx < 0 || nx + r.w > t.w || t.isSolid(nx, r.y + r.h / 2) || t.isSolid(nx + r.w, r.y + r.h / 2)) r.vx *= -0.3;
+      else r.x = nx;
+      let landed = false;
+      const steps = Math.ceil(Math.abs(r.vy));
+      for (let s = 0; s < steps; s++) {
+        const dy = r.vy / steps;
+        if (t.isSolid(r.x + 1, r.y + r.h + dy) || t.isSolid(r.x + r.w - 1, r.y + r.h + dy) || t.isSolid(r.x + r.w / 2, r.y + r.h + dy)) { landed = true; break; }
+        r.y += dy;
+      }
+      if (!r.hit && r.vy > 2) {
+        for (const c of this.chars) {
+          if (c.alive && Math.abs(c.x - (r.x + r.w / 2)) < CHAR_R + r.w / 2 && Math.abs(c.y - (r.y + r.h / 2)) < CHAR_R + r.h / 2) {
+            r.hit = true;
+            this.damageChar(c, 4, r.vx * 0.4, -1, -1);
+            break;
+          }
+        }
+      }
+      if (r.y > WATER_Y) { r.done = true; continue; }
+      if (landed || --r.life <= 0) {
+        r.done = true;
+        const blocked = this.chars.some(c => c.alive && Math.abs(c.x - (r.x + r.w / 2)) < CHAR_R + r.w / 2 + 1 && Math.abs(c.y - (r.y + r.h / 2)) < CHAR_R + r.h / 2 + 1);
+        if (!blocked) t.stampBlock(r.x, r.y, r.w, r.h, r.color);
+        else for (let i = 0; i < 4; i++) this.particles.push({ x: r.x + r.w / 2, y: r.y, vx: rand(-1, 1), vy: rand(-1.5, 0), life: 20, max: 20, color: r.color, size: 2.5, grav: 0.15 });
+      }
+    }
+    this.rubble = this.rubble.filter(r => !r.done);
+    if (this.tick % 6 === 0 && this.rubble.length) Sound.play('dig');
+  }
+
+  drawRubble(ctx) {
+    for (const r of this.rubble) {
+      ctx.save();
+      ctx.translate(r.x + r.w / 2, r.y + r.h / 2);
+      ctx.rotate(r.rot);
+      ctx.fillStyle = r.color;
+      ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h);
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-r.w / 2, -r.h / 2, r.w, r.h);
+      ctx.restore();
+    }
+  }
+
   worldIsCalm() {
-    return this.projectiles.length === 0 && this.fires.length === 0 && this.deathBlasts.length === 0 &&
+    return this.projectiles.length === 0 && this.fires.length === 0 && this.deathBlasts.length === 0 && this.rubble.length === 0 &&
       this.crates.every(k => !k.airborne) &&
       this.chars.every(c => !(c.alive || c.grave) || !c.airborne) &&
       this.mines.every(m => m.fuse == null && !m.airborne);
@@ -2119,6 +2196,8 @@ class Game {
     for (const k of this.crates) if (!k.dead) this.updateCrate(k);
     if (this.crates.some(k => k.dead)) this.crates = this.crates.filter(k => !k.dead);
     this.updateFires();
+    if (this.terrain.dirty) for (const b of this.terrain.checkCollapse()) this.collapseBuilding(b);
+    if (this.rubble.length) this.updateRubble();
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -2568,6 +2647,7 @@ class Game {
     ctx.drawImage(this.terrain.backdrop, 0, 0);
     ctx.drawImage(this.terrain.canvas, 0, 0);
     if (this.terrain.hardCanvas) ctx.drawImage(this.terrain.hardCanvas, 0, 0);
+    if (this.rubble.length) this.drawRubble(ctx);
 
     for (const c of this.chars) if (!c.alive && c.grave) this.drawGrave(ctx, c);
     for (const m of this.mines) this.drawMine(ctx, m);

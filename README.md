@@ -60,7 +60,7 @@ Every map is generated randomly. The theme changes both the look and the shape o
 | Sand | Smooth, low dunes with few caves | |
 | Winter | Tall snowy ridges | Falling snow |
 | Volcanic | Jagged basalt peaks with lots of caves and a glowing crust | Lava instead of water, rising embers |
-| City (mixed) | Indestructible concrete and steel buildings, loose blocks and girders on top of normal grass and soil, which can still be blown up | A skyline in the background, wind-blown leaves |
+| City (mixed) | Indestructible concrete and steel buildings, loose blocks and girders on top of normal grass and soil, which can still be blown up. Dig or blast away more than half of the ground under a building and it collapses into chunks of concrete (or steel) that fall (a few damage to anyone underneath) and stay on the map as ordinary, destructible rubble | A skyline in the background, wind-blown leaves |
 
 Leaves (grassy land, city), sand (desert), snow (winter) and embers (volcanic) blow across the screen with the wind, so you can see how strong it is; the clouds move with it too.
 

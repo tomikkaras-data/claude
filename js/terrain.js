@@ -20,6 +20,8 @@ class Terrain {
     this.canvas.height = h;
     this.ctx = this.canvas.getContext('2d');
     this.hard = new Uint8Array(w * h);   // indestructible pixels (city buildings and blocks)
+    this.buildings = [];                 // city buildings, so they can collapse when undermined
+    this.dirty = false;
     this.hardCanvas = null;
     this.generate();
     this.paint();
@@ -179,6 +181,7 @@ class Terrain {
         if (dx * dx + dy * dy <= r2 && !this.hard[i]) this.mask[i] = 0; // buildings can't be destroyed
       }
     }
+    this.dirty = true;
     const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
@@ -238,7 +241,9 @@ class Terrain {
         const bh = rand(60, 210);
         const roof = Math.max(60, top - bh);
         solidRect(x0, roof, x1, low + 14);
-        (Math.random() < 0.5 ? concrete : steel)(x0, roof, x1 - x0, low + 14 - roof);
+        const kind = Math.random() < 0.5 ? 'concrete' : 'steel';
+        (kind === 'concrete' ? concrete : steel)(x0, roof, x1 - x0, low + 14 - roof);
+        this.buildings.push({ x0, x1, roof: Math.floor(roof), base: Math.ceil(low + 14), kind, support: 0 });
       }
       x += bw + rand(70, 220);
     }
@@ -258,6 +263,49 @@ class Terrain {
         (Math.random() < 0.5 ? concrete : steel)(bx, gy - bh, bw, bh + 6);
       }
     }
+  }
+
+  // How many columns under a building still have ground in the few rows below its foundation
+  buildingSupport(b) {
+    let n = 0;
+    for (let x = b.x0; x < b.x1; x++) {
+      for (let y = b.base; y < Math.min(this.h, b.base + 6); y++) if (this.mask[y * this.w + x]) { n++; break; }
+    }
+    return n;
+  }
+
+  // Buildings whose ground has been more than half dug away are removed and returned (to fall apart)
+  checkCollapse() {
+    this.dirty = false;
+    const fallen = [];
+    for (const b of this.buildings) {
+      if (b.down) continue;
+      if (!b.support) b.support = this.buildingSupport(b) || 1;
+      if (this.buildingSupport(b) >= b.support * 0.5) continue;
+      b.down = true;
+      for (let y = Math.max(0, b.roof); y < Math.min(this.h, b.base); y++) {
+        for (let x = b.x0; x < b.x1; x++) { const i = y * this.w + x; this.mask[i] = 0; this.hard[i] = 0; }
+      }
+      this.hardCanvas.getContext('2d').clearRect(b.x0, b.roof, b.x1 - b.x0, b.base - b.roof);
+      this.ctx.clearRect(b.x0, b.roof, b.x1 - b.x0, b.base - b.roof);
+      fallen.push(b);
+    }
+    return fallen;
+  }
+
+  // Leave a small (destructible) chunk of rubble on the map
+  stampBlock(x0, y0, bw, bh, color) {
+    x0 = Math.round(x0); y0 = Math.round(y0);
+    for (let y = Math.max(0, y0); y < Math.min(this.h, y0 + bh); y++) {
+      for (let x = Math.max(0, x0); x < Math.min(this.w, x0 + bw); x++) this.mask[y * this.w + x] = 1;
+    }
+    const ctx = this.ctx;
+    ctx.fillStyle = color;
+    ctx.fillRect(x0, y0, bw, bh);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(x0, y0, bw, 1.5);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(x0, y0 + bh - 1.5, bw, 1.5);
   }
 
   // All the spots in a column where a character can stand
