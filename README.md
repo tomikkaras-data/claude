@@ -97,6 +97,7 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 | 🦅 Desert Eagle | 2 | Single high-damage pistol shot with strong knockback |
 | ☢️ Nuka Bomb | 1 | Launched like the bazooka; enormous blast (75 damage, very wide radius) |
 | 💀 Tsar Bomb | 1 | Like the Nuka Bomb with twice the blast radius (250) |
+| 🧲 Magnet Grenade | 1 | Big, heavy bouncing grenade with a 4 s timer. After 1 s of flight it turns red and pulls in everything within 100 px (characters, crates, barrels, mines) – the closer they are, the harder and faster the pull. Anything within 50 px snaps onto the magnet and rides along with it. When the timer runs out it implodes with a small blast (radius 40, 40 damage) |
 | 🐸 Frog Clone Bomb | 2 | Big frog that hops forward (high hops) – press FIRE again to set it off early – turns at walls and explodes after 5 seconds or when it reaches an enemy. The blast releases 5 frog clones that hop around at random and go off after 1–3 seconds each |
 | 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
 | 🔨 Lava Anvil | 2 | Click a target; a red-hot anvil drops straight down, melts its way down through rock leaving fire along the shaft, and explodes at the bottom (or when it hits someone) |

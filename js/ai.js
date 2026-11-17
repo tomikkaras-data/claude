@@ -298,6 +298,7 @@ class AIController {
 
     // the plasma frag grenade flies exactly like a grenade: sometimes throw that instead
     if (best.weapon === 'grenade' && has('plasmagrenade') && Math.random() < 0.5) best.weapon = 'plasmagrenade';
+    else if (best.weapon === 'grenade' && has('magnet') && Math.random() < 0.35) best.weapon = 'magnet'; // lands in the same spot and drags them in
 
     let nearest = enemies[0];
     for (const e of enemies) if (dist(e.x, e.y, c.x, c.y) < dist(nearest.x, nearest.y, c.x, c.y)) nearest = e;

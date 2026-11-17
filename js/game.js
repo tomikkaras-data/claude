@@ -285,7 +285,7 @@ class Game {
   }
 
   updateCrate(k) {
-    if (k.inTornado) return;
+    if (k.inTornado || k.onMagnet) return;
     const t = this.terrain;
     if (!k.airborne && !t.isSolid(k.x, k.y + 10)) k.airborne = true;
     if (k.airborne) {
@@ -617,6 +617,7 @@ class Game {
       if (w.id === 'smoke') p.smoke = true;
       if (w.id === 'flashbang') p.flash = true;
       if (w.id === 'gas') p.gas = true;
+      if (w.id === 'magnet') Object.assign(p, { magnet: true, pullRadius: w.pullRadius, stickRadius: w.stickRadius, armTicks: w.armTicks, maxFuse: p.fuse, stuck: [] });
       this.projectiles.push(p);
       Sound.play(w.bounce ? 'throw' : 'launch');
     } else if (w.kind === 'drop') {
@@ -1225,7 +1226,7 @@ class Game {
 
   updateChar(c) {
     if (!c.alive && !c.grave) return;
-    if (c.inTornado) { c.shownHp += (Math.max(0, c.hp) - c.shownHp) * 0.15; return; }
+    if (c.inTornado || c.onMagnet) { c.shownHp += (Math.max(0, c.hp) - c.shownHp) * 0.15; return; }
     const t = this.terrain;
     if (c === this.active && c.alive && this.rope && this.rope.state === 'attached') {
       this.updateRopeChar(c);
@@ -1286,7 +1287,7 @@ class Game {
   }
 
   updateMine(m) {
-    if (m.inTornado) return;
+    if (m.inTornado || m.onMagnet) return;
     const t = this.terrain;
     if (!m.airborne && !t.isSolid(m.x, m.y + 5)) m.airborne = true;
     if (m.airborne) {
@@ -1398,6 +1399,16 @@ class Game {
       }
       if (p.tornado) {
         if (this.stepTornado(p)) { this.endTornado(p); this.projectiles.splice(i, 1); }
+        continue;
+      }
+      if (p.magnet) {
+        const r = this.stepMagnet(p);
+        if (r) {
+          this.projectiles.splice(i, 1);
+          this.releaseMagnet(p);
+          if (r === 'water') this.splash(p.x);
+          else if (r === 'fuse') this.magnetImplode(p);
+        }
         continue;
       }
       let r = p.walker ? this.stepWalker(p) : p.drilling ? this.stepDriller(p) : p.drone ? this.stepDrone(p) : p.lava ? this.stepAnvil(p) : stepProjectile(p, env);
@@ -1996,6 +2007,109 @@ class Game {
     if (p.y > WATER_Y) return 'water';
     if (p.x < -100 || p.x > WORLD_W + 100 || p.y < -600) return 'lost';
     return null;
+  }
+
+  // Magnet grenade: a heavy bouncing grenade. After armTicks it turns red and pulls everything within
+  // pullRadius towards itself (harder and faster the closer it is); inside stickRadius things snap onto it
+  // and ride along. When the timer runs out it implodes with a small blast.
+  stepMagnet(p) {
+    const r = stepProjectile(p, this.env);
+    if (r === 'water' || r === 'lost') return r;
+    p.active = p.age >= p.armTicks;
+    if (p.age === p.armTicks) { Sound.play('zap'); Sound.play('beep'); }
+    if (p.active) {
+      if (p.age % 14 === 0) Sound.play('zap');
+      const t = this.terrain, R = p.pullRadius, S = p.stickRadius;
+      const objs = [];
+      for (const c of this.chars) if (c.alive && !c.inTornado) objs.push({ o: c, size: CHAR_R + 7, kind: 'char' });
+      for (const k of this.crates) if (!k.dead && !k.inTornado) objs.push({ o: k, size: 16, kind: 'crate' });
+      for (const m of this.mines) if (!m.dead && !m.inTornado) objs.push({ o: m, size: 11, kind: 'mine' });
+      for (const e of objs) {
+        const o = e.o;
+        if (o.onMagnet && o.onMagnet !== p) continue;
+        const dx = p.x - o.x, dy = p.y - o.y, d = Math.hypot(dx, dy) || 0.01;
+        if (o.onMagnet === p) continue;
+        if (d > R) continue;
+        const near = 1 - d / R;                       // 0 at the edge of the field, 1 at the magnet
+        if (d <= S) {                                  // close enough: it sticks
+          o.onMagnet = p;
+          o.chute = false; o.inTornado = false;
+          if (e.kind === 'char') { if (o === this.active && this.rope) this.releaseRope(); o.noFall = true; }
+          p.stuck.push({ o, kind: e.kind, size: e.size, ang: Math.atan2(o.y - p.y, o.x - p.x) });
+          Sound.play('hook');
+          continue;
+        }
+        // pulled in: acceleration and top speed both grow the closer it is
+        // (moved directly, with its own pull speed, so standing on the ground doesn't cancel it)
+        const acc = 0.1 + 0.55 * near * near + 0.25 * near;
+        const vmax = 1.5 + 8 * near;
+        if (!o.pull || o.pull.tick !== this.tick - 1) o.pull = { x: 0, y: 0 };
+        o.pull.tick = this.tick;
+        o.pull.x += dx / d * acc; o.pull.y += dy / d * acc;
+        const sp = Math.hypot(o.pull.x, o.pull.y);
+        if (sp > vmax) { o.pull.x *= vmax / sp; o.pull.y *= vmax / sp; }
+        const hit = (x, y) => e.kind === 'char' ? t.collides(x, y) : t.isSolid(x, y + (e.kind === 'mine' ? 3 : 8));
+        const n = Math.max(1, Math.ceil(sp / 2));
+        for (let k = 0; k < n; k++) {
+          const nx = o.x + o.pull.x / n;
+          if (!hit(nx, o.y)) o.x = nx;
+          else if (!hit(nx, o.y - 4)) { o.x = nx; o.y -= 4; }   // drag up and over small bumps
+          else o.pull.x = 0;
+          const ny = o.y + o.pull.y / n;
+          if (!hit(o.x, ny)) o.y = ny; else o.pull.y = 0;
+        }
+        if (o.pull.y < -0.4) { o.airborne = true; if (o.vy > 0) o.vy = 0; }        // lifted off the ground
+        if (e.kind === 'char') { o.noFall = true; if (o === this.active && this.rope && near > 0.3) this.releaseRope(); }
+        if (!o.airborne && !hit(o.x, o.y + 2)) o.airborne = true;
+      }
+      // stuck things slide quickly onto the magnet's surface and ride along with it
+      for (const s of p.stuck) {
+        const o = s.o;
+        if (o.dead || (s.kind === 'char' && !o.alive)) { o.onMagnet = null; continue; }
+        let tx = p.x + Math.cos(s.ang) * s.size, ty = p.y + Math.sin(s.ang) * s.size;
+        const blocked = (x, y) => s.kind === 'char' ? t.collides(x, y) : t.isSolid(x, y);
+        if (blocked(tx, ty)) {
+          // swing round the magnet towards its top until there's room
+          for (let k = 1; k <= 12; k++) {
+            const up = -Math.PI / 2, diff = Math.atan2(Math.sin(up - s.ang), Math.cos(up - s.ang));
+            s.ang += Math.sign(diff) * Math.min(Math.abs(diff), 0.12);
+            tx = p.x + Math.cos(s.ang) * s.size; ty = p.y + Math.sin(s.ang) * s.size;
+            if (!blocked(tx, ty)) break;
+          }
+        }
+        const nx = o.x + (tx - o.x) * 0.35, ny = o.y + (ty - o.y) * 0.35;
+        if (!blocked(nx, ny)) { o.x = nx; o.y = ny; }
+        else if (!blocked(tx, ty)) { o.x = tx; o.y = ty; }
+        o.vx = p.vx; o.vy = p.vy; o.airborne = true;
+      }
+      p.stuck = p.stuck.filter(s => s.o.onMagnet === p);
+      if (p.age % 3 === 0) {
+        const a = rand(0, Math.PI * 2), rr = rand(R * 0.5, R);
+        this.particles.push({ x: p.x + Math.cos(a) * rr, y: p.y + Math.sin(a) * rr, vx: -Math.cos(a) * rr / 22, vy: -Math.sin(a) * rr / 22, life: 20, max: 20, color: 'rgba(255,90,90,0.8)', size: 2, grav: 0 });
+      }
+    }
+    return r === 'fuse' ? 'fuse' : null;
+  }
+
+  releaseMagnet(p) {
+    for (const s of p.stuck || []) {
+      const o = s.o;
+      if (o.onMagnet !== p) continue;
+      o.onMagnet = null;
+      o.airborne = true;
+      o.vx = 0; o.vy = 0;
+      if (s.kind === 'char') o.noFall = false;
+    }
+    for (const c of this.chars) if (c.onMagnet === p) c.onMagnet = null;
+  }
+
+  magnetImplode(p) {
+    this.effects.push({ type: 'implode', x: p.x, y: p.y, r: p.pullRadius, life: 18, max: 18 });
+    for (let i = 0; i < 40; i++) {
+      const a = rand(0, Math.PI * 2), rr = rand(30, p.pullRadius);
+      this.particles.push({ x: p.x + Math.cos(a) * rr, y: p.y + Math.sin(a) * rr, vx: -Math.cos(a) * rr / 10, vy: -Math.sin(a) * rr / 10, life: 10, max: 10, color: '#ff5050', size: 3, grav: 0 });
+    }
+    this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock || 1);
   }
 
   // Robot frog: hops along the ground, turns at walls, explodes on its timer or next to an enemy
@@ -3078,6 +3192,7 @@ class Game {
       else if (w.kind === 'blaster') hint = `${press} fires a bolt that goes through everything and bursts into fire and plasma`;
       else if (w.kind === 'suit') hint = c.suit ? `${press} takes the suit off (no more tunnel vision)` : `${press} puts on the suit: no toxic, plasma or fire damage, but you only see through the mask`;
       else if (w.kind === 'skip') hint = `${press} rests: +${w.heal} health and 20% less damage for 3 rounds (ends your turn)`;
+      else if (w.id === 'magnet') hint = `Heavy grenade, 4 s timer · after 1 s it turns red and pulls in everything within ${w.pullRadius} px · within ${w.stickRadius} px things stick to it · then it implodes`;
       else if (w.id === 'flashbang') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · blinds and dazes everyone near it for their next turn`;
       else if (w.id === 'smoke') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · makes a smoke cloud that hides anyone inside from other teams`;
       else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
@@ -3537,6 +3652,38 @@ class Game {
         ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#999'; ctx.fillRect(-1.5, -8, 3, 4);
         break;
+      case 'magnet': {
+        const on = p.active;
+        if (on) {
+          const R = p.pullRadius, ph = (p.age % 30) / 30;
+          ctx.strokeStyle = 'rgba(255,70,70,0.35)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 6]);
+          ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.stroke();
+          ctx.setLineDash([]);
+          for (let k = 0; k < 3; k++) {
+            const rr = R * (1 - ((ph + k / 3) % 1));
+            ctx.strokeStyle = `rgba(255,80,80,${0.5 * (1 - rr / R)})`;
+            ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.stroke();
+          }
+          ctx.strokeStyle = 'rgba(255,60,60,0.18)';
+          ctx.beginPath(); ctx.arc(0, 0, p.stickRadius, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.rotate(p.spin * 0.5);
+        const body = on ? (p.age % 20 < 10 ? '#e02424' : '#ff4d4d') : '#6b7280';
+        ctx.fillStyle = body;
+        ctx.beginPath(); ctx.arc(0, 0, 8.5, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#1f2328'; ctx.lineWidth = 1.5; ctx.stroke();
+        // horseshoe magnet badge
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = on ? '#fff' : '#d0d4da';
+        ctx.beginPath(); ctx.arc(0, 0.5, 3.6, 0, Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-3.6, 0.5); ctx.lineTo(-3.6, -3.5); ctx.moveTo(3.6, 0.5); ctx.lineTo(3.6, -3.5); ctx.stroke();
+        ctx.fillStyle = '#c9ccd2';
+        ctx.fillRect(-5.1, -5.5, 3, 2); ctx.fillRect(2.1, -5.5, 3, 2);
+        ctx.fillStyle = '#999'; ctx.fillRect(-1.5, -11.5, 3, 3.5);
+        break;
+      }
       case 'dozer': {
         const flip = Math.cos(p.heading) < 0;
         ctx.rotate(flip ? p.heading - Math.PI : p.heading);
@@ -3818,6 +3965,10 @@ class Game {
       ctx.strokeStyle = '#ff9d2e';
       ctx.lineWidth = 4;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.6 + t * 0.8), 0, Math.PI * 2); ctx.stroke();
+    } else if (e.type === 'implode') {
+      ctx.strokeStyle = `rgba(255,70,70,${1 - t * 0.5})`;
+      ctx.lineWidth = 3 + t * 4;
+      ctx.beginPath(); ctx.arc(e.x, e.y, Math.max(2, e.r * (1 - t)), 0, Math.PI * 2); ctx.stroke();
     } else if (e.type === 'flashbang') {
       const g = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, e.r * (0.6 + t * 0.6));
       g.addColorStop(0, `rgba(255,255,255,${1 - t})`);
