@@ -32,7 +32,7 @@ const ISO_HOMES = { tavern: MT(-4, 4), forge: MT(3.5, 7), mine: MT(-1, 10) };
 // Město: řady domů rovnoběžné s řekou a příčné ulice (v políčkách mřížky)
 const CITY = {
   sidewalk: [30], streets: [[27, 29], [19, 21], [11, 13], [3, 5]],     // gx rozsahy ulic (nejbližší řece je nábřežní)
-  rows: [[22, 26], [14, 18], [6, 10]],                                // gx rozsahy řad domů (fasády směrem k řece)
+  rows: [[22, 26], [14, 18], [6, 10], [0, 2]],                                // gx rozsahy řad domů (fasády směrem k řece)
   cross: [[12, 14], [30, 31], [48, 50]],                              // gy rozsahy příčných ulic
 };
 const inRange = (v, rs) => rs.some(([a, b]) => v >= a && v <= b);
@@ -296,11 +296,11 @@ const IsoMap = {
   cityBlocks(kd) {
     const r = rng(1913), d = kd.iso.decor, occ = new Set();
     for (const o of d) { const [w, dd] = this.size('decor', o.id, o.flip); for (let y = 0; y < dd; y++) for (let x = 0; x < w; x++) occ.add((o.gx + x) + ',' + (o.gy + y)); }
-    const free = (gx, gy, w, dd) => { for (let y = 0; y < dd; y++) for (let x = 0; x < w; x++) { const k = (gx + x) + ',' + (gy + y); if (occ.has(k) || this.road.has(k) || gy + y >= ISO.G) return false; } return true; };
+    const free = (gx, gy, w, dd) => { for (let y = 0; y < dd; y++) for (let x = 0; x < w; x++) { const k = (gx + x) + ',' + (gy + y); if (occ.has(k) || this.road.has(k)) return false; } return true; };
     const put = (id, gx, gy) => { const df = ISO_DECOR[id]; for (let y = 0; y < df.d; y++) for (let x = 0; x < df.w; x++) occ.add((gx + x) + ',' + (gy + y)); d.push({ id, gx, gy, fixed: true }); };
     const singles = ['city1', 'city2', 'city3', 'city4', 'city5', 'city6', 'city7', 'city8', 'city9', 'city10'];
-    const segs = []; let a = 0;
-    for (const [c1, c2] of CITY.cross) { segs.push([a, c1 - 1]); a = c2 + 1; } segs.push([a, ISO.G - 1]);
+    const segs = []; let a = -4;   // řady pokračují kousek za okraj mapy, ať město nekončí
+    for (const [c1, c2] of CITY.cross) { segs.push([a, c1 - 1]); a = c2 + 1; } segs.push([a, ISO.G + 3]);
     for (const [, front] of CITY.rows) for (const [y1, y2] of segs) {
       let y = y1;
       if (y2 - y1 + 1 >= 14 && r() < 0.5) { const df = ISO_DECOR.cityrow; if (free(front - df.w + 1, y, df.w, df.d)) { put('cityrow', front - df.w + 1, y); y += df.d; } }
@@ -615,9 +615,12 @@ const IsoMap = {
   updateZoomLabel() { const el = document.getElementById('zoomLevel'); if (el && this.cam) el.textContent = Math.round(this.cam.z * 100) + '%'; },
 
   clampCam() {
-    const c = this.cam, G = ISO.G, hw = G * ISO.HW * c.z, hh = 2 * G * ISO.HH * c.z;
-    c.ox = Math.max(80 - hw, Math.min(this.cw - 80 + hw, c.ox));
-    c.oy = Math.max(80 - hh, Math.min(this.ch - 80, c.oy));
+    // kamera nevyjede za namalovaný podklad (město i řeka pokračují až k okraji obrazovky)
+    const c = this.cam, gr = this.groundCanvas, z = c.z;
+    if (!gr) { const G = ISO.G, hw = G * ISO.HW * z, hh = 2 * G * ISO.HH * z; c.ox = Math.max(80 - hw, Math.min(this.cw - 80 + hw, c.ox)); c.oy = Math.max(80 - hh, Math.min(this.ch - 80, c.oy)); return; }
+    const fit = (o, view, lo, hi) => (hi - lo) * z <= view ? view / 2 - (lo + hi) / 2 * z : Math.max(view - hi * z, Math.min(-lo * z, o));
+    c.ox = fit(c.ox, this.cw, -gr.ox, gr.W - gr.ox);
+    c.oy = fit(c.oy, this.ch, -gr.oy, gr.H - gr.oy);
   },
 
   keepInView() {
@@ -766,11 +769,12 @@ const IsoMap = {
       const out = fx < -1 || fy < -1 || fx > G + 1 || fy > G + 1;
       const wx = out ? fx : fx + (vn(fx * 1.1, fy * 1.1) - 0.5) * 1.1 + (vn(fx * 4.3, fy * 4.3) - 0.5) * 0.3;
       const wy = out ? fy : fy + (vn(fx * 1.1 + 40, fy * 1.1 + 40) - 0.5) * 1.1 + (vn(fx * 4.3 + 40, fy * 4.3) - 0.5) * 0.3;
-      const gx = Math.floor(wx), gy = Math.floor(wy), t = out || isW(gx, gy) ? 0 : types[gy * G + gx];
+      // za okrajem mapy pokračuje to, co je na nejbližším políčku (město dál ulicemi, řeka dál vodou)
+      const gx = Math.max(0, Math.min(G - 1, Math.floor(wx))), gy = Math.max(0, Math.min(G - 1, Math.floor(wy))), t = types[gy * G + gx];
       let R, Gc, B;
       if (t === 0) {
         // voda: textura se pomalu „vlní“ (posunutá souřadnice) a tmavne s hloubkou
-        const d = out ? 9 : distAt(wx, wy), k = Math.min(1, d / 3.5);
+        const d = distAt(wx, wy), k = Math.min(1, d / 3.5);
         sample(0, fx + (vn(fy * 0.7, fx * 0.3) - 0.5) * 0.8, fy, col);
         const dark = 0.95 - 0.45 * k;
         R = col[0] * dark * 0.85; Gc = col[1] * dark * 0.9; B = col[2] * dark * 0.85;
@@ -799,7 +803,7 @@ const IsoMap = {
   ground() {
     if (this.groundCanvas) return this.groundCanvas;
     if (!this.loadTextures()) return this.placeholderGround || (this.placeholderGround = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 8; const x = cv.getContext('2d'); x.fillStyle = '#2f3e3c'; x.fillRect(0, 0, 8, 8); return { cv, ox: 0, oy: 0, W: 8, H: 8 }; })());
-    const G = ISO.G, pad = 40, s = 1;
+    const G = ISO.G, pad = 220, s = 1;
     const W = G * 2 * ISO.HW + pad * 2, H = G * 2 * ISO.HH + pad * 2;
     const cv = document.createElement('canvas'); cv.width = W * s; cv.height = H * s;
     const c = cv.getContext('2d'); c.scale(s, s);
