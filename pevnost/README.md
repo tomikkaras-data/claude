@@ -24,7 +24,7 @@ Základna je **Slovanský ostrov v Praze po jaderné válce** (mapa 64×64 polí
 - **Malované prvky** (`img/sprites/`, 71 obrázků vyříznutých z dodaného listu): stromy (zelené, podzimní, mrtvé, pařez, kmen), auta (funkční, rozbitá, vraky, autobus), loděnice a lodě, zničené hřiště, městský mobiliář (lavičky, lampy, koše, květináče, vývěska, plakátovací sloup, suť).
 - **Ostrov:** spálený park s mrtvými stromy, pár stromů přežilo; lavičky, lampy a koše podél cestiček; zničené hřiště na jihu; loděnice s loďkami na západním břehu.
 - **Nábřeží:** vraky aut a autobusů na ulici s kolejemi, stromořadí, lampy, patníky s řetězy, suť po domech. Ve městě se nestaví.
-- **Podklad** se počítá pixel po pixelu: šum, plynulé přechody mezi povrchy, hloubka vody a pěna u břehu, mokrý okraj ostrova, dlažba ve městě a kolem Žofína.
+- **Podklad** používá malované textury z `img/textures/` (15 povrchů: tráva, suchá tráva, řídká tráva, hlína, tmavá hlína, štěrk, kostky, betonové desky, pískovcová dlažba, asfalt, rozpraskaný asfalt, voda, mech, písek, suť). Textury se opakují zrcadlově (bez švů), hranice povrchů jsou zvlněné, voda tmavne s hloubkou a u břehu má pěnu. Cestičky v parku jsou z pískovcové dlažby, ulice z rozpraskaného asfaltu.
 - Kreslené stromy, trosky domů, vraky a tramvaje z dřívějška jsou pryč. Kreslené zůstávají jen hráčovy herní stavby (velitelství, věže, stany…) a ploty.
 
 Stavění funguje jako ve vesnici v Cave Man RPG:

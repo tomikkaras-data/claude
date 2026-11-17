@@ -108,10 +108,16 @@ const ISO_BRUSHES = {
   S: { name: 'Písek', color: '#c4a46c' },
   D: { name: 'Vyprahlá zem', color: '#a7865a' },
   G: { name: 'Suchá tráva', color: '#8f8848' },
-  X: { name: 'Popel', color: '#6f6a61' },
+  X: { name: 'Tmavá hlína', color: '#5f4a36' },
   R: { name: 'Štěrk', color: '#8d8478' },
   A: { name: 'Asfalt', color: '#5a5853' },
-  C: { name: 'Beton', color: '#9c9a92' },
+  C: { name: 'Betonové desky', color: '#9c9a92' },
+  V: { name: 'Zelená tráva', color: '#6f7a3a' },
+  M: { name: 'Řídká tráva', color: '#8a7a4e' },
+  O: { name: 'Mech', color: '#5f6438' },
+  U: { name: 'Suť', color: '#8a7864' },
+  Z: { name: 'Pískovcová dlažba', color: '#b49a6c' },
+  L: { name: 'Dlažební kostky', color: '#7c776e' },
   K: { name: 'Nábřeží', color: '#6a665f', hidden: true },
 };
 const ROAD_COLOR = '#7c6443';
@@ -193,15 +199,17 @@ const IsoMap = {
         const k = this.terrain(x, y);
         if (k !== 'I') { row.push(k); continue; }
         let t = 'D';
-        if (n1(x, y) > 0.48) t = 'G';
+        if (n1(x, y) > 0.4) t = 'M';
+        if (n1(x, y) > 0.52) t = 'G';
         if (n4(x, y) > 0.6) t = 'X';
+        if (n4(x, y) < 0.22) t = 'U';                       // suť po výbuších
         if (n2(x, y) > 0.74) t = 'S';
         if (n3(x, y) > 0.84 && r() < 0.7) t = 'R';
         const shore = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => this.terrain(x + dx, y + dy) === 'W');
-        if (near(x, y, zof, 6)) t = r() < 0.75 ? 'C' : 'R';   // dlažba kolem paláce
-        if (near(x, y, play, 2.2)) t = 'S';                   // bývalé hřiště
-        if (near(x, y, hq, 3.2)) t = 'A';
-        if (shore) t = r() < 0.6 ? 'S' : 'R';
+        if (near(x, y, zof, 6)) t = 'Z';   // dlažba kolem paláce
+        if (near(x, y, play, 2.6)) t = 'S';                   // bývalé hřiště
+        if (near(x, y, hq, 3.2)) t = 'C';
+        if (shore) t = r() < 0.5 ? 'S' : r() < 0.6 ? 'O' : 'R';
         row.push(t);
       }
       tiles.push(row);
@@ -665,70 +673,98 @@ const IsoMap = {
 
   // ---------- kreslení ----------
   // Malovaný podklad: každý pixel se spočítá zvlášť (šum, plynulé přechody povrchů, hloubka vody, dlažba).
+  // Textury povrchů (img/textures/*.webp, 256×256, jedna = jedno políčko z dodaného listu)
+  TEX: { 1: 'sand', 2: 'dirt', 3: 'drygrass', 4: 'darkdirt', 5: 'gravel', 6: 'asphalt', 7: 'slabs', 8: 'cobble', 9: 'patchy', 10: 'grass', 11: 'moss', 12: 'rubble', 13: 'sandslabs', 14: 'cracked', 0: 'water' },
+  loadTextures() {
+    if (this.tex) return this.tex.ready;
+    this.tex = { data: {}, ready: false, imgs: {} };
+    const ids = Object.entries(this.TEX); let left = ids.length;
+    for (const [k, name] of ids) {
+      const im = new Image();
+      im.onload = () => {
+        const cv = document.createElement('canvas'); cv.width = cv.height = 256;
+        const cx = cv.getContext('2d'); cx.drawImage(im, 0, 0, 256, 256);
+        this.tex.data[k] = cx.getImageData(0, 0, 256, 256).data; this.tex.imgs[name] = im;
+        if (--left === 0) { this.tex.ready = true; this.groundCanvas = null; if (this.B && !this.B.running) this.B.draw(); }
+      };
+      im.onerror = () => { if (--left === 0) { this.tex.ready = true; this.groundCanvas = null; } };
+      im.src = 'img/textures/' + name + '.webp';
+    }
+    return false;
+  },
+
+  // Podklad: každý pixel bere barvu z textury svého povrchu; hranice mezi povrchy jsou zvlněné, voda tmavne s hloubkou.
   terrainPass(c, W, H, ox, oy) {
-    const G = ISO.G, F = 2, w = Math.ceil(W / F), h = Math.ceil(H / F);
-    const img = c.createImageData(w, h), px = img.data;
-    // šum
+    const G = ISO.G, F = 1, w = Math.ceil(W / F), h = Math.ceil(H / F);
+    const img = c.createImageData(w, h), px = img.data, TD = this.tex.data;
     const N = 256, tab = new Float32Array(N * N), rr = rng(4242); for (let i = 0; i < N * N; i++) tab[i] = rr();
     const vn = (x, y) => {
       const xi = Math.floor(x), yi = Math.floor(y), tx = x - xi, ty = y - yi, sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
       const a = tab[((yi & 255) << 8) | (xi & 255)], b = tab[((yi & 255) << 8) | ((xi + 1) & 255)], cc = tab[(((yi + 1) & 255) << 8) | (xi & 255)], d = tab[(((yi + 1) & 255) << 8) | ((xi + 1) & 255)];
       return (a + (b - a) * sx) * (1 - sy) + (cc + (d - cc) * sx) * sy;
     };
-    // typ povrchu a vzdálenost k vodě / k pevnině pro každé políčko
     const types = new Uint8Array(G * G), dist = new Float32Array(G * G).fill(9);
-    const code = { W: 0, S: 1, D: 2, G: 3, X: 4, R: 5, A: 6, C: 7, K: 8, P: 2, Q: 6 };
+    const code = { W: 0, S: 1, D: 2, G: 3, X: 4, R: 5, A: 6, C: 7, K: 8, M: 9, V: 10, O: 11, U: 12, Z: 13, Q: 14, P: 2, L: 8 };
     for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) types[y * G + x] = code[this.tileAt(x, y)] ?? 2;
     const isW = (x, y) => x < 0 || y < 0 || x >= G || y >= G || types[y * G + x] === 0;
-    for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {       // vzdálenost k opačnému druhu (voda↔pevnina)
+    for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
       const me = isW(x, y); let best = 9;
       for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) if (isW(x + dx, y + dy) !== me) best = Math.min(best, Math.hypot(dx, dy));
       dist[y * G + x] = best;
     }
-    const distAt = (fx, fy) => {   // bilineárně mezi středy políček
+    const distAt = (fx, fy) => {
       const x = Math.max(0, Math.min(G - 1.001, fx - 0.5)), y = Math.max(0, Math.min(G - 1.001, fy - 0.5)), xi = Math.floor(x), yi = Math.floor(y), tx = x - xi, ty = y - yi;
       const at = (a, b) => dist[Math.min(G - 1, b) * G + Math.min(G - 1, a)];
       return (at(xi, yi) * (1 - tx) + at(xi + 1, yi) * tx) * (1 - ty) + (at(xi, yi + 1) * (1 - tx) + at(xi + 1, yi + 1) * tx) * ty;
     };
-    //            voda       písek          hlína          tráva          popel          štěrk          asfalt        beton          dlažba města
-    const COL = [[38, 52, 50], [190, 160, 108], [150, 118, 80], [128, 124, 68], [104, 98, 90], [136, 128, 116], [84, 82, 78], [150, 147, 138], [112, 106, 98]];
-    let seed = 1234567;
+    // kolik políček pokryje jedna textura (dlažba v měřítku 1:1, přírodní povrchy větší, ať se méně opakují)
+    const SPAN = [3, 1.6, 1.6, 1.6, 1.6, 1.2, 1, 1, 1, 1.6, 1.6, 2, 1.4, 1, 1.4];
+    // zrcadlené opakování → bez viditelných švů
+    const mir = v => { const f = v - 2 * Math.floor(v / 2); return f > 1 ? 2 - f : f; };
+    const sample = (t, fx, fy, o) => {
+      const d = TD[t], sp = SPAN[t];
+      const u = Math.min(255, mir(fx / sp) * 255) | 0, v = Math.min(255, mir(fy / sp) * 255) | 0, i = (v * 256 + u) * 4;
+      o[0] = d[i]; o[1] = d[i + 1]; o[2] = d[i + 2];
+    };
+    const col = [0, 0, 0];
     for (let py = 0; py < h; py++) for (let qx = 0; qx < w; qx++) {
       const ix = qx * F - ox, iy = py * F - oy, fx = (ix / ISO.HW + iy / ISO.HH) / 2, fy = (iy / ISO.HH - ix / ISO.HW) / 2;
-      seed = (seed * 16807) % 2147483647; const grain = (seed / 2147483647 - 0.5);
-      let R, Gc, B;
       const out = fx < -1 || fy < -1 || fx > G + 1 || fy > G + 1;
-      // zvlněná hranice mezi povrchy
       const wx = out ? fx : fx + (vn(fx * 1.1, fy * 1.1) - 0.5) * 1.1 + (vn(fx * 4.3, fy * 4.3) - 0.5) * 0.3;
       const wy = out ? fy : fy + (vn(fx * 1.1 + 40, fy * 1.1 + 40) - 0.5) * 1.1 + (vn(fx * 4.3 + 40, fy * 4.3) - 0.5) * 0.3;
       const gx = Math.floor(wx), gy = Math.floor(wy), t = out || isW(gx, gy) ? 0 : types[gy * G + gx];
+      let R, Gc, B;
       if (t === 0) {
-        const d = out ? 9 : distAt(wx, wy), k = Math.min(1, d / 3.2);       // hloubka podle vzdálenosti od břehu
-        const wave = out ? 0 : (vn(fx * 1.6 + fy * 0.9, fy * 5.5) - 0.5) * 14 + (vn(fx * 7, fy * 13) - 0.5) * 6;
-        R = 98 - 62 * k + wave * 0.6; Gc = 110 - 60 * k + wave; B = 94 - 46 * k + wave;
-        if (d < 0.75) { const f = (0.75 - d) / 0.75 * (0.5 + vn(fx * 6, fy * 6) * 0.7); R += 70 * f; Gc += 66 * f; B += 52 * f; } // pěna u břehu
+        // voda: textura se pomalu „vlní“ (posunutá souřadnice) a tmavne s hloubkou
+        const d = out ? 9 : distAt(wx, wy), k = Math.min(1, d / 3.5);
+        sample(0, fx + (vn(fy * 0.7, fx * 0.3) - 0.5) * 0.8, fy, col);
+        const dark = 0.95 - 0.45 * k;
+        R = col[0] * dark * 0.85; Gc = col[1] * dark * 0.9; B = col[2] * dark * 0.85;
+        if (d < 0.7) { const f = (0.7 - d) / 0.7 * (0.4 + vn(fx * 6, fy * 6) * 0.7); R += 75 * f; Gc += 72 * f; B += 60 * f; }
       } else {
-        const base = COL[t], big = (vn(fx * 0.55, fy * 0.55) - 0.5) * 34, mid = (vn(fx * 2.6, fy * 2.6) - 0.5) * 26, fine = (vn(fx * 11, fy * 11) - 0.5) * 16;
-        let sh = big + mid + fine + grain * 14;
-        R = base[0] + sh; Gc = base[1] + sh; B = base[2] + sh * 0.8;
-        if (t === 3) { const g = vn(fx * 1.7 + 9, fy * 1.7); R += (g - 0.5) * 40; Gc += (g - 0.4) * 22; }       // zelenější a žlutější místa v trávě
-        if (t === 4) { const g = vn(fx * 3.1, fy * 3.1 + 7); if (g > 0.62) { R -= 26; Gc -= 26; B -= 24; } }      // spáleniště v popelu
-        if (t === 8 || t === 7) {   // dlažba: spáry mezi kostkami / deskami
-          const n = t === 8 ? 5 : 2, u = fx * n + (Math.floor(fy * n) % 2) * 0.5, jx = u - Math.floor(u), jy = fy * n - Math.floor(fy * n);
-          if (jx < 0.09 || jy < 0.09) { R -= 20; Gc -= 20; B -= 18; }
-          else { const tile = tab[((Math.floor(fy * n) & 255) << 8) | (Math.floor(u) & 255)]; R += (tile - 0.5) * 16; Gc += (tile - 0.5) * 15; B += (tile - 0.5) * 13; }
-        }
+        sample(t, fx, fy, col);
+        const sh = 1 + (vn(fx * 0.45, fy * 0.45) - 0.5) * 0.28 + (vn(fx * 1.9, fy * 1.9) - 0.5) * 0.14;   // velké světlejší / tmavší skvrny
+        R = col[0] * sh; Gc = col[1] * sh; B = col[2] * sh;
+        if (t === 4) { const g = vn(fx * 3.1, fy * 3.1 + 7); if (g > 0.62) { R *= 0.7; Gc *= 0.7; B *= 0.72; } } // spáleniště
         const d = distAt(wx, wy);
-        if (d < 1.3) { const f = (1.3 - d) / 1.3; R -= 42 * f; Gc -= 40 * f; B -= 30 * f; }                     // mokrý tmavý břeh
+        if (d < 1.2) { const f = (1.2 - d) / 1.2; R *= 1 - 0.35 * f; Gc *= 1 - 0.33 * f; B *= 1 - 0.28 * f; }       // mokrý břeh
       }
       const o = (py * w + qx) * 4; px[o] = R; px[o + 1] = Gc; px[o + 2] = B; px[o + 3] = 255;
     }
+    if (F === 1) { c.putImageData(img, 0, 0); return; }
     const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h; tmp.getContext('2d').putImageData(img, 0, 0);
-    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(tmp, 0, 0, w * F, h * F);
+    c.drawImage(tmp, 0, 0, w * F, h * F);
+  },
+
+  // vzorek textury pro čáry kreslené v souřadnicích políček (cesty, ulice)
+  pattern(c, name, tiles) {
+    const im = this.tex && this.tex.imgs[name]; if (!im) return null;
+    const p = c.createPattern(im, 'repeat'); p.setTransform(new DOMMatrix().scale(tiles / im.width, tiles / im.height)); return p;
   },
 
   ground() {
     if (this.groundCanvas) return this.groundCanvas;
+    if (!this.loadTextures()) return this.placeholderGround || (this.placeholderGround = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 8; const x = cv.getContext('2d'); x.fillStyle = '#2f3e3c'; x.fillRect(0, 0, 8, 8); return { cv, ox: 0, oy: 0, W: 8, H: 8 }; })());
     const G = ISO.G, pad = 40, s = 1;
     const W = G * 2 * ISO.HW + pad * 2, H = G * 2 * ISO.HH + pad * 2;
     const cv = document.createElement('canvas'); cv.width = W * s; cv.height = H * s;
@@ -752,7 +788,8 @@ const IsoMap = {
     const quay = []; for (let v = -44; v <= 46; v += 2) quay.push(MTf(bankU(v) + 1.6, v));
     isoPath(() => {
       c.lineCap = 'round'; c.lineJoin = 'round';
-      const street = pts => { for (const [w, col] of [[1.9, '#3f3d39'], [1.6, '#55524c']]) { line(pts); c.strokeStyle = col; c.lineWidth = w; c.stroke(); } };
+      const asphalt = this.pattern(c, 'cracked', 1.4) || '#55524c';
+      const street = pts => { for (const [w, col] of [[1.95, 'rgba(30,28,25,.55)'], [1.65, asphalt]]) { line(pts); c.strokeStyle = col; c.lineWidth = w; c.stroke(); } };
       street(quay);
       street(ISO_PATHS[0].slice(0, 2)); street(ISO_PATHS[1].slice(0, 2));
       for (const off of [-0.18, 0.18]) {  // rezavé koleje
@@ -764,70 +801,9 @@ const IsoMap = {
     isoPath(() => {
       c.lineCap = 'round'; c.lineJoin = 'round';
       const walks = [...ISO_WALKS.map(w => w.map(p => MTf(...p))), ISO_PATHS[0].slice(2), ISO_PATHS[1].slice(2)];
-      for (const [w, col] of [[1.15, 'rgba(60,56,50,.6)'], [0.9, '#8a857a'], [0.6, '#989387']]) for (const pts of walks) { line(pts); c.strokeStyle = col; c.lineWidth = w; c.stroke(); }
+      const slabs = this.pattern(c, 'sandslabs', 1) || '#8a857a';
+      for (const [w, col] of [[1.15, 'rgba(40,36,30,.55)'], [0.95, slabs]]) for (const pts of walks) { line(pts); c.strokeStyle = col; c.lineWidth = w; c.stroke(); }
     });
-    // 4) namalované cesty hráče (prašná cesta a silnice) – napojují se na sousedy
-    const roadTile = (x, y) => this.buildable(x, y) && ISO_BRUSHES[this.tileAt(x, y)].road ? this.tileAt(x, y) : null;
-    for (const L of ['P', 'Q']) {
-      const col = ISO_BRUSHES[L].color;
-      isoPath(() => {
-        c.lineCap = 'round';
-        for (let gy = 0; gy < G; gy++) for (let gx = 0; gx < G; gx++) {
-          if (roadTile(gx, gy) !== L) continue;
-          for (const [w, cc] of [[0.95, shade(col, -18)], [0.75, col]]) {
-            c.strokeStyle = cc; c.lineWidth = w;
-            c.beginPath(); c.moveTo(gx + 0.5, gy + 0.5); c.lineTo(gx + 0.5001, gy + 0.5); c.stroke();
-            for (const [dx, dy] of [[1, 0], [0, 1]]) if (roadTile(gx + dx, gy + dy)) { c.beginPath(); c.moveTo(gx + 0.5, gy + 0.5); c.lineTo(gx + dx + 0.5, gy + dy + 0.5); c.stroke(); }
-          }
-        }
-        if (L === 'Q') {
-          c.strokeStyle = 'rgba(225,200,90,.75)'; c.lineWidth = 0.05; c.setLineDash([0.25, 0.25]);
-          for (let gy = 0; gy < G; gy++) for (let gx = 0; gx < G; gx++) {
-            if (roadTile(gx, gy) !== 'Q') continue;
-            for (const [dx, dy] of [[1, 0], [0, 1]]) if (roadTile(gx + dx, gy + dy) === 'Q') { c.beginPath(); c.moveTo(gx + 0.5, gy + 0.5); c.lineTo(gx + dx + 0.5, gy + dy + 0.5); c.stroke(); }
-          }
-          c.setLineDash([]);
-        }
-      });
-    }
-    // 5) textura podle povrchu
-    for (let i = 0; i < 60000; i++) {
-      const fx = r() * G, fy = r() * G, gx = Math.floor(fx), gy = Math.floor(fy);
-      if (!land(gx, gy)) continue;
-      const [x, y] = this.P(fx, fy), t = this.tileAt(gx, gy), q = r();
-      if (t === 'S') c.fillStyle = q < 0.5 ? 'rgba(235,210,160,.45)' : 'rgba(120,90,50,.35)';
-      else if (t === 'D') c.fillStyle = q < 0.6 ? 'rgba(90,65,40,.45)' : 'rgba(210,180,130,.35)';
-      else if (t === 'G') c.fillStyle = q < 0.5 ? 'rgba(70,72,30,.5)' : 'rgba(190,170,90,.45)';
-      else if (t === 'X') c.fillStyle = q < 0.5 ? 'rgba(35,33,30,.5)' : 'rgba(160,155,145,.4)';
-      else if (t === 'R') c.fillStyle = q < 0.5 ? 'rgba(60,58,55,.6)' : 'rgba(190,185,175,.6)';
-      else if (t === 'K') c.fillStyle = q < 0.6 ? 'rgba(40,38,35,.5)' : q < 0.9 ? 'rgba(150,145,135,.45)' : 'rgba(150,80,50,.6)';
-      else if (t === 'A' || t === 'Q') c.fillStyle = q < 0.5 ? 'rgba(40,40,38,.5)' : 'rgba(130,128,120,.4)';
-      else if (t === 'C') c.fillStyle = q < 0.5 ? 'rgba(110,108,100,.4)' : 'rgba(200,198,190,.4)';
-      else c.fillStyle = q < 0.5 ? 'rgba(60,45,28,.35)' : 'rgba(170,145,100,.3)';
-      c.fillRect(ox + x, oy + y, t === 'R' ? 1.6 : 1 + r(), t === 'R' ? 1.4 : 1);
-    }
-    // 6) detaily: praskliny, chomáče trávy, spáleniště
-    for (let gy = 0; gy < G; gy++) for (let gx = 0; gx < G; gx++) {
-      if (!land(gx, gy) || this.road.has(gx + ',' + gy)) continue;
-      const t = this.tileAt(gx, gy), [x0, y0] = this.P(gx + 0.5, gy + 0.5), X = ox + x0, Y = oy + y0;
-      if (t === 'D' || ((t === 'A' || t === 'Q' || t === 'C' || t === 'K') && r() < 0.35)) {
-        c.strokeStyle = t === 'D' ? 'rgba(80,58,34,.55)' : 'rgba(25,25,22,.55)'; c.lineWidth = 0.6;
-        for (let k = 0; k < (t === 'D' ? 3 : 1); k++) {
-          let px = X + (r() - 0.5) * 30, py = Y + (r() - 0.5) * 12;
-          c.beginPath(); c.moveTo(px, py);
-          for (let j = 0; j < 4; j++) { px += (r() - 0.5) * 12; py += (r() - 0.5) * 6; c.lineTo(px, py); }
-          c.stroke();
-        }
-      }
-      if (t === 'G' || (t === 'S' && r() < 0.25)) {
-        c.strokeStyle = t === 'G' ? 'rgba(175,155,75,.8)' : 'rgba(150,135,70,.7)'; c.lineWidth = 0.7;
-        for (let k = 0; k < (t === 'G' ? 4 : 1); k++) {
-          const px = X + (r() - 0.5) * 34, py = Y + (r() - 0.5) * 14;
-          for (let j = -2; j <= 2; j++) { c.beginPath(); c.moveTo(px, py); c.lineTo(px + j * 1.3, py - 4 + Math.abs(j)); c.stroke(); }
-        }
-      }
-      if ((t === 'X' || t === 'K') && r() < 0.4) { c.fillStyle = 'rgba(20,18,16,.4)'; c.beginPath(); c.ellipse(X + (r() - 0.5) * 20, Y + (r() - 0.5) * 8, 8, 3.5, 0, 0, 7); c.fill(); }
-    }
     // 7) dva vstupy přes rameno řeky: můstek k Žofínu a lávka u Mánesa
     const LIFT = 7;
     const deck = (a, b, width, col) => {
