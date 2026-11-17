@@ -35,6 +35,9 @@ const CITY = {
   rows: [[22, 26], [14, 18], [6, 10], [0, 2]],                                // gx rozsahy řad domů (fasády směrem k řece)
   cross: [[12, 14], [30, 31], [48, 50]],                              // gy rozsahy příčných ulic
 };
+// Malý městský park s hřištěm místo jednoho bloku domů
+const PARK = { x1: 14, x2: 18, y1: 32, y2: 47 };
+const inPark = (x, y) => x >= PARK.x1 && x <= PARK.x2 && y >= PARK.y1 && y <= PARK.y2;
 const inRange = (v, rs) => rs.some(([a, b]) => v >= a && v <= b);
 // Parkové cestičky (jen na ozdobu)
 const ISO_WALKS = [
@@ -110,6 +113,8 @@ const ISO_DECOR = {
   city5: { name: 'Zarostlý dům', group: 'ruins', h: 150, w: 2, d: 3, landmark: true }, city6: { name: 'Nárožní dům', group: 'ruins', h: 150, w: 3, d: 3, landmark: true },
   city7: { name: 'Zarostlý činžák', group: 'ruins', h: 150, w: 2, d: 3, landmark: true }, city8: { name: 'Opevněný dům', group: 'ruins', h: 150, w: 2, d: 3, landmark: true },
   city9: { name: 'Zelený činžák', group: 'ruins', h: 150, w: 2, d: 3, landmark: true }, city10: { name: 'Ruina domu', group: 'ruins', h: 140, w: 2, d: 3, landmark: true },
+  ...Object.fromEntries([[1, 3], [2, 4], [3, 3], [4, 4], [5, 3], [6, 3], [7, 4], [8, 3], [9, 3], [10, 3]].map(([i, d]) =>
+    ['cityb' + i, { name: 'Činžák', group: 'ruins', h: 150, w: 2, d, landmark: true }])),
   cityrow: { name: 'Řada domů', group: 'ruins', h: 180, w: 4, d: 14, landmark: true },
   divadlo:    { name: 'Národní divadlo', group: 'ruins', h: 70, w: 3, d: 9, landmark: true },
   dockyard:   SP('Loděnice', 'boats', 0, 'dockyard', { s: 0.5, w: 5, d: 5, h: 90, base: 64, landmark: true }),
@@ -212,7 +217,11 @@ const IsoMap = {
       const row = [];
       for (let x = 0; x < G; x++) {
         const k = this.terrain(x, y);
-        if (k === 'K') { row.push(inRange(x, CITY.streets) || inRange(y, CITY.cross) ? 'Q' : 'L'); continue; } // ulice / dlažba
+        if (k === 'K') {   // ulice / dlažba / park
+          if (inPark(x, y)) row.push(x === PARK.x1 + 2 || y === PARK.y1 + 7 ? 'Z' : (x + y) % 5 === 0 || r() < 0.2 ? 'M' : 'V');
+          else row.push(inRange(x, CITY.streets) || inRange(y, CITY.cross) ? 'Q' : 'L');
+          continue;
+        }
         if (k !== 'I') { row.push(k); continue; }
         let t = 'D';
         if (n1(x, y) > 0.4) t = 'M';
@@ -245,12 +254,12 @@ const IsoMap = {
   // ---------- stav ----------
   ensure(kd) {
     if (!this.layout) this.init();
-    if (kd.iso && kd.iso.v === 7) return kd.iso;
-    const old = kd.iso, same = false;   // verze 7: mapa je natočená, staré pozice neplatí
+    if (kd.iso && kd.iso.v === 8) return kd.iso;
+    const old = kd.iso, same = !!old && old.v === 7;   // verze 7 má stejný ostrov, mění se jen město
     if (old && !same) for (const p of old.placed || []) { const b = BUILDINGS[p.id] || ISO_EXTRA[p.id]; if (b) Store.state.gold += b.cost; }
     kd.slots.forEach((id, i) => { if (id) { Store.state.gold += BUILDINGS[id].cost; kd.slots[i] = null; } });
     kd.iso = {
-      v: 7, paint: same ? old.paint || {} : {},
+      v: 8, paint: same ? old.paint || {} : {},
       placed: same ? old.placed : [{ id: 'hall', gx: ISO_HQ.gx, gy: ISO_HQ.gy }],
       // z dřívějška zůstane jen to, co postavil hráč a co ještě existuje (ploty, pytle...)
       decor: same ? old.decor.filter(o => !o.fixed && !o.auto && ISO_DECOR[o.id] && !ISO_DECOR[o.id].sp) : [],
@@ -298,15 +307,19 @@ const IsoMap = {
     for (const o of d) { const [w, dd] = this.size('decor', o.id, o.flip); for (let y = 0; y < dd; y++) for (let x = 0; x < w; x++) occ.add((o.gx + x) + ',' + (o.gy + y)); }
     const free = (gx, gy, w, dd) => { for (let y = 0; y < dd; y++) for (let x = 0; x < w; x++) { const k = (gx + x) + ',' + (gy + y); if (occ.has(k) || this.road.has(k)) return false; } return true; };
     const put = (id, gx, gy) => { const df = ISO_DECOR[id]; for (let y = 0; y < df.d; y++) for (let x = 0; x < df.w; x++) occ.add((gx + x) + ',' + (gy + y)); d.push({ id, gx, gy, fixed: true }); };
-    const singles = ['city1', 'city2', 'city3', 'city4', 'city5', 'city6', 'city7', 'city8', 'city9', 'city10'];
+    const singles = [...Array.from({ length: 10 }, (_, i) => 'city' + (i + 1)), ...Array.from({ length: 10 }, (_, i) => 'cityb' + (i + 1))];
     const segs = []; let a = -4;   // řady pokračují kousek za okraj mapy, ať město nekončí
     for (const [c1, c2] of CITY.cross) { segs.push([a, c1 - 1]); a = c2 + 1; } segs.push([a, ISO.G + 3]);
+    let rows = 0, recent = [];
+    // vybere dům, který nebyl mezi posledními šesti (sousedé i protější řada jsou různé)
+    const next = () => { let id; do id = singles[Math.floor(r() * singles.length)]; while (recent.includes(id)); recent.push(id); if (recent.length > 6) recent.shift(); return id; };
     for (const [, front] of CITY.rows) for (const [y1, y2] of segs) {
+      if (front >= PARK.x1 && front <= PARK.x2 && y1 >= PARK.y1 - 1 && y2 <= PARK.y2 + 1) continue;   // tady je park
       let y = y1;
-      if (y2 - y1 + 1 >= 14 && r() < 0.5) { const df = ISO_DECOR.cityrow; if (free(front - df.w + 1, y, df.w, df.d)) { put('cityrow', front - df.w + 1, y); y += df.d; } }
+      if (y2 - y1 + 1 >= 14 && rows < 2 && r() < 0.3) { const df = ISO_DECOR.cityrow; if (free(front - df.w + 1, y, df.w, df.d)) { put('cityrow', front - df.w + 1, y); y += df.d; rows++; } }
       while (y <= y2) {
-        const id = singles[Math.floor(r() * singles.length)], df = ISO_DECOR[id];
-        if (y + df.d - 1 > y2) break;
+        const id = next(), df = ISO_DECOR[id];
+        if (y + df.d - 1 > y2) { const fit = singles.find(q => !recent.includes(q) && ISO_DECOR[q].d <= y2 - y + 1); if (!fit) break; put(fit, front - ISO_DECOR[fit].w + 1, y); y += ISO_DECOR[fit].d; continue; }
         if (free(front - df.w + 1, y, df.w, df.d)) { put(id, front - df.w + 1, y); y += df.d; } else y++;
       }
     }
@@ -343,6 +356,23 @@ const IsoMap = {
       else if (gy % 4 === 3) this.drop(kd, 'lamp2', 30, gy, fixed());
       for (const [a] of CITY.streets) if (r() < 0.16) this.drop(kd, pick(WRK), a + Math.floor(r() * 3), gy, fixed());
     }
+    // parkující auta podél všech ulic (funkční, rozbitá i vraky) a v příčných ulicích
+    const CARS = ['car_white', 'car_red', 'car_blue', 'car_yellow', 'jeep', 'van', ...WRECK, 'wreck1', 'wreck2'];
+    for (const [a, b] of CITY.streets) for (let gy = -3; gy < ISO.G + 3; gy++) {
+      if (r() < 0.32) this.drop(kd, pick(CARS), a, gy, { fixed: true });
+      if (r() < 0.32) this.drop(kd, pick(CARS), b, gy, { fixed: true, flip: true });
+    }
+    for (const [a, b] of CITY.cross) for (let gx = -3; gx < 27; gx++) {
+      if (r() < 0.25) this.drop(kd, pick(CARS), gx, a, { fixed: true, flip: true });
+      if (r() < 0.25) this.drop(kd, pick(CARS), gx, b, { fixed: true });
+    }
+    // městský park: stromy po okrajích, hřiště uprostřed, lavičky a lampy u cestiček
+    const P = PARK;
+    [['swing1', 16, 40], ['slide', 17, 42], ['dome', 15, 42], ['carousel', 17, 37], ['seesaw', 15, 37], ['sandbox', 15, 44], ['horse', 18, 44], ['tunnel', 18, 39]]
+      .forEach(([id, x, y]) => this.drop(kd, id, x, y, { fixed: true }));
+    for (let y = P.y1; y <= P.y2; y += 2) { this.drop(kd, pick(['tree_s1', 'tree_s3', 'aut1', 'aut4', 'poplar', 'tree_s2']), P.x1, y, { fixed: true }); this.drop(kd, pick(['tree_s1', 'aut2', 'willow', 'tree_s3', 'aut3']), P.x2, y + 1, { fixed: true }); }
+    for (const [x, y] of [[15, 33], [17, 34], [15, 46], [17, 47], [18, 33]]) this.drop(kd, pick(['tree_s1', 'aut1', 'tree_s3', 'willow']), x, y, { fixed: true });
+    for (const [id, x, y] of [['bench', 17, 35], ['bench', 15, 39], ['bench', 17, 45], ['lamp2', 16, 33], ['lamp2', 16, 46], ['bin', 15, 35], ['planter2', 18, 47], ['column', 14, 31]]) this.drop(kd, id, x, y, { fixed: true });
     [['wreck_bus', 22], ['bus', 40], ['ambulance', 47], ['police', 44], ['truck', 9], ['plow', 58], ['wreck_bus', 34]].forEach(([id, gy]) => this.drop(kd, id, 28, gy, { fixed: true }));
     for (let gx = 0; gx < 27; gx++) for (const [a, b] of CITY.cross) if (r() < 0.12) this.drop(kd, pick([...WRK, 'rubble1', 'pallet']), gx, a + Math.floor(r() * (b - a + 1)), fixed());
     for (const [, front] of CITY.rows) for (let gy = 0; gy < ISO.G; gy++) if (r() < 0.1) this.drop(kd, pick(['bin', 'ebox', 'column', 'rubble1', 'rubble2', 'bench', 'planter2']), front + 1, gy, fixed());
@@ -406,7 +436,7 @@ const IsoMap = {
   // Co dávají stavby z harampádí (místa pro hrdiny, rychlost věží, dostřel, zlato, životy)
   bonus(kd) {
     const b = { heroSlots: 0, baseHp: 0, rate: 0, heroRange: 0, gold: 0 };
-    if (!kd.iso || kd.iso.v !== 7) return b;
+    if (!kd.iso || kd.iso.v !== 8) return b;
     for (const p of kd.iso.placed) { const fx = (ISO_EXTRA[p.id] || {}).fx; if (fx) for (const k in fx) b[k] += fx[k]; }
     return b;
   },
