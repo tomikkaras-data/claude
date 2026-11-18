@@ -60,7 +60,7 @@ const UI = {
   afterLogin() {
     Game.rollDay();
     if (!Store.state.avatar) this.pickAvatar(() => this.afterLogin());
-    else if (!Store.state.kingdom) this.show('screen-kingdom'); else this.enterMain();
+    else { Store.state.kingdom = 'apocalypse'; this.enterMain(); }   // hra má jen post-apokalyptickou Pustinu
   },
 
   // Výběr vlastní postavy (na začátku hry, později z profilu)
@@ -529,9 +529,7 @@ const UI = {
         <div><b>${Game.level()}</b>Úroveň</div><div><b>${s.xp}</b>XP celkem</div>
         <div><b>${s.stats.done}</b>Splněných úkolů</div><div><b>${s.bestStreak}</b>Nejdelší série</div>
         <div><b>${s.stats.wins}</b>Ubráněných vln</div><div><b>${s.stats.bosses}</b>Poražených bossů</div></div></div>
-      <div class="card"><h3>🗺️ Království</h3>
-        <p class="small">Teď hraješ: ${KINGDOMS[s.kingdom].name}. Každé království má vlastní stavby a vlny, hrdinové a vybavení jsou společné.</p>
-        <button class="btn" id="pf-switch">Přepnout na ${KINGDOMS[other].icon} ${KINGDOMS[other].name}</button></div>
+
       <div class="card"><h3>💾 Uložení hry</h3>
         ${u ? '' : '<button class="btn gold" id="pf-save">Uložit do zařízení</button>'}
         <button class="btn" id="pf-export">Stáhnout zálohu (soubor)</button>
@@ -540,7 +538,6 @@ const UI = {
         <button class="btn ghost" id="pf-avatar">Změnit postavu</button>
         <button class="btn ghost" id="pf-age">Změnit věk na ${s.age >= 10 ? '6–9' : '10+'}</button>
         <button class="btn danger" id="pf-logout">${u ? 'Odhlásit' : 'Ukončit hru'}</button></div>`;
-    $('#pf-switch').onclick = () => { s.kingdom = other; Store.changed(); this.enterMain(); this.tab('base'); };
     if (!u) $('#pf-save').onclick = () => { Store.save(); this.updateSaveBadge(); this.toast('💾 Uloženo'); };
     $('#pf-export').onclick = () => { Store.exportFile(); if (!u) { Store.dirty = false; this.updateSaveBadge(); } };
     $('#pf-import').onchange = e => this.loadFile(e, () => this.enterMain());

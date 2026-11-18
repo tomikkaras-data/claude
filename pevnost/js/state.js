@@ -22,7 +22,7 @@ function newState(name = 'Hrdina', age = 10) {
     today: { date: todayStr(), count: 0, ids: [] },
     stats: { done: 0, cat: {}, bosses: 0, bestWave: 0, wins: 0, losses: 0 },
     achievements: {},
-    kingdom: null,
+    kingdom: 'apocalypse',
     kingdoms: { fantasy: newKingdomState(), apocalypse: newKingdomState() },
     heroes: { player: { equip: {} } }, // id -> { equip: {weapon, armor, trinket} }
     inventory: [],  // item ids

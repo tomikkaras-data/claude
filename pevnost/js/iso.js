@@ -16,27 +16,27 @@ const ISO_ZOOMS = [0.16, 0.22, 0.3, 0.4, 0.55, 0.75, 1, 1.3, 1.7];
 // (u = západ→východ, v = sever→jih, 1 jednotka = 1 políčko ≈ 7 m); sever je na obrazovce nahoře.
 // Mapa je natočená podél mřížky: řeka a ostrov leží napříč obrazovkou (zleva dole doprava nahoru),
 // město s ulicemi je vlevo nahoře, široká Vltava vpravo dole.
-const ISO_CX = 40, ISO_CY = 32;
+const ISO_CX = 30, ISO_CY = 32;
 const MTf = (u, v) => [ISO_CX - u, ISO_CY - v];
 const MT = (u, v) => MTf(u, v).map(Math.round);
 const ISLAND_LEN = 56;                       // ostrov měří 56 políček od severu k jihu
-const ISLAND_W = [[0, 0], [0.03, 3.5], [0.12, 5.5], [0.3, 6.2], [0.5, 6.5], [0.6, 5], [0.68, 3.2], [0.75, 3], [0.8, 3.6], [0.88, 2.6], [0.97, 1.5], [1, 0]];
+const ISLAND_W = [[0, 0], [0.03, 5.5], [0.12, 8.6], [0.3, 9.8], [0.5, 10.2], [0.6, 8.2], [0.68, 5.6], [0.75, 5.2], [0.8, 5.8], [0.88, 4.2], [0.97, 2.4], [1, 0]];
+const ISLAND_C = t => -3.6 - 1.2 * t;   // osa ostrova (u)
 const bankU = v => 9; // rovné nábřeží (Masarykovo nábřeží)
 
 // Dva vstupy na ostrov jako ve skutečnosti: můstek k Žofínu na severu a Mánes na jihu.
-const ROUTE_N = [[36, -17], [9, -17], [2, -17], [2.5, -14], [2.5, -5], [3, 2], [1, 5], [-1, 5]];
-const ROUTE_S = [[36, 18.5], [11.5, 18.5], [4, 18.5], [2.2, 14], [1.5, 9], [-1, 5]]; // lávka těsně pod Mánesem
-const ISO_PATHS = [ROUTE_N.map(p => MT(...p)), ROUTE_S.map(p => MT(...p))];
+// Dva vstupy na ostrov: můstek k Žofínu a lávka u Mánesa (z nábřeží na břeh ostrova)
+const BRIDGES = [[[9, -17], [5.2, -17]], [[9, 18.5], [1.2, 18.5]]].map(b => b.map(p => MT(...p)));
 const ISO_HQ = { gx: MT(-1, 1.5)[0] - 1, gy: MT(-1, 1.5)[1] - 1 };
 const ISO_HOMES = { tavern: MT(-4, 4), forge: MT(3.5, 7), mine: MT(-1, 10) };
 // Město: řady domů rovnoběžné s řekou a příčné ulice (v políčkách mřížky)
 const CITY = {
-  sidewalk: [30], streets: [[27, 29], [19, 21], [11, 13], [3, 5]],     // gx rozsahy ulic (nejbližší řece je nábřežní)
-  rows: [[22, 26], [14, 18], [6, 10], [0, 2]],                                // gx rozsahy řad domů (fasády směrem k řece)
+  sidewalk: [20], streets: [[17, 19], [9, 11], [1, 3]],     // gx rozsahy ulic (nejbližší řece je nábřežní)
+  rows: [[12, 16], [4, 8], [-4, 0]],                                // gx rozsahy řad domů (fasády směrem k řece)
   cross: [[12, 14], [30, 31], [48, 50]],                              // gy rozsahy příčných ulic
 };
 // Malý městský park s hřištěm místo jednoho bloku domů
-const PARK = { x1: 14, x2: 18, y1: 32, y2: 47 };
+const PARK = { x1: 4, x2: 8, y1: 32, y2: 47 };
 const inPark = (x, y) => x >= PARK.x1 && x <= PARK.x2 && y >= PARK.y1 && y <= PARK.y2;
 const inRange = (v, rs) => rs.some(([a, b]) => v >= a && v <= b);
 // Parkové cestičky (jen na ozdobu)
@@ -115,6 +115,8 @@ const ISO_DECOR = {
   city9: { name: 'Zelený činžák', group: 'ruins', h: 150, w: 2, d: 3, landmark: true }, city10: { name: 'Ruina domu', group: 'ruins', h: 140, w: 2, d: 3, landmark: true },
   ...Object.fromEntries([[1, 3], [2, 4], [3, 3], [4, 4], [5, 3], [6, 3], [7, 4], [8, 3], [9, 3], [10, 3]].map(([i, d]) =>
     ['cityb' + i, { name: 'Činžák', group: 'ruins', h: 150, w: 2, d, landmark: true }])),
+  ...Object.fromEntries([[1, 2, 3], [2, 3, 3], [3, 3, 2], [4, 2, 3], [5, 3, 3], [6, 3, 2], [7, 3, 2], [8, 3, 3], [9, 2, 3], [10, 2, 2], [12, 3, 3], [13, 2, 3], [14, 2, 3], [15, 2, 3]].map(([i, w, d]) =>
+    ['cityc' + i, { name: 'Dům', group: 'ruins', h: 150, w, d, landmark: true }])),
   cityrow: { name: 'Řada domů', group: 'ruins', h: 180, w: 4, d: 14, landmark: true },
   divadlo:    { name: 'Národní divadlo', group: 'ruins', h: 70, w: 3, d: 9, landmark: true },
   dockyard:   SP('Loděnice', 'boats', 0, 'dockyard', { s: 0.5, w: 5, d: 5, h: 90, base: 64, landmark: true }),
@@ -168,21 +170,62 @@ const IsoMap = {
   },
 
   init() {
-    const paths = ISO_PATHS.map(t => this.makePath(t)), A = paths[0], T = ISO.T;
-    this.layout = {
-      paths, at: A.at, len: A.len, start: A.start, nearest: A.nearest, heroOff: 10,
-      base: [(ISO_HQ.gx + 1.5) * T, (ISO_HQ.gy + 1) * T],
-      // hrdinové hlídají obě cesty kousek před velitelstvím
-      rally: i => { const p = paths[i % 2]; return p.at(p.len * (0.93 - 0.09 * Math.floor(i / 2))); },
-    };
-    this.road = new Set();
-    for (const pts of ISO_PATHS) for (let i = 0; i < pts.length - 1; i++) {
-      const [x1, y1] = pts[i], [x2, y2] = pts[i + 1], n = Math.ceil(Math.hypot(x2 - x1, y2 - y1) * 4);
-      for (let k = 0; k <= n; k++) this.road.add(Math.floor(x1 + 0.5 + (x2 - x1) * k / n) + ',' + Math.floor(y1 + 0.5 + (y2 - y1) * k / n));
-    }
-    const end = ISO_PATHS[0][ISO_PATHS[0].length - 1];
-    this.roadEnd = end.join(',');
+    const T = ISO.T;
+    this.road = new Set();      // políčka lávek (stavět se tam nedá, jen barikáda)
+    for (const [[x1, y1], [x2, y2]] of BRIDGES) { const n = Math.ceil(Math.hypot(x2 - x1, y2 - y1) * 4); for (let k = 0; k <= n; k++) this.road.add(Math.round(x1 + (x2 - x1) * k / n) + ',' + Math.round(y1 + (y2 - y1) * k / n)); }
+    this.roadEnd = '';
     this.baseTiles = this.defaultTiles();
+    const hq = [(ISO_HQ.gx + 1.5) * T, (ISO_HQ.gy + 1) * T];
+    this.layout = {
+      paths: [], at: () => hq, len: 1, start: hq, nearest: () => 0, heroOff: 10, base: hq,
+      // hrdinové stojí v kruhu kolem velitelství
+      rally: i => { const a = i * 2.4 + 0.6, r = (2.6 + (i % 3) * 0.8) * T; return [hq[0] + Math.cos(a) * r, hq[1] + Math.sin(a) * r]; },
+    };
+  },
+
+  // ---------- cesty zombíků: náhodné místo na okraji mapy (ve městě) → hledání cesty k velitelství ----------
+  walkable(kd) {
+    const G = ISO.G, ok = new Uint8Array(G * G);
+    for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) ok[y * G + x] = this.baseTiles[y][x] !== 'W' || this.road.has(x + ',' + y) ? 1 : 0;
+    for (const o of kd.iso.decor) { const df = ISO_DECOR[o.id]; if (!df.landmark || df.water || o.id === 'dockyard') continue;   // domy a památky jsou překážky
+      const [w, d] = this.size('decor', o.id, o.flip); for (let y = 0; y < d; y++) for (let x = 0; x < w; x++) { const X = o.gx + x, Y = o.gy + y; if (X >= 0 && Y >= 0 && X < G && Y < G) ok[Y * G + X] = 0; } }
+    for (const o of kd.iso.placed) { if (o.id === 'hall' || o.id === 'barrier') continue;
+      const [w, d] = this.size('build', o.id, o.flip); for (let y = 0; y < d; y++) for (let x = 0; x < w; x++) ok[(o.gy + y) * G + o.gx + x] = 0; }
+    return ok;
+  },
+
+  makeSpawnPaths(kd, n) {
+    const G = ISO.G, T = ISO.T, ok = this.walkable(kd), dist = new Int32Array(G * G).fill(-1), q = [];
+    // cíl: políčka kolem velitelství
+    for (let y = ISO_HQ.gy - 1; y <= ISO_HQ.gy + 2; y++) for (let x = ISO_HQ.gx - 1; x <= ISO_HQ.gx + 3; x++) if (ok[y * G + x] || (x >= ISO_HQ.gx && x < ISO_HQ.gx + 3 && y >= ISO_HQ.gy && y < ISO_HQ.gy + 2)) { dist[y * G + x] = 0; q.push(y * G + x); }
+    const N8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % G, y = (i / G) | 0;
+      for (const [dx, dy] of N8) {
+        const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= G || Y >= G) continue;
+        const j = Y * G + X; if (!ok[j] || dist[j] >= 0) continue;
+        if (dx && dy && (!ok[y * G + X] || !ok[Y * G + x])) continue;   // šikmo jen když nejsou rohy zablokované
+        dist[j] = dist[i] + 1; q.push(j);
+      }
+    }
+    // okraje mapy na straně města (vlevo nahoře a dva krátké okraje)
+    const edges = [];
+    for (let y = 0; y < G; y++) if (dist[y * G] > 0) edges.push([0, y]);
+    for (let x = 0; x < G; x++) for (const y of [0, G - 1]) if (this.baseTiles[y][x] !== 'W' && dist[y * G + x] > 0) edges.push([x, y]);
+    const r = Math.random, paths = [];
+    for (let k = 0; k < n && edges.length; k++) {
+      let [x, y] = edges[Math.floor(r() * edges.length)];
+      const pts = [[x - (x === 0 ? 3 : 0), y - (y === 0 ? 3 : 0) + (y === G - 1 ? 3 : 0)], [x, y]];
+      while (dist[y * G + x] > 0) {   // po spádu vzdálenosti k velitelství, mezi stejnými kroky náhodně
+        const best = []; let bd = dist[y * G + x];
+        for (const [dx, dy] of N8) { const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= G || Y >= G) continue; const dd = dist[Y * G + X]; if (dd >= 0 && dd < bd) { bd = dd; best.length = 0; } if (dd >= 0 && dd === bd && dd < dist[y * G + x]) best.push([X, Y]); }
+        if (!best.length) break; [x, y] = best[Math.floor(r() * best.length)]; pts.push([x, y]);
+      }
+      // vyhladíme: každý třetí bod + malý náhodný posun, ať jdou zombie přirozeně
+      const sm = pts.filter((p, i) => i < 2 || i % 3 === 0 || i === pts.length - 1).map((p, i, a) => i < 2 || i === a.length - 1 ? p : [p[0] + (r() - 0.5) * 0.5, p[1] + (r() - 0.5) * 0.5]);
+      paths.push(this.makePath(sm));
+    }
+    return paths.length ? paths : [this.makePath([[0, 32], [ISO_HQ.gx, ISO_HQ.gy + 2]])];
   },
 
   // 'I' = ostrov, 'K' = nábřeží s městem (tam se nestaví), 'W' = Vltava
@@ -194,7 +237,7 @@ const IsoMap = {
     let i = 1; while (ISLAND_W[i][0] < t) i++;
     const [t0, w0] = ISLAND_W[i - 1], [t1, w1] = ISLAND_W[i];
     const hw = w0 + (w1 - w0) * (t - t0) / (t1 - t0) + 0.4 * Math.sin(v * 0.9);
-    return Math.abs(u - (-3 + 6 * t)) < hw ? 'I' : 'W';
+    return Math.abs(u - ISLAND_C(t)) < hw ? 'I' : 'W';
   },
 
   // Výchozí povrch: spálený park (popel, vyprahlá zem, suchá tráva), písčité břehy, dlažba kolem Žofína.
@@ -254,12 +297,12 @@ const IsoMap = {
   // ---------- stav ----------
   ensure(kd) {
     if (!this.layout) this.init();
-    if (kd.iso && kd.iso.v === 8) return kd.iso;
-    const old = kd.iso, same = !!old && old.v === 7;   // verze 7 má stejný ostrov, mění se jen město
+    if (kd.iso && kd.iso.v === 9) return kd.iso;
+    const old = kd.iso, same = false;   // verze 9: širší ostrov a menší město – mapa se staví znovu
     if (old && !same) for (const p of old.placed || []) { const b = BUILDINGS[p.id] || ISO_EXTRA[p.id]; if (b) Store.state.gold += b.cost; }
     kd.slots.forEach((id, i) => { if (id) { Store.state.gold += BUILDINGS[id].cost; kd.slots[i] = null; } });
     kd.iso = {
-      v: 8, paint: same ? old.paint || {} : {},
+      v: 9, paint: same ? old.paint || {} : {},
       placed: same ? old.placed : [{ id: 'hall', gx: ISO_HQ.gx, gy: ISO_HQ.gy }],
       // z dřívějška zůstane jen to, co postavil hráč a co ještě existuje (ploty, pytle...)
       decor: same ? old.decor.filter(o => !o.fixed && !o.auto && ISO_DECOR[o.id] && !ISO_DECOR[o.id].sp) : [],
@@ -294,11 +337,12 @@ const IsoMap = {
     const d = kd.iso.decor, fix = (id, [gx, gy], extra) => d.push({ id, gx, gy, fixed: true, ...extra });
     const z = MT(-2.5, -10); fix('zofin', [z[0] - 3, z[1] - 3]);
     const m = MT(7.4, 13.6); fix('manes', [m[0] - 2, m[1] - 3]);
-    fix('divadlo', [24, 52]);                          // Národní divadlo v první řadě u nábřeží
+    fix('divadlo', [14, 52]);                          // Národní divadlo v první řadě u nábřeží
     this.cityBlocks(kd);
-    const dk = MT(-9.7, -4); fix('dockyard', [dk[0] - 2, dk[1] - 2]);
-    for (const [id, u, v, flip] of [['boat1', -8.8, -22, false], ['boat2', -9.4, -20, true], ['boat_cover', -8.6, -18, false], ['motorboat', -14.5, -3, false],
-      ['boat1', -13, 0.5, true], ['boat2', -9.5, 1.5, false], ['boat_wreck', 6.2, 2, false], ['boat_wreck', -6.5, 14, true], ['boat1', 5.6, -9, true]]) fix(id, MT(u, v), { flip });
+    const shore = v => { const t = (v + ISLAND_LEN / 2) / ISLAND_LEN; let i = 1; while (ISLAND_W[i][0] < t) i++; const [t0, w0] = ISLAND_W[i - 1], [t1, w1] = ISLAND_W[i]; return ISLAND_C(t) - (w0 + (w1 - w0) * (t - t0) / (t1 - t0)); };
+    const dk = MT(shore(-4) - 1.4, -4); fix('dockyard', [dk[0] - 2, dk[1] - 2]);
+    for (const [id, off, v, flip] of [['boat1', 0.8, -22, false], ['boat2', 1.2, -19.5, true], ['boat_cover', 0.9, -17, false], ['motorboat', 3.6, -3, false],
+      ['boat1', 3.2, 1.5, true], ['boat2', 1.4, 4, false], ['boat_wreck', 1.6, 12, true], ['boat_wreck', 2.2, -12, false]]) fix(id, MT(shore(v) - off, v), { flip });
   },
 
   // Domy podél ulic: v každé řadě a úseku mezi příčnými ulicemi stojí dům vedle domu (fasádou k řece).
@@ -307,12 +351,13 @@ const IsoMap = {
     for (const o of d) { const [w, dd] = this.size('decor', o.id, o.flip); for (let y = 0; y < dd; y++) for (let x = 0; x < w; x++) occ.add((o.gx + x) + ',' + (o.gy + y)); }
     const free = (gx, gy, w, dd) => { for (let y = 0; y < dd; y++) for (let x = 0; x < w; x++) { const k = (gx + x) + ',' + (gy + y); if (occ.has(k) || this.road.has(k)) return false; } return true; };
     const put = (id, gx, gy) => { const df = ISO_DECOR[id]; for (let y = 0; y < df.d; y++) for (let x = 0; x < df.w; x++) occ.add((gx + x) + ',' + (gy + y)); d.push({ id, gx, gy, fixed: true }); };
-    const singles = [...Array.from({ length: 10 }, (_, i) => 'city' + (i + 1)), ...Array.from({ length: 10 }, (_, i) => 'cityb' + (i + 1))];
+    const singles = [...Array.from({ length: 10 }, (_, i) => 'city' + (i + 1)), ...Array.from({ length: 10 }, (_, i) => 'cityb' + (i + 1)),
+      ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15].map(i => 'cityc' + i)];
     const segs = []; let a = -4;   // řady pokračují kousek za okraj mapy, ať město nekončí
     for (const [c1, c2] of CITY.cross) { segs.push([a, c1 - 1]); a = c2 + 1; } segs.push([a, ISO.G + 3]);
     let rows = 0, recent = [];
     // vybere dům, který nebyl mezi posledními šesti (sousedé i protější řada jsou různé)
-    const next = () => { let id; do id = singles[Math.floor(r() * singles.length)]; while (recent.includes(id)); recent.push(id); if (recent.length > 6) recent.shift(); return id; };
+    const next = () => { let id; do id = singles[Math.floor(r() * singles.length)]; while (recent.includes(id)); recent.push(id); if (recent.length > 12) recent.shift(); return id; };
     for (const [, front] of CITY.rows) for (const [y1, y2] of segs) {
       if (front >= PARK.x1 && front <= PARK.x2 && y1 >= PARK.y1 - 1 && y2 <= PARK.y2 + 1) continue;   // tady je park
       let y = y1;
@@ -352,8 +397,8 @@ const IsoMap = {
     const fixed = () => ({ fixed: true, flip: r() < 0.5 });
     const WRK = [...WRECK, 'wreck1', 'wreck2', 'car_white', 'car_red', 'car_blue', 'car_yellow', 'van'];
     for (let gy = 0; gy < ISO.G; gy++) {
-      if (gy % 4 === 1) this.drop(kd, pick([...AUT, 'dead1', 'dead2', 'tree_s3']), 30, gy, fixed());
-      else if (gy % 4 === 3) this.drop(kd, 'lamp2', 30, gy, fixed());
+      if (gy % 4 === 1) this.drop(kd, pick([...AUT, 'dead1', 'dead2', 'tree_s3']), 20, gy, fixed());
+      else if (gy % 4 === 3) this.drop(kd, 'lamp2', 20, gy, fixed());
       for (const [a] of CITY.streets) if (r() < 0.16) this.drop(kd, pick(WRK), a + Math.floor(r() * 3), gy, fixed());
     }
     // parkující auta podél všech ulic (funkční, rozbitá i vraky) a v příčných ulicích
@@ -362,19 +407,19 @@ const IsoMap = {
       if (r() < 0.32) this.drop(kd, pick(CARS), a, gy, { fixed: true });
       if (r() < 0.32) this.drop(kd, pick(CARS), b, gy, { fixed: true, flip: true });
     }
-    for (const [a, b] of CITY.cross) for (let gx = -3; gx < 27; gx++) {
+    for (const [a, b] of CITY.cross) for (let gx = -3; gx < 17; gx++) {
       if (r() < 0.25) this.drop(kd, pick(CARS), gx, a, { fixed: true, flip: true });
       if (r() < 0.25) this.drop(kd, pick(CARS), gx, b, { fixed: true });
     }
     // městský park: stromy po okrajích, hřiště uprostřed, lavičky a lampy u cestiček
     const P = PARK;
-    [['swing1', 16, 40], ['slide', 17, 42], ['dome', 15, 42], ['carousel', 17, 37], ['seesaw', 15, 37], ['sandbox', 15, 44], ['horse', 18, 44], ['tunnel', 18, 39]]
+    [['swing1', 6, 40], ['slide', 7, 42], ['dome', 5, 42], ['carousel', 7, 37], ['seesaw', 5, 37], ['sandbox', 5, 44], ['horse', 8, 44], ['tunnel', 8, 39]]
       .forEach(([id, x, y]) => this.drop(kd, id, x, y, { fixed: true }));
     for (let y = P.y1; y <= P.y2; y += 2) { this.drop(kd, pick(['tree_s1', 'tree_s3', 'aut1', 'aut4', 'poplar', 'tree_s2']), P.x1, y, { fixed: true }); this.drop(kd, pick(['tree_s1', 'aut2', 'willow', 'tree_s3', 'aut3']), P.x2, y + 1, { fixed: true }); }
-    for (const [x, y] of [[15, 33], [17, 34], [15, 46], [17, 47], [18, 33]]) this.drop(kd, pick(['tree_s1', 'aut1', 'tree_s3', 'willow']), x, y, { fixed: true });
-    for (const [id, x, y] of [['bench', 17, 35], ['bench', 15, 39], ['bench', 17, 45], ['lamp2', 16, 33], ['lamp2', 16, 46], ['bin', 15, 35], ['planter2', 18, 47], ['column', 14, 31]]) this.drop(kd, id, x, y, { fixed: true });
-    [['wreck_bus', 22], ['bus', 40], ['ambulance', 47], ['police', 44], ['truck', 9], ['plow', 58], ['wreck_bus', 34]].forEach(([id, gy]) => this.drop(kd, id, 28, gy, { fixed: true }));
-    for (let gx = 0; gx < 27; gx++) for (const [a, b] of CITY.cross) if (r() < 0.12) this.drop(kd, pick([...WRK, 'rubble1', 'pallet']), gx, a + Math.floor(r() * (b - a + 1)), fixed());
+    for (const [x, y] of [[5, 33], [7, 34], [5, 46], [7, 47], [8, 33]]) this.drop(kd, pick(['tree_s1', 'aut1', 'tree_s3', 'willow']), x, y, { fixed: true });
+    for (const [id, x, y] of [['bench', 7, 35], ['bench', 5, 39], ['bench', 7, 45], ['lamp2', 6, 33], ['lamp2', 6, 46], ['bin', 5, 35], ['planter2', 8, 47], ['column', 4, 31]]) this.drop(kd, id, x, y, { fixed: true });
+    [['wreck_bus', 22], ['bus', 40], ['ambulance', 47], ['police', 44], ['truck', 9], ['plow', 58], ['wreck_bus', 34]].forEach(([id, gy]) => this.drop(kd, id, 18, gy, { fixed: true }));
+    for (let gx = 0; gx < 17; gx++) for (const [a, b] of CITY.cross) if (r() < 0.12) this.drop(kd, pick([...WRK, 'rubble1', 'pallet']), gx, a + Math.floor(r() * (b - a + 1)), fixed());
     for (const [, front] of CITY.rows) for (let gy = 0; gy < ISO.G; gy++) if (r() < 0.1) this.drop(kd, pick(['bin', 'ebox', 'column', 'rubble1', 'rubble2', 'bench', 'planter2']), front + 1, gy, fixed());
   },
 
@@ -412,7 +457,7 @@ const IsoMap = {
     for (let y = 0; y < d; y++) for (let x = 0; x < w; x++) {
       const cx = gx + x, cy = gy + y, k = cx + ',' + cy;
       if (cx < 0 || cy < 0 || cx >= ISO.G || cy >= ISO.G || occ.has(k)) return false;
-      if (df.road) { if (!this.road.has(k) || k === this.roadEnd) return false; continue; }
+      if (df.road) { if (!this.road.has(k) && !this.buildable(cx, cy)) return false; continue; }   // barikáda: na lávku nebo kamkoli na ostrov
       if (df.water) { if (this.baseTiles[cy][cx] !== 'W') return false; continue; }   // lodě patří na vodu
       if (this.road.has(k) || !this.buildable(cx, cy)) return false; // ne na cestu, do vody ani do města
     }
@@ -436,7 +481,7 @@ const IsoMap = {
   // Co dávají stavby z harampádí (místa pro hrdiny, rychlost věží, dostřel, zlato, životy)
   bonus(kd) {
     const b = { heroSlots: 0, baseHp: 0, rate: 0, heroRange: 0, gold: 0 };
-    if (!kd.iso || kd.iso.v !== 8) return b;
+    if (!kd.iso || kd.iso.v !== 9) return b;
     for (const p of kd.iso.placed) { const fx = (ISO_EXTRA[p.id] || {}).fx; if (fx) for (const k in fx) b[k] += fx[k]; }
     return b;
   },
@@ -445,7 +490,9 @@ const IsoMap = {
 
   defenders(kd, towers, barriers) {
     const T = ISO.T, L = this.layout;
-    this.ensure(kd).placed.forEach((p, i) => {
+    this.ensure(kd);
+    L.paths = this.makeSpawnPaths(kd, 4 + Math.floor(Math.random() * 3));   // každá vlna jinudy
+    kd.iso.placed.forEach((p, i) => {
       const b = BUILDINGS[p.id] || ISO_EXTRA[p.id]; if (!b) return;
       const [w, d] = this.size('build', p.id, p.flip), x = (p.gx + w / 2) * T, y = (p.gy + d / 2) * T;
       if (b.type === 'tower') towers.push({ slot: i, id: p.id, b, x, y, cd: 0 });
@@ -853,14 +900,7 @@ const IsoMap = {
 
     this.terrainPass(c, W, H, ox, oy);
     // 2) tramvajové koleje uprostřed nábřežní ulice
-    isoPath(() => { for (const off of [-0.2, 0.2]) { c.beginPath(); c.moveTo(28.5 + off, 0); c.lineTo(28.5 + off, ISO.G); c.strokeStyle = 'rgba(150,80,45,.85)'; c.lineWidth = 0.06; c.stroke(); } });
-    // 3) parkové cestičky na ostrově (po dvou z nich chodí zombie)
-    isoPath(() => {
-      c.lineCap = 'round'; c.lineJoin = 'round';
-      const walks = [...ISO_WALKS.map(w => w.map(p => MTf(...p))), ISO_PATHS[0].slice(2), ISO_PATHS[1].slice(2)];
-      const slabs = this.pattern(c, 'sandslabs', 1) || '#8a857a';
-      for (const [w, col] of [[1.15, 'rgba(40,36,30,.55)'], [0.95, slabs]]) for (const pts of walks) { line(pts); c.strokeStyle = col; c.lineWidth = w; c.stroke(); }
-    });
+    isoPath(() => { for (const off of [-0.2, 0.2]) { c.beginPath(); c.moveTo(18.5 + off, 0); c.lineTo(18.5 + off, ISO.G); c.strokeStyle = 'rgba(150,80,45,.85)'; c.lineWidth = 0.06; c.stroke(); } });
     // 7) dva vstupy přes rameno řeky: můstek k Žofínu a lávka u Mánesa
     const LIFT = 7;
     const deck = (a, b, width, col) => {
@@ -898,8 +938,7 @@ const IsoMap = {
         }
       }
     };
-    deck(ISO_PATHS[0][1], ISO_PATHS[0][2], 0.9, '#6f6a60');
-    deck(ISO_PATHS[1][1], ISO_PATHS[1][2], 0.9, '#6f6a60');
+    for (const [a, b] of BRIDGES) deck(a, b, 0.9, '#6f6a60');
 
     this.groundCanvas = { cv, ox, oy, W, H };
     return this.groundCanvas;

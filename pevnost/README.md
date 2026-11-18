@@ -1,5 +1,7 @@
 # Pevnost hrdinů 🏰
 
+> **Aktuálně:** post-apokalyptická strategie s prvky RPG. Fantasy království je odstraněné – hraje se jen Pustina (Slovanský ostrov). Zombie se objevují na náhodných místech na okraji mapy ve městě a samy si hledají cestu přes lávky k velitelství; každá vlna jde jinudy. Domy a památky jsou překážky, barikádu lze postavit na lávku nebo kamkoli na ostrov.
+
 Mobilní hra v češtině pro děti (6–9 a 10+ let): plň dobré skutky jako v aplikaci typu Duolingo, sbírej XP a zlaťáky a za ně stav a bráň vlastní pevnost.
 
 ## Jak spustit
