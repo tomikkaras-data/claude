@@ -2043,6 +2043,17 @@ class Game {
       for (let i = 1; i < H.length; i++) { const q = H[i]; for (let k = 0; k < 8 && t.isSolid(q.x, q.y); k++) q.y -= 1; }
     }
     const nz = this.vacNozzle(p);
+    // any crate the robot or its nozzle touches is collected for its owner (barrels just get swallowed)
+    if (own && own.alive) {
+      for (const k of this.crates) {
+        if (k.dead || k.inVacuum || this.isBarrel(k)) continue;
+        if (dist(k.x, k.y, p.x, p.y) < 22 || dist(k.x, k.y, nz.x, nz.y) < 16) {
+          k.dead = true;
+          this.openCrate(k, own);
+          this.texts.push({ x: p.x, y: p.y - 34, text: `📦 for ${own.name}`, color: '#ffe066', life: 70 });
+        }
+      }
+    }
     // what's around the nozzle
     const objs = [];
     for (const c of this.chars) if (c.alive && c !== own && !c.inTornado && !(c.onMagnet && c.onMagnet !== p) && !(t.bunkers.length && t.shelterAt(c.x, c.y))) objs.push({ o: c, kind: 'char' });
@@ -2057,7 +2068,7 @@ class Game {
         if (d > R) continue;
         if (d < (e.kind === 'char' ? CHAR_R + 6 : 12)) {
           if (e.kind === 'char') { o.onMagnet = p; o.noFall = true; if (o === this.active) this.releaseRope(); p.stuck.push(o); Sound.play('hook'); }
-          else { o.inVacuum = p; o.chute = false; p.stored.push({ o, kind: e.kind }); Sound.play('pickup'); }
+          else if (!(e.kind === 'crate' && !this.isBarrel(o) && own && own.alive)) { o.inVacuum = p; o.chute = false; p.stored.push({ o, kind: e.kind }); Sound.play('pickup'); }
           continue;
         }
         const near = 1 - d / R, acc = 0.12 + 0.7 * near * near, vmax = 1.5 + 7 * near;
