@@ -22,6 +22,7 @@ class Character {
     this.grave = false;     // show a gravestone after death
     this.weapon = 'bazooka';
     this.fuse = 3;          // grenade timer in seconds (1-5)
+    this.flight = 5;        // drone flight time in seconds (1-8)
     this.buildAngle = 0;    // concrete block rotation
     this.armor = 0;         // absorbs half of incoming damage until used up
     this.powerUp = false;   // next attack does +50% damage

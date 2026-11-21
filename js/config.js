@@ -8,7 +8,8 @@ let WORLD_H = 900;
 let WATER_Y = WORLD_H - 46;          // anything below this line drowns
 const TICK_RATE = 60;                // fixed simulation steps per second
 const GRAVITY = 0.22;                // px / tick^2
-const CHAR_R = 10;                   // character body radius
+const CHAR_R = 10;
+const BUNKER = { w: 220, h: 100, wall: 18, roof: 34, floor: 14, door: 36 }; // anti-nuke shelter size (px)                   // character body radius
 const MAX_POWER_SPEED = 15;          // launch speed at full power (px / tick)
 const WIND_ACC = 0.055;              // horizontal acceleration per unit of wind
 const RETREAT_TIME = 3;              // seconds to run away after attacking
@@ -26,7 +27,7 @@ const FALL_DAMAGE_PER_SPEED = 7;
 const BARRELS = { perPixel: 1 / 520, radius: 32, damage: 25, flames: 24, fireDamage: 2 };
 const SMOKE_GROW = 40;
 const SLING_PULL = 110;              // how far (world px) you drag the slingshot back for full power
-const PLASMA_WEAPONS = new Set(['plasmafrag', 'greenlet', 'microlet', 'plasmagrenade', 'miniplasma']);
+const PLASMA_WEAPONS = new Set(['plasmafrag', 'greenlet', 'microlet', 'plasmagrenade', 'miniplasma', 'alienbomb']);
 const CRATE_BLAST = { radius: 22, damage: 15, fires: 12, fireDamage: 2, pellets: [10, 20], pellet: { range: 320, damage: 8, radius: 4, knock: 1.2 } };
 const DEATH_BLAST = { radius: 28, damage: 20, delay: 35 }; // knocked-out characters go off with a small bang
 
@@ -90,7 +91,7 @@ const WEAPONS = [
   { id: 'flashbang', name: 'Flashbang',    icon: '🔆', key: 'O', group: 'rare', fam: 'tactical', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
     radius: 160, flashKnock: 9, ammo: 2, note: 'radius = how far the flash reaches · no damage but a strong shove · anyone caught is dazed on their next turn' },
   { id: 'smoke',     name: 'Smoke Grenade', icon: '🌫️', key: 'L', group: 'rare', fam: 'tactical', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
-    smokeRadius: 100, ammo: 2, note: 'no damage · a cloud of radius 100 that stays all game and hides other teams inside it · anyone caught when it bursts is dazed for a turn' },
+    smokeRadius: 100, ammo: 2, note: 'no damage · a cloud of radius 100 that stays all game and hides other teams inside it · anyone inside it without a Hazmat suit is dazed until they step out' },
   { id: 'gas',       name: 'Gas Grenade',  icon: '☣️', group: 'rare', fam: 'tactical', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true, radius: 135, damage: 25, gasLife: 300, ammo: 2,
     note: 'radius = size of the gas cloud · it lasts 5 s · everyone who breathed it loses this much health at the end of the thrower\'s turn' },
   { id: 'deagle',    name: 'Desert Eagle', icon: '🦅', group: 'rare', fam: 'gun', kind: 'hitscan', range: 1000, damage: 45, radius: 7, knock: 4.5, ammo: 1, crate: 2 },
@@ -113,14 +114,19 @@ const WEAPONS = [
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'epic', fam: 'sky', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
   { id: 'napalm',    name: 'Napalm Strike', icon: '🔥', group: 'epic', fam: 'sky', kind: 'target', radius: 16, damage: 1, canisters: 4, ammo: 1, crate: 1, note: 'burn damage, 6 times a second' },
   { id: 'anvil',     name: 'Lava Anvil',   icon: '🔨', group: 'epic', fam: 'sky', kind: 'target', radius: 24, damage: 55, ammo: 1, crate: 2 },
-  { id: 'drone',     name: 'Drone',        icon: '🛸', key: 'N', group: 'epic', fam: 'robot', kind: 'drone', speed: 3.2, ctrlTicks: 180, radius: 45, damage: 55, blastKnock: 1.3, ammo: 2,
-    note: 'steer it for 3 s, then it drops',
-    cluster: 5, bombletDamage: 25, bombletRadius: 26, subLabel: 'Drone bomblets', subNote: '5 bomblets scatter when it explodes' },
+  { id: 'kamikaze',  name: 'Kamikaze Plane', icon: '🛩️', group: 'epic', fam: 'sky', kind: 'slingplane', charge: true, power: 15, radius: 25, damage: 15, ammo: 1, crate: 1,
+    firstDrop: 5, bounceDrop: 3, bombletDamage: 30, bombletRadius: 45, subLabel: 'Dynamites', subNote: '5 on the first impact, 2–3 more on each bounce · go off after 2–5 s',
+    note: 'launch it from the slingshot like Angry Birds · radius/damage = the plane crashing' },
+  { id: 'drone',     name: 'Drone',        icon: '🛸', key: 'N', group: 'epic', fam: 'robot', kind: 'drone', flightSelect: true, speed: 3.2, ctrlTicks: 300, radius: 45, damage: 55, blastKnock: 1.3, ammo: 2,
+    note: 'steer it for the flight time you set (1–8 s, 5 by default), then it drops',
+    cluster: 10, bombletDamage: 25, bombletRadius: 26, subLabel: 'Drone bomblets', subNote: '10 bomblets scatter when it explodes' },
   { id: 'dozer',     name: 'Robo Dozer',   icon: '🚜', group: 'epic', fam: 'robot', kind: 'dozer', life: 480, speed: 1.4, digRadius: 28, radius: 40, damage: 40, ammo: 1,
     bombletDamage: 30, bombletRadius: 35, subLabel: 'Mini dynamites', subNote: '3 dropped when it stops',
     note: 'drive it with ←/→ for 8 s · digs a big tunnel · FIRE stops it early' },
   { id: 'frog',      name: 'Frog Clone Bomb', icon: '🐸', group: 'epic', fam: 'robot', kind: 'walker', fuse: 300, radius: 75, damage: 80, blastKnock: 1.4, ammo: 1, crate: 2,
     babies: 5, bombletDamage: 25, bombletRadius: 32, subLabel: 'Frog clones', subNote: '5 clones hop around and go off after 1–3 s' },
+  { id: 'waterfall', name: 'Toxic Waterfall', icon: '⛲', group: 'epic', fam: 'nature', kind: 'target', flow: 600, damage: 2, ammo: 1, crate: 1,
+    note: 'drop a green boulder anywhere · toxic water pours out of it for 10 s · damage every 1/3 s to anyone standing in it (a Hazmat suit protects)' },
   { id: 'tornado',   name: 'Tornado',      icon: '🌪️', key: 'Q', group: 'epic', fam: 'nature', kind: 'tornado', radius: 60, damage: 10, life: 480, speed: 1.1, ammo: 1,
     note: 'radius = full size it grows to · damage when it throws someone out' },
 
@@ -128,6 +134,12 @@ const WEAPONS = [
   { id: 'nuke',      name: 'Nuka Bomb',    icon: '☢️', group: 'legendary', fam: 'bomb', kind: 'projectile', charge: true, wind: true, radius: 125, damage: 75, ammo: 1, crate: 1 },
   { id: 'tsar',      name: 'Tsar Bomb',    icon: '💀', group: 'legendary', fam: 'bomb', kind: 'projectile', charge: true, wind: true, radius: 250, damage: 75, blastKnock: 1.3, ammo: 1, crate: 1,
     note: 'like the Nuka Bomb with twice the blast radius' },
+  { id: 'plasmagatling', name: 'Plasma Gatling', icon: '🔋', group: 'legendary', fam: 'alien', kind: 'burst', laser: true, bullets: 100, spread: 1.5, damage: 1, radius: 3,
+    ammo: 1, crate: 1, alien: true, note: 'per laser · 100 green lasers that cross the whole map through rock and everyone in the way · only bunker walls stop them' },
+  { id: 'aliendrone', name: 'Alien Bomber Drone', icon: '🛰️', group: 'legendary', fam: 'alien', kind: 'drone', flightSelect: true, bomber: true, speed: 3.2, ctrlTicks: 300,
+    radius: 45, damage: 45, blastKnock: 1.3, ammo: 1, crate: 1, alien: true, dropEvery: 12, bombClusters: 5,
+    bombletDamage: 22, bombletRadius: 30, subLabel: 'Alien bombs', subNote: 'dropped every 0.2 s once you press FIRE in flight · each bursts into 5 small green clusters',
+    note: 'steer it like the drone · press FIRE in flight to start bombing' },
   { id: 'plasma',    name: 'Star Cannon', icon: '🌟', key: 'X', group: 'legendary', fam: 'alien', kind: 'plasma', speed: 3.2, life: 900, radius: 25, damage: 7, ammo: 1, crate: 1, alien: true,
     note: 'radius = size of the plasma ball · damage every 1/5 s while it passes through someone',
     bombletDamage: 85, bombletRadius: 180, subLabel: 'Detonation', subNote: 'press FIRE again while it flies',
@@ -147,6 +159,8 @@ const WEAPONS = [
   { id: 'drill',     name: 'Drill',        icon: '🔩', key: '9', group: 'tool', fam: 'dig', kind: 'dig', dig: 'down', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
   { id: 'pickaxe',   name: 'Pickaxe',      icon: '⛏️', key: '0', group: 'tool', fam: 'dig', kind: 'dig', dig: 'aim', tool: true, radius: 14, damage: 15, ammo: Infinity, note: 'when it digs into someone' },
   { id: 'concrete',  name: 'Concrete Block', icon: '🧱', group: 'tool', fam: 'protect', kind: 'target', tool: true, ammo: 1, crate: 3 },
+  { id: 'bunker',    name: 'Anti-Nuke Bunker', icon: '🏚️', group: 'tool', fam: 'protect', kind: 'target', tool: true, ammo: 1, crate: 1,
+    note: 'place a huge indestructible shelter anywhere (not on top of anyone) · walk in through the tunnels at the bottom · blasts outside can\'t hurt anyone inside' },
   { id: 'suit',      name: 'Hazmat Suit',  icon: '🦺', group: 'tool', fam: 'protect', kind: 'suit', tool: true, ammo: 1,
     note: 'blocks toxic, plasma and fire damage while worn · you only see through the mask' },
   { id: 'supply',    name: 'Supply Call',  icon: '📻', group: 'tool', fam: 'support', kind: 'target', tool: true, ammo: 0, crate: 1,
@@ -157,16 +171,16 @@ const WEAPONS = [
 
 // Weather: storm clouds that drift in, count down a few turns, then unleash their effect
 const WEATHER_TYPES = [
-  { id: 'water',   name: 'Rain',          icon: '💧', tint: [92, 110, 140],  drop: '#8ec5ff', dur: 240 },
-  { id: 'acid',    name: 'Acid rain',     icon: '🧪', tint: [96, 120, 70],   drop: '#c0eb75', dur: 240 },
+  { id: 'water',   name: 'Rain',          icon: '💧', tint: [92, 110, 140],  drop: '#8ec5ff', dur: 300 },
+  { id: 'acid',    name: 'Acid rain',     icon: '🧪', tint: [96, 120, 70],   drop: '#c0eb75', dur: 300 },
   { id: 'fire',    name: 'Fire rain',     icon: '🔥', tint: [130, 80, 60],   drop: '#ff922b', dur: 220 },
   { id: 'cluster', name: 'Plasma rain',   icon: '🟢', tint: [70, 120, 80],   drop: '#7dff5a', dur: 200 },
-  { id: 'crate',   name: 'Crate rain',    icon: '📦', tint: [120, 108, 90],  drop: '#d9c39a', dur: 120 },
-  { id: 'mine',    name: 'Mine rain',     icon: '💣', tint: [90, 90, 96],    drop: '#adb5bd', dur: 120 },
+  { id: 'crate',   name: 'Crate rain',    icon: '📦', tint: [120, 108, 90],  drop: '#d9c39a', dur: 150 },
+  { id: 'mine',    name: 'Mine rain',     icon: '💣', tint: [90, 90, 96],    drop: '#adb5bd', dur: 150 },
   { id: 'tornado', name: 'Tornado storm', icon: '🌪️', tint: [80, 84, 96],   drop: '#ced4da', dur: 90 },
 ];
 const WEATHER = { off: 0, sometimes: 0.14, often: 0.3 }; // chance per turn of a new storm forming
-const STORM_WIDTH = 260;
+const STORM_WIDTH = 360;
 
 const WEAPON_GROUPS = [['basic', 'Basic'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['tool', 'Tools & items']];
 

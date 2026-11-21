@@ -20,7 +20,9 @@ class Terrain {
     this.canvas.height = h;
     this.ctx = this.canvas.getContext('2d');
     this.hard = new Uint8Array(w * h);   // indestructible pixels (city buildings and blocks)
-    this.buildings = [];                 // city buildings, so they can collapse when undermined
+    this.buildings = [];
+    this.bunkers = [];                   // placed anti-nuke shelters
+    this.bunkerMask = null;             // their (impenetrable) shell pixels                 // city buildings, so they can collapse when undermined
     this.dirty = false;
     this.hardCanvas = null;
     this.generate();
@@ -265,6 +267,147 @@ class Terrain {
         (Math.random() < 0.5 ? concrete : steel)(bx, gy - bh, bw, bh + 6);
       }
     }
+  }
+
+  ensureHardCanvas() {
+    if (this.hardCanvas) return this.hardCanvas;
+    this.hardCanvas = document.createElement('canvas');
+    this.hardCanvas.width = this.w;
+    this.hardCanvas.height = this.h;
+    return this.hardCanvas;
+  }
+
+  // Geometry of a bunker centred on (cx, cy)
+  bunkerRect(cx, cy) {
+    const B = BUNKER, x0 = Math.round(cx - B.w / 2), y0 = Math.round(cy - B.h / 2);
+    const b = { x0, y0, x1: x0 + B.w, y1: y0 + B.h };
+    b.ix0 = x0 + B.wall; b.ix1 = b.x1 - B.wall; b.iy0 = y0 + B.roof; b.iy1 = b.y1 - B.floor; // the room inside
+    b.dy0 = b.iy1 - B.door;                                                                   // tunnel openings (bottom corners)
+    return b;
+  }
+
+  // Is (x, y) in the room inside a bunker (or its tunnel openings)?
+  shelterAt(x, y) {
+    for (const b of this.bunkers) if (x >= b.x0 && x <= b.x1 && y >= b.iy0 && y <= b.iy1 && (x >= b.ix0 && x <= b.ix1 || y >= b.dy0)) return b;
+    return null;
+  }
+
+  isBunker(x, y) {
+    if (!this.bunkerMask) return false;
+    x = Math.floor(x); y = Math.floor(y);
+    if (x < 0 || x >= this.w || y < 0 || y >= this.h) return false;
+    return this.bunkerMask[y * this.w + x] === 1;
+  }
+
+  placeBunker(cx, cy) {
+    const b = this.bunkerRect(cx, cy), { w } = this;
+    if (!this.bunkerMask) this.bunkerMask = new Uint8Array(this.w * this.h);
+    const domes = [b.x0 + 0.2 * BUNKER.w, b.x0 + 0.8 * BUNKER.w];
+    const inShell = (x, y) => {
+      if (x < b.x0 || x >= b.x1) return false;
+      // rounded ends, like a pillbox
+      const r = 30;
+      if (y < b.y0 + r && (x < b.x0 + r || x >= b.x1 - r)) {
+        const ccx = x < b.x0 + r ? b.x0 + r : b.x1 - r;
+        if ((x - ccx) ** 2 + (y - (b.y0 + r)) ** 2 > r * r) return false;
+      }
+      if (y >= b.y0 && y < b.y1) return true;
+      return domes.some(d => (x - d) ** 2 + (y - b.y0) ** 2 <= 15 * 15 && y < b.y0); // cupolas on the roof
+    };
+    for (let y = Math.max(0, b.y0 - 16); y < Math.min(this.h, b.y1); y++) {
+      for (let x = Math.max(0, b.x0); x < Math.min(w, b.x1); x++) {
+        const i = y * w + x;
+        if (y >= b.iy0 && y <= b.iy1 && ((x >= b.ix0 && x <= b.ix1) || y >= b.dy0)) {
+          this.mask[i] = 0; this.hard[i] = 0; this.bunkerMask[i] = 0; continue; // hollow room and tunnels
+        }
+        if (inShell(x, y)) { this.mask[i] = 1; this.hard[i] = 1; this.bunkerMask[i] = 1; }
+      }
+    }
+    // the soil that was inside the room is gone
+    this.ctx.save();
+    this.ctx.globalCompositeOperation = 'destination-out';
+    this.ctx.fillStyle = '#000';
+    this.ctx.fillRect(b.x0, b.iy0, BUNKER.w, b.iy1 - b.iy0 + 1);
+    this.ctx.restore();
+    this.drawBunker(b, domes);
+    this.bunkers.push(b);
+    return b;
+  }
+
+  drawBunker(b, domes) {
+    const ctx = this.ensureHardCanvas().getContext('2d'), B = BUNKER, W = B.w;
+    ctx.save();
+    // concrete shell with rounded ends
+    const r = 30;
+    ctx.beginPath();
+    ctx.moveTo(b.x0, b.y1);
+    ctx.lineTo(b.x0, b.y0 + r);
+    ctx.arc(b.x0 + r, b.y0 + r, r, Math.PI, Math.PI * 1.5);
+    ctx.lineTo(b.x1 - r, b.y0);
+    ctx.arc(b.x1 - r, b.y0 + r, r, Math.PI * 1.5, 0);
+    ctx.lineTo(b.x1, b.y1);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, b.y0, 0, b.y1);
+    g.addColorStop(0, '#9a9c92'); g.addColorStop(1, '#73766d');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    // weathering: pale streaks and rusty patches running down the concrete
+    for (let k = 0; k < 26; k++) {
+      const x = b.x0 + ((k * 53) % W), len = 12 + (k * 17) % 50;
+      ctx.fillStyle = k % 3 ? 'rgba(235,235,225,0.35)' : 'rgba(150,90,50,0.28)';
+      ctx.fillRect(x, b.y0 + 4 + (k * 7) % 20, 2 + (k % 3), len);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(b.x0, b.y0 + 6, W, 3);
+    // railing brackets along the front
+    ctx.strokeStyle = '#3a3c37'; ctx.lineWidth = 2;
+    for (let k = 0; k < 7; k++) {
+      const x = b.ix0 + 14 + k * (b.ix1 - b.ix0 - 28) / 6;
+      ctx.beginPath(); ctx.moveTo(x, b.y0 + 10); ctx.lineTo(x, b.y0 + 20); ctx.lineTo(x + 5, b.y0 + 24); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(b.ix0 + 10, b.y0 + 16); ctx.lineTo(b.ix1 - 10, b.y0 + 16); ctx.stroke();
+    // embrasures (small gun slits) on the ends
+    ctx.fillStyle = '#26271f';
+    ctx.fillRect(b.x0 + 6, b.y0 + 40, 8, 6); ctx.fillRect(b.x1 - 14, b.y0 + 40, 8, 6);
+    // the room inside: dark walls, stairs, a ladder up to a roof hatch, a lamp
+    ctx.fillStyle = '#3c3e38';
+    ctx.fillRect(b.ix0, b.iy0, b.ix1 - b.ix0, b.iy1 - b.iy0);
+    ctx.fillRect(b.x0, b.dy0, B.wall + 1, B.door);           // tunnel openings at the bottom
+    ctx.fillRect(b.ix1 - 1, b.dy0, B.wall + 1, B.door);
+    ctx.fillStyle = '#26281f';
+    ctx.beginPath(); ctx.ellipse(b.x0 + 2, b.dy0 + B.door / 2, 6, B.door / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(b.x1 - 2, b.dy0 + B.door / 2, 6, B.door / 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#55584f';                                  // stairs going down to the left
+    for (let k = 0; k < 5; k++) ctx.fillRect(b.ix0 + 10 + k * 9, b.iy1 - 6 - (4 - k) * 5, 9, 6 + (4 - k) * 5);
+    ctx.strokeStyle = '#8a8d80'; ctx.lineWidth = 1.5;          // ladder and hatch
+    const lx = b.x0 + W * 0.62;
+    ctx.beginPath(); ctx.moveTo(lx, b.iy0); ctx.lineTo(lx, b.iy1); ctx.moveTo(lx + 10, b.iy0); ctx.lineTo(lx + 10, b.iy1);
+    for (let y = b.iy0 + 5; y < b.iy1; y += 7) { ctx.moveTo(lx, y); ctx.lineTo(lx + 10, y); }
+    ctx.stroke();
+    ctx.fillStyle = '#4b6b45'; ctx.fillRect(lx - 4, b.iy0 - 3, 18, 4);
+    ctx.fillStyle = 'rgba(255,220,120,0.9)'; ctx.beginPath(); ctx.arc(b.x0 + W * 0.42, b.iy0 + 6, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,120,0.08)'; ctx.beginPath(); ctx.moveTo(b.x0 + W * 0.42, b.iy0 + 6); ctx.lineTo(b.x0 + W * 0.3, b.iy1); ctx.lineTo(b.x0 + W * 0.54, b.iy1); ctx.fill();
+    // a small sign by the door
+    ctx.fillStyle = '#e9ecef'; ctx.fillRect(b.x0 + W * 0.47, b.iy0 + 8, 20, 9);
+    ctx.fillStyle = '#c92a2a'; ctx.font = 'bold 7px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillText('☢', b.x0 + W * 0.47 + 10, b.iy0 + 15);
+    ctx.restore();
+    ctx.strokeStyle = '#4a4c44'; ctx.lineWidth = 2; ctx.stroke();
+    // green cupolas with viewing slits
+    for (const d of domes) {
+      ctx.fillStyle = '#5f7a5c';
+      ctx.beginPath(); ctx.arc(d, b.y0 + 1, 15, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#7d9a78'; ctx.beginPath(); ctx.arc(d - 4, b.y0 - 5, 6, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#1e211c'; ctx.fillRect(d - 9, b.y0 - 6, 18, 3);
+      ctx.fillStyle = '#6f726a'; ctx.fillRect(d - 17, b.y0 - 1, 34, 4);
+    }
+    // barbed wire along the roof
+    ctx.strokeStyle = 'rgba(60,60,60,0.85)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = b.x0 + 30; x < b.x1 - 30; x += 6) { ctx.moveTo(x, b.y0 - 3); ctx.arc(x + 3, b.y0 - 5, 3.5, Math.PI, Math.PI * 3); }
+    ctx.stroke();
+    ctx.restore();
   }
 
   // How many columns under a building still have ground in the few rows below its foundation

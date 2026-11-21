@@ -77,9 +77,9 @@ Weapons are grouped by how strong and how easy to get they are, and inside each 
 |---|---|---|
 | **Basic** | Everyday weapons: always available or plentiful, simple to use | Bazooka, Grenade · Shotgun, MP5 · Baseball Bat, Boomerang · Dynamite, Mine |
 | **Rare** | Stronger or trickier weapons with a few uses each | Cluster Bomb, Drilling Rocket, Lava Boulder · Flashbang, Smoke, Gas (tactical grenades) · Desert Eagle, Sniper Rifle, Flamethrower · Claymore, Mine Mouse (traps) |
-| **Epic** | Big area damage, strikes from the sky and remote-controlled gadgets | Plasma Frag Grenade, Magnet Grenade · Gatling Gun · Air Strike, Napalm Strike, Lava Anvil · Drone, Robo Dozer, Frog Clone Bomb · Tornado |
-| **Legendary** | Game changers, only from steel and alien crates | Nuka Bomb, Tsar Bomb · Star Cannon, Alien Blaster |
-| **Tools & items** | Moving, digging, protection and support | Ninja Rope, Jetpack, Slingshot, Parachute, Teleport · Drill, Pickaxe · Concrete Block, Hazmat Suit · Supply Call, Rest & Heal |
+| **Epic** | Big area damage, strikes from the sky and remote-controlled gadgets | Plasma Frag Grenade, Magnet Grenade · Gatling Gun · Air Strike, Napalm Strike, Lava Anvil, Kamikaze Plane · Drone, Robo Dozer, Frog Clone Bomb · Toxic Waterfall, Tornado |
+| **Legendary** | Game changers, only from steel and alien crates | Nuka Bomb, Tsar Bomb · Plasma Gatling, Alien Bomber Drone, Star Cannon, Alien Blaster |
+| **Tools & items** | Moving, digging, protection and support | Ninja Rope, Jetpack, Slingshot, Parachute, Teleport · Drill, Pickaxe · Concrete Block, Anti-Nuke Bunker, Hazmat Suit · Supply Call, Rest & Heal |
 
 On desktop the weapon bar shows one category at a time with tabs to switch (it follows the weapon you pick by key); on phones the picker lists them all by category; the Weapon settings table uses the same groups. A Supply Call brings something from Epic or Legendary.
 
@@ -95,15 +95,24 @@ With **Weather** set to *Sometimes stormy* (default) or *Often stormy*, dark sto
 
 | Storm | What happens |
 |---|---|
-| 💧 Rain | Everyone it soaks gets wet ground for their next 2 turns: standing on a slope they slowly slide down it (and off edges). It also puts out fires |
+| 💧 Rain | Heavy rain: everyone it soaks gets wet ground for their next 2 turns: standing on a slope they slowly slide down it (and off edges). It also puts out fires |
 | 🧪 Acid rain | Burns everyone in the open (toxic – a Hazmat suit protects) and eats small holes in the ground |
 | 🔥 Fire rain | Burning drops fall and keep burning where they land |
 | 🟢 Plasma rain | Small green plasma clusters rain down and explode |
-| 📦 Crate rain | Three crates float down on parachutes |
-| 💣 Mine rain | Six mines drop out of the sky |
+| 📦 Crate rain | Twelve crates float down on parachutes |
+| 💣 Mine rain | Twelve mines drop out of the sky |
 | 🌪️ Tornado storm | The cloud spins down into a giant tornado, three times the size of a normal one |
 
-Clouds drift slowly with the wind. *Clear skies* turns weather off.
+When a storm forms (between turns) the camera shows it first. Storm clouds stay where they formed. Fire, plasma and acid storms are heavy too. *Clear skies* turns weather off.
+
+## New special weapons
+
+| Weapon | Category | What it does |
+|---|---|---|
+| 🛩️ Kamikaze Plane | Epic | Pull it back in the slingshot (drag your character, or aim and hold Space) and let go. The plane flies like a thrown stone; the first hit drops 5 dynamites, and a shallow hit bounces it on for 1–2 more hits that drop 2–3 more each. A steep hit crashes it. The dynamites go off after 2–5 s |
+| ⛲ Toxic Waterfall | Epic | Click anywhere to drop a green boulder; toxic water pours out of it for 10 s, falls and runs downhill. Anyone standing in it takes toxic damage (a Hazmat suit protects) |
+| 🔋 Plasma Gatling | Legendary (alien crates) | 100 green lasers with a 3° spread that cross the whole map, straight through rock and everyone in the way (1 damage each). Only bunkers stop them |
+| 🛰️ Alien Bomber Drone | Legendary (alien crates) | Flies and steers like the Drone. Press FIRE in flight and it drops a big green plasma bomb every 0.2 s; each bursts into 5 small green clusters |
 
 ## Crates
 
@@ -175,10 +184,10 @@ Several human players share one keyboard (hot-seat).
 | V | Drilling Rocket | 2 | Fired like the bazooka (wind pushes it). When it hits rock it bores a very wide tunnel in the same direction for up to 3 seconds, then explodes with a big blast (radius 64). If it breaks out of the rock into open air first, it explodes right there |
 | — | Robo Dozer | 1 | A big bulldozer that sets off the way you face. Steer it with ←/→ like the drone, but it can't fly: it drives along the ground, or digs a tunnel twice the size of the pickaxe's through rock, pushing characters aside. After 8 seconds, or when you press FIRE again, it stops, drops 3 mini dynamites and blows up |
 | Q | Tornado | 1 | Sets off a tornado that travels along the ground the way you face (turning back at steep walls) and grows to a radius of 60. Characters, mines and crates that get close are sucked in and spun up to the top. Characters are thrown out in a random direction (10 damage) and always take fall damage when they land; crates burst and mines explode at the top. It dies out after 8 seconds |
-| N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact and scatters 5 cluster bomblets |
+| N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for its flight time (1–8 s, 5 s by default; change it with F or the ⏱ button), then its motor cuts out and it drops. Explodes on contact and scatters 10 cluster bomblets |
 | Z | Plasma Frag Grenade | 2 | Bouncy grenade (timer 1–5 s). When it goes off, 10 big green plasma frags fly out; each bursts on impact and splits into 5 green cluster bomblets, and each of those splits once more into 3 tiny ones |
 | H | Lava Boulder | 2 | Hold to charge the throw. The glowing boulder explodes (radius 50) every time it hits the ground, a character or a crate, sets fire all around, and bounces on – 6 times in all |
-| L | Smoke Grenade | 2 | No damage, no crater. Makes a smoke cloud of radius 100 that stays for the rest of the game. Characters inside it are invisible to the other teams (and the CPU can't target them). Anyone caught in it as it bursts is dazed on their next turn (like a flashbang) |
+| L | Smoke Grenade | 2 | No damage, no crater. Makes a smoke cloud of radius 100 that stays for the rest of the game. Characters inside it are invisible to the other teams (and the CPU can't target them). Anyone standing in the smoke without a Hazmat suit is dazed (wobbly aim, washed-out view) for as long as they stay in it; stepping out clears it |
 | E | Boomerang | 2 | Hold to charge the throw. It flies out, curves back to you and can be caught. Anyone it passes through takes 20 damage and is knocked a long way |
 | Y | Mine Mouse | 1 | Scurries along the ground for 6.5 seconds. From 1.5 s on it lays one of your mines every 0.5 s, then it bursts with 35 pellets in every direction |
 | O | Flashbang | 2 | Bouncy grenade (timer 1–5 s). A huge white flash and a strong shove (harder the closer you are), no damage and no crater. Everyone within its radius (160) is dazed on their next turn: their screen keeps washing out white and their aim drifts up and down by itself |
@@ -200,6 +209,7 @@ Several human players share one keyboard (hot-seat).
 | 0 | Pickaxe | ∞ | Tool: hold FIRE/Space to tunnel in the aim direction (5 s per turn) |
 | T | Teleport | 2 | Click or tap any open spot to move there (no fall damage when you drop in) |
 | K | Rest & Heal | ∞ | Ends your turn: +50 health (up to your starting health) and 20% less damage taken for the next 3 rounds (🩹 by your name) |
+| — | Anti-Nuke Bunker | 1 | Tool: click anywhere to build a huge concrete bunker – green cupolas, barbed wire, a room inside with stairs, a ladder up to a roof hatch, and tunnel openings at both bottom corners. It can go over anything except a character (mines and crates under it are crushed). Nothing can destroy it, and anyone inside the room is safe from every blast that goes off outside. Doesn't use your attack |
 | — | Hazmat Suit | 1 | Tool: press Space to put it on or take it off (free after the first time). While worn you take no toxic, plasma or fire damage, but on your turn you only see the battlefield through the two lenses of a gas mask |
 
 Tools don't use up your attack. The drill and pickaxe also do 15 damage to a character they dig into, and they set off mines in their way.

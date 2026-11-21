@@ -401,9 +401,9 @@ const App = {
     // timer / rotate button for the active human
     const opt = $('optBtn');
     const cw = WEAPON[c.weapon];
-    const showOpt = !c.isCPU && !g.hasFired && !g.over && (g.state === 'turn' || g.state === 'banner') && (cw.fuseSelect || cw.id === 'concrete');
+    const showOpt = !c.isCPU && !g.hasFired && !g.over && (g.state === 'turn' || g.state === 'banner') && (cw.fuseSelect || cw.flightSelect || cw.id === 'concrete');
     opt.hidden = !showOpt;
-    if (showOpt) opt.textContent = cw.fuseSelect ? `⏱ Timer ${c.fuse} s` : `↻ Rotate (${c.buildAngle}°)`;
+    if (showOpt) opt.textContent = cw.fuseSelect ? `⏱ Timer ${c.fuse} s` : cw.flightSelect ? `⏱ Flight ${c.flight || 5} s` : `↻ Rotate (${c.buildAngle}°)`;
 
   },
 

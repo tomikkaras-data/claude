@@ -551,3 +551,6 @@ body.touch .weapon .key { display: none; }
   .player-row { grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr); }
   .player-row .swatches { grid-column: 2 / -1; }
 }
+
+/* medium screens: slightly narrower weapon buttons so a full category still fits on one row */
+@media (min-width: 701px) and (max-width: 1100px) and (min-height: 561px) { .weapon { width: 60px; } }
