@@ -754,6 +754,8 @@ class Game {
         });
       }
       Sound.play('blaster');
+    } else if (w.kind === 'leak') {
+      this.placeLeakBarrel(c, w);
     } else if (w.kind === 'vacuum') {
       const { dx, dy } = c.aimVector();
       const x0 = c.x + dx * 18, y0 = c.y - 40;
@@ -973,18 +975,6 @@ class Game {
       team.ammo[w.id]--;
       this.texts.push({ x: k.x, y: k.y + 40, text: `📻 ${pick.icon} ${pick.name} incoming!`, color: '#ffd43b', life: 130 });
       Sound.play('drop');
-      if (!(team.ammo[w.id] > 0)) c.weapon = 'bazooka';
-      this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
-      return;
-    }
-    if (w.id === 'waterfall') {
-      if (y < 20 || y > WATER_Y - 20 || x < 20 || x > WORLD_W - 20 || this.chars.some(o => o.alive && dist(o.x, o.y, x, y) < 16 + CHAR_R)) {
-        this.texts.push({ x, y: y - 20, text: "Can't place it there", color: '#fff', life: 60 });
-        return;
-      }
-      team.ammo[w.id]--;
-      this.hasFired = true;
-      this.placeWaterfall(x, y, c, w);
       if (!(team.ammo[w.id] > 0)) c.weapon = 'bazooka';
       this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
       return;
@@ -1294,6 +1284,7 @@ class Game {
 
   explode(x, y, radius, damage, ownerTeam, knock = 1, kind) {
     this.terrain.carve(x, y, radius);
+    if (this.waterfalls.length) this.burstLeakBarrels(x, y, radius);
     const reach = radius + CHAR_R;
     if (damage > 0) {
       for (const c of this.chars) {
@@ -1942,34 +1933,54 @@ class Game {
     ctx.restore();
   }
 
-  // Toxic waterfall: a green boulder that pours out toxic water for a while
-  placeWaterfall(x, y, c, w) {
-    const t = this.terrain, R = 16;
-    for (let py = Math.floor(y - R); py <= y + R; py++) for (let px = Math.floor(x - R); px <= x + R; px++) {
-      if (px < 0 || py < 0 || px >= t.w || py >= t.h) continue;
-      if ((px - x) ** 2 + (py - y) ** 2 <= R * R) t.mask[py * t.w + px] = 1;
+  // Toxic leaking barrel: set down beside you, it pours toxic sludge out the far side for a while
+  placeLeakBarrel(c, w) {
+    const dir = c.facing, t = this.terrain;
+    let x = c.x + dir * 20;
+    if (t.collides(x, c.y - 4)) x = c.x;                        // no room in front: right where you stand
+    const y = this.groundBelow(x, c.y - 12) - 12;               // barrel centre, standing on the ground
+    this.waterfalls.push({ x, y, dir, t: 0, dur: w.flow, dmg: w.damage, ownerTeam: c.team, vy: 0 });
+    Sound.play('drop'); Sound.play('splash', 0.5);
+  }
+
+  // A blast next to a leaking barrel bursts it: a big splash of sludge all around, then it's gone
+  burstLeakBarrels(x, y, radius) {
+    for (const f of this.waterfalls) {
+      if (f.burst || dist(f.x, f.y, x, y) > radius + 12) continue;
+      f.burst = true; f.t = f.dur;
+      for (let k = 0; k < 40; k++) this.toxic.push({ x: f.x + rand(-6, 6), y: f.y - 4, vx: rand(-2.5, 2.5), vy: rand(-4, -1), life: randInt(220, 320), dmg: f.dmg, ownerTeam: f.ownerTeam });
     }
-    const ctx = t.ctx;
-    const g = ctx.createRadialGradient(x - 5, y - 6, 2, x, y, R);
-    g.addColorStop(0, '#8ce99a'); g.addColorStop(0.6, '#2f9e44'); g.addColorStop(1, '#1b5e2a');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(10,40,15,0.45)';
-    for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.arc(x + Math.cos(k * 2.1) * 8, y + Math.sin(k * 1.7) * 7, 2, 0, Math.PI * 2); ctx.fill(); }
-    // it pours out towards the lower side
-    const lowL = this.groundBelow(x - 40, y), lowR = this.groundBelow(x + 40, y);
-    const dir = lowL === lowR ? c.facing : lowL > lowR ? -1 : 1;
-    this.waterfalls.push({ x, y, dir, t: 0, dur: w.flow, dmg: w.damage, ownerTeam: c.team });
-    Sound.play('splash');
+  }
+
+  drawLeakBarrels(ctx) {
+    for (const f of this.waterfalls) {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.fillStyle = '#2b8a3e';
+      ctx.fillRect(-9, -12, 18, 24);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(-9, -6, 18, 2); ctx.fillRect(-9, 5, 18, 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(-7, -12, 3, 24);
+      ctx.fillStyle = '#d3f9d8';
+      ctx.font = 'bold 10px system-ui, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('☣', 0, 3);
+      ctx.fillStyle = '#1b1f1c';                                  // the leak, low on the far side
+      ctx.beginPath(); ctx.ellipse(f.dir * 9, 7, 2, 3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      const left = (f.dur - f.t) / TICK_RATE;
+      if (left > 0) this.outlinedText(ctx, left.toFixed(1), f.x, f.y - 20, 'bold 11px system-ui, sans-serif', '#8ce99a');
+    }
   }
 
   updateWaterfalls() {
     const t = this.terrain;
     for (const f of this.waterfalls) {
       f.t++;
-      if (!t.isSolid(f.x, f.y)) { f.t = f.dur; continue; } // boulder blown away
+      // the barrel drops if the ground under it is blown away
+      if (!t.isSolid(f.x, f.y + 13)) { f.vy = Math.min(f.vy + GRAVITY, 8); f.y += f.vy; if (f.y > WATER_Y) { f.t = f.dur; this.splash(f.x); continue; } } else f.vy = 0;
       for (let k = 0; k < 2; k++) {
-        this.toxic.push({ x: f.x + f.dir * 17, y: f.y - 4 + rand(-3, 3), vx: f.dir * rand(0.8, 1.6), vy: rand(-0.6, 0.3), life: randInt(260, 340), dmg: f.dmg, ownerTeam: f.ownerTeam });
+        this.toxic.push({ x: f.x + f.dir * 10, y: f.y + 6 + rand(-2, 2), vx: f.dir * rand(0.9, 1.7), vy: rand(-0.6, 0.2), life: randInt(260, 340), dmg: f.dmg, ownerTeam: f.ownerTeam });
       }
       if (f.t % 25 === 0) Sound.play('splash', 0.3);
     }
@@ -3606,9 +3617,11 @@ class Game {
     this.drawGas(ctx);
     if (this.storms.length) this.drawStorms(ctx);
     if (this.toxic.length) this.drawToxic(ctx);
+    if (this.waterfalls.length) this.drawLeakBarrels(ctx);
     for (const c of this.chars) if (c.alive && this.visibleChar(c)) this.drawChar(ctx, c);
     this.drawSlingFrame(ctx, true);
     if (this.state === 'turn' && this.active.alive && !this.hasFired) this.drawAim(ctx, this.active);
+    this.drawLaserAim(ctx);
 
     for (const p of this.particles) {
       ctx.globalAlpha = p.streak ? 0.85 : Math.max(0, p.life / p.max);
@@ -4067,12 +4080,13 @@ class Game {
       else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
       else if (w.kind === 'drone') hint = `${press} launches the drone · steer with ${lr} for ${c.flight || 5} s (${this.isTouch ? 'the ⏱ button' : 'F'} changes it)${w.bomber ? ` · ${press} again in flight starts bombing` : ''}`;
       else if (this.lockedWeapon) hint = this.gunBurst ? '' : `Move if you like, then press ${press} for the next shot (${this.shotsFired + 1} of ${WEAPON[this.lockedWeapon].shots})`;
-      else if (w.id === 'waterfall') hint = `${this.isTouch ? 'Tap' : 'Click'} where to drop the green boulder · toxic water pours out of it for ${Math.round(w.flow / TICK_RATE)} s`;
+      else if (w.kind === 'leak') hint = `${press} sets a leaking toxic barrel down next to you · the sludge pours out ${c.facing > 0 ? 'to the right' : 'to the left'} (away from you) for ${Math.round(w.flow / TICK_RATE)} s`;
       else if (w.id === 'bunker') hint = `${this.isTouch ? 'Tap' : 'Click'} where to build a huge indestructible bunker · walk in through its bottom tunnels to shelter from blasts · doesn't use your attack`;
       else if (w.id === 'concrete') hint = `${this.isTouch ? 'Tap' : 'Click'} the map to place a block · ${this.isTouch ? '↻ button' : 'R'} rotates · doesn't use your attack`;
       else if (w.kind === 'target') hint = this.isTouch ? 'Tap the map to pick a target' : 'Click the map to pick a target';
       else if (w.fuseSelect && w.id !== 'smoke' && w.id !== 'flashbang' && w.id !== 'gas') hint = `Timer ${c.fuse} s · change it with ${this.isTouch ? 'the ⏱ button' : 'F'}`;
       else if (w.scope) hint = `Scope: ${this.isTouch ? '▲ ▼' : '↑/↓'} for fine aim, ${press} to fire`;
+      else if (w.laser) hint = `Line up the white aiming laser · ${press} fires ${w.bullets} green lasers across the whole map (through everything but bunkers) · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
       else if (w.kind === 'burst') hint = `${press} fires ${w.bullets} rounds · keep aiming with ${this.isTouch ? '▲ ▼' : '↑/↓'} while it fires`;
       else if (w.kind === 'jetpack') hint = this.jet
         ? `${this.isTouch ? '▲' : '↑'} thrust · ${this.isTouch ? '◀ ▶' : '←/→'} steer · fuel ${(this.jet.fuel / TICK_RATE).toFixed(1)} s · ${press} or picking another weapon takes it off`
@@ -4449,10 +4463,38 @@ class Game {
     ctx.globalAlpha = 1;
   }
 
+  // Plasma gatling: a thin white aiming laser across the map (up to the first bunker), also while it fires
+  drawLaserAim(ctx) {
+    const c = this.active;
+    if (!c || !c.alive || this.state !== 'turn') return;
+    const w = WEAPON[c.weapon];
+    const firing = this.gunBurst && this.gunBurst.w.laser;
+    if (!(w.laser && !this.hasFired) && !firing) return;
+    const { dx, dy } = c.aimVector(), t = this.terrain;
+    const ox = c.x + dx * 14, oy = c.y + dy * 14;
+    let ex = ox, ey = oy;
+    for (let d = 0; d < WORLD_W * 2; d += 4) {
+      ex = ox + dx * d; ey = oy + dy * d;
+      if (ex < -50 || ex > WORLD_W + 50 || ey < -400 || ey > WATER_Y + 20) break;
+      if (t.bunkers.length && (t.isBunker(ex, ey) || t.bunkers.some(b => ex >= b.x0 && ex <= b.x1 && ey >= b.y0 - 16 && ey <= b.y1 && !(c.x >= b.x0 && c.x <= b.x1 && c.y >= b.y0 && c.y <= b.y1)))) break;
+    }
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 4 / this.zoom;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,255,255,${0.75 + Math.sin(this.tick * 0.3) * 0.15})`;
+    ctx.lineWidth = 1.2 / this.zoom;
+    ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(ex, ey, 3 / this.zoom, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
   drawAim(ctx, c) {
     const w = WEAPON[c.weapon];
     if (this.isSling(w)) return;
-    if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'drop' || w.kind === 'mine' || w.dig === 'down' || w.kind === 'chute' || w.kind === 'jetpack') return;
+    if (w.kind === 'target' || w.kind === 'skip' || w.kind === 'leak' || w.kind === 'drop' || w.kind === 'mine' || w.dig === 'down' || w.kind === 'chute' || w.kind === 'jetpack') return;
     if (this.rope && this.rope.state === 'attached') return;
     if (w.scope) { this.drawScope(ctx, c); return; }
     if (w.laser) { // red laser line; a dot on whatever it touches within range

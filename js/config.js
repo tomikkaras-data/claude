@@ -131,8 +131,8 @@ const WEAPONS = [
     note: 'drive it with ←/→ for 8 s · digs a big tunnel · FIRE stops it early' },
   { id: 'frog',      name: 'Frog Clone Bomb', icon: '🐸', group: 'epic', fam: 'robot', kind: 'walker', fuse: 300, radius: 75, damage: 80, blastKnock: 1.4, ammo: 1, crate: 2,
     babies: 5, bombletDamage: 25, bombletRadius: 32, subLabel: 'Frog clones', subNote: '5 clones hop around and go off after 1–3 s' },
-  { id: 'waterfall', name: 'Toxic Waterfall', icon: '⛲', group: 'epic', fam: 'nature', kind: 'target', flow: 600, damage: 2, ammo: 1, crate: 1,
-    note: 'drop a green boulder anywhere · toxic water pours out of it for 10 s · damage every 1/3 s to anyone standing in it (a Hazmat suit protects)' },
+  { id: 'leakbarrel', name: 'Toxic Leaking Barrel', icon: '🛢️', group: 'epic', fam: 'nature', kind: 'leak', flow: 600, damage: 2, ammo: 1, crate: 1,
+    note: 'set down right next to you · toxic sludge pours out of it, away from you, for 10 s · damage every 1/3 s to anyone standing in it (a Hazmat suit protects) · a blast nearby bursts it' },
   { id: 'tornado',   name: 'Tornado',      icon: '🌪️', key: 'Q', group: 'epic', fam: 'nature', kind: 'tornado', radius: 60, damage: 10, life: 480, speed: 1.1, ammo: 1,
     note: 'radius = full size it grows to · damage when it throws someone out' },
 
