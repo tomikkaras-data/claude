@@ -88,11 +88,11 @@ const WEAPONS = [
   { id: 'boulder',   name: 'Lava Boulder', icon: '🪨', key: 'H', group: 'rare', fam: 'launch', kind: 'boulder', charge: true, bounces: 6, radius: 50, damage: 35, blastKnock: 1.2, ammo: 2,
     note: 'explodes on every one of its 6 bounces, spreading fire each time' },
   { id: 'flashbang', name: 'Flashbang',    icon: '🔆', key: 'O', group: 'rare', fam: 'tactical', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
-    radius: 160, ammo: 2, note: 'radius = how far the flash reaches · no damage · anyone caught is dazed on their next turn' },
+    radius: 160, flashKnock: 9, ammo: 2, note: 'radius = how far the flash reaches · no damage but a strong shove · anyone caught is dazed on their next turn' },
   { id: 'smoke',     name: 'Smoke Grenade', icon: '🌫️', key: 'L', group: 'rare', fam: 'tactical', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true,
-    smokeRadius: 100, ammo: 2, note: 'no damage · a cloud of radius 100 that stays all game and hides other teams inside it' },
-  { id: 'gas',       name: 'Gas Grenade',  icon: '☣️', group: 'rare', fam: 'tactical', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true, radius: 90, damage: 1, ammo: 2,
-    note: 'radius = size of the gas cloud · damage 3 times a second to anyone inside · the gas never clears' },
+    smokeRadius: 100, ammo: 2, note: 'no damage · a cloud of radius 100 that stays all game and hides other teams inside it · anyone caught when it bursts is dazed for a turn' },
+  { id: 'gas',       name: 'Gas Grenade',  icon: '☣️', group: 'rare', fam: 'tactical', kind: 'projectile', charge: true, bounce: true, fuse: 120, fuseSelect: true, radius: 135, damage: 25, gasLife: 300, ammo: 2,
+    note: 'radius = size of the gas cloud · it lasts 5 s · everyone who breathed it loses this much health at the end of the thrower\'s turn' },
   { id: 'deagle',    name: 'Desert Eagle', icon: '🦅', group: 'rare', fam: 'gun', kind: 'hitscan', range: 1000, damage: 45, radius: 7, knock: 4.5, ammo: 1, crate: 2 },
   { id: 'sniper',    name: 'Sniper Rifle', icon: '🎯', group: 'rare', fam: 'gun', kind: 'hitscan', scope: true, range: 3200, damage: 60, radius: 6, knock: 3, ammo: 1, crate: 2 },
   { id: 'flamer',    name: 'Flamethrower', icon: '🌋', key: 'G', group: 'rare', fam: 'gun', kind: 'flame', bullets: 90, spread: 6, damage: 4, ammo: 3, note: 'burn damage, 6 times a second while in the flames' },
@@ -107,8 +107,8 @@ const WEAPONS = [
     microClusters: 3, microDamage: 7, microRadius: 13,
     bombletDamage: 22, bombletRadius: 28, subLabel: 'Plasma frags', subNote: '10 frags → 5 green clusters each → 3 tiny ones each' },
   { id: 'magnet',    name: 'Magnet Grenade', icon: '🧲', group: 'epic', fam: 'launch', kind: 'projectile', charge: true, bounce: true, fuse: 240,
-    radius: 40, damage: 40, blastKnock: 1.2, pullRadius: 100, stickRadius: 50, armTicks: 60, ammo: 1, crate: 1,
-    note: 'heavy grenade · turns red after 1 s and pulls everything within 100 px (stronger the closer) · within 50 px things stick to it · implodes after 4 s · radius/damage = the implosion blast' },
+    radius: 40, damage: 40, blastKnock: 1.2, pullRadius: 100, stickRadius: 50, armTicks: 0, ammo: 1, crate: 1,
+    note: 'heavy grenade · pulls everything except the thrower within 100 px from the moment it leaves the hand (stronger the closer) · within 50 px things stick to it · implodes after 4 s · radius/damage = the implosion blast' },
   { id: 'gatling',   name: 'Gatling Gun',  icon: '⚙️', group: 'epic', fam: 'gun', kind: 'burst', bullets: 24, spread: 3, range: 900, damage: 4, radius: 5, ammo: 1, crate: 1, note: 'per bullet · 24 bullets' },
   { id: 'airstrike', name: 'Air Strike',   icon: '✈️', key: '7', group: 'epic', fam: 'sky', kind: 'target', radius: 30, damage: 30, ammo: 1, missiles: 5, note: 'per missile · 5 missiles' },
   { id: 'napalm',    name: 'Napalm Strike', icon: '🔥', group: 'epic', fam: 'sky', kind: 'target', radius: 16, damage: 1, canisters: 4, ammo: 1, crate: 1, note: 'burn damage, 6 times a second' },
@@ -133,7 +133,8 @@ const WEAPONS = [
     bombletDamage: 85, bombletRadius: 180, subLabel: 'Detonation', subNote: 'press FIRE again while it flies',
     miniBalls: 25, miniDamage: 25, miniRadius: 30, miniClusters: 5, burstClusters: 20, toxicSpray: 110, clusterDamage: 15, clusterRadius: 20 },
   { id: 'blaster',   name: 'Alien Blaster', icon: '👽', group: 'legendary', fam: 'alien', kind: 'blaster', speed: 9, life: 80, damage: 25, radius: 45, ammo: 1, crate: 1, alien: true,
-    note: 'damage to each character the bolt passes through · it goes through everything',
+    bolts: 3, boltSpread: 15, dropEvery: 12, dropFrags: 3, fragDamage: 8, fragRadius: 14,
+    note: '3 bolts 15° apart · damage to each character a bolt passes through · each bolt drops 3 green frags every 0.2 s',
     bombletDamage: 40, subLabel: 'End blast', subNote: 'fire and plasma where the bolt runs out' },
 
   // --- Tools & items (they don't use up the attack, except Teleport and Rest & Heal) 
@@ -153,6 +154,19 @@ const WEAPONS = [
   { id: 'skip',      name: 'Rest & Heal',  icon: '🩹', key: 'K', group: 'tool', fam: 'support', kind: 'skip', heal: 50, ammo: Infinity,
     note: 'ends your turn · +50 health and 20% less damage for 3 rounds' },
 ];
+
+// Weather: storm clouds that drift in, count down a few turns, then unleash their effect
+const WEATHER_TYPES = [
+  { id: 'water',   name: 'Rain',          icon: '💧', tint: [92, 110, 140],  drop: '#8ec5ff', dur: 240 },
+  { id: 'acid',    name: 'Acid rain',     icon: '🧪', tint: [96, 120, 70],   drop: '#c0eb75', dur: 240 },
+  { id: 'fire',    name: 'Fire rain',     icon: '🔥', tint: [130, 80, 60],   drop: '#ff922b', dur: 220 },
+  { id: 'cluster', name: 'Plasma rain',   icon: '🟢', tint: [70, 120, 80],   drop: '#7dff5a', dur: 200 },
+  { id: 'crate',   name: 'Crate rain',    icon: '📦', tint: [120, 108, 90],  drop: '#d9c39a', dur: 120 },
+  { id: 'mine',    name: 'Mine rain',     icon: '💣', tint: [90, 90, 96],    drop: '#adb5bd', dur: 120 },
+  { id: 'tornado', name: 'Tornado storm', icon: '🌪️', tint: [80, 84, 96],   drop: '#ced4da', dur: 90 },
+];
+const WEATHER = { off: 0, sometimes: 0.14, often: 0.3 }; // chance per turn of a new storm forming
+const STORM_WIDTH = 260;
 
 const WEAPON_GROUPS = [['basic', 'Basic'], ['rare', 'Rare'], ['epic', 'Epic'], ['legendary', 'Legendary'], ['tool', 'Tools & items']];
 

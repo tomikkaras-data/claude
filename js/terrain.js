@@ -185,6 +185,8 @@ class Terrain {
     const ctx = this.ctx;
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = '#000'; // fully opaque, or the hole is only partly erased
+    ctx.globalAlpha = 1;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();

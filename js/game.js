@@ -34,6 +34,8 @@ class Game {
     this.deathBlasts = [];
     this.smokes = [];
     this.gases = [];
+    this.gassed = new Map();
+    this.storms = [];
     this.jet = null;
     this.particles = [];
     this.rubble = [];
@@ -212,11 +214,21 @@ class Game {
     Sound.play('flashbang');
     for (const c of this.chars) {
       if (!c.alive || dist(c.x, c.y, p.x, p.y) > p.radius) continue;
+      // the blast wave shoves everyone away, harder the closer they are (friendly fire rules don't stop the push)
+      const d = dist(c.x, c.y, p.x, p.y) || 1, near = 1 - d / p.radius, push = (WEAPON.flashbang.flashKnock || 0) * (0.35 + 0.65 * near);
+      c.vx += (c.x - p.x) / d * push; c.vy += Math.min(-1.5, (c.y - p.y) / d * push) - push * 0.25; c.airborne = true;
       if (c.team === p.ownerTeam && c !== this.active && !this.friendlyFire) continue;
-      c.dazed = 1;
-      this.texts.push({ x: c.x, y: c.y - 40, text: '😵 Dazed!', color: '#fff', life: 80 });
-      if (c === this.active && this.state === 'turn') this.dazedNow = true;
+      this.daze(c);
     }
+    for (const k of this.crates) { const d = dist(k.x, k.y, p.x, p.y); if (!k.dead && d < p.radius * 0.6) { k.vx += (k.x - p.x) / (d || 1) * 3; k.vy -= 3; k.airborne = true; } }
+  }
+
+  // Dazed: wobbly aim (and a woozy screen for humans) on the character's next turn
+  daze(c) {
+    if (!c.alive) return;
+    c.dazed = Math.max(c.dazed || 0, 1);
+    this.texts.push({ x: c.x, y: c.y - 40, text: '😵 Dazed!', color: '#fff', life: 80 });
+    if (c === this.active && this.state === 'turn') this.dazedNow = true;
   }
 
   addGas(x, y, r, dmg, ownerTeam) {
@@ -224,22 +236,35 @@ class Game {
       const a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * r * 0.75;
       return { dx: Math.cos(a) * d, dy: Math.sin(a) * d, r: rand(r * 0.3, r * 0.5), ph: rand(0, 6) };
     });
-    this.gases.push({ x, y, r, dmg, ownerTeam, age: 0, puffs });
+    this.gases.push({ x, y, r, dmg, ownerTeam, age: 0, life: WEAPON.gas.gasLife || 300, puffs });
     Sound.play('puff');
   }
 
   updateGas() {
     for (const g of this.gases) g.age++;
-    if (this.tick % 20 !== 0 || !this.gases.length) return;
+    if (this.gases.some(g => g.age >= g.life)) this.gases = this.gases.filter(g => g.age < g.life);
+    if (this.tick % 5 !== 0 || !this.gases.length) return;
+    // breathing it doesn't hurt yet: everyone who was in the cloud loses health at the end of the turn
     for (const c of this.chars) {
       if (!c.alive || c.suit) continue;
       const g = this.gases.find(g => dist(c.x, c.y, g.x, g.y) < g.r * Math.min(1, g.age / SMOKE_GROW) && (c.team !== g.ownerTeam || this.friendlyFire));
       if (!g) continue;
-      const got = this.hurt(c, Math.max(1, Math.round(g.dmg)));
-      c.gasShown = (c.gasShown || 0) + got;
-      if (c.gasShown >= 3) { this.texts.push({ x: c.x, y: c.y - 30, text: `☣ -${c.gasShown}`, color: '#8ce99a', life: 50 }); c.gasShown = 0; }
+      if (!this.gassed.has(c)) { this.gassed.set(c, g.dmg); this.texts.push({ x: c.x, y: c.y - 40, text: '☣ Poisoned', color: '#8ce99a', life: 60 }); }
+      else this.gassed.set(c, Math.max(this.gassed.get(c), g.dmg));
+    }
+  }
+
+  // End of the thrower's turn: the gas finally takes its toll
+  applyGas() {
+    for (const [c, dmg] of this.gassed) {
+      if (!c.alive) continue;
+      if (c.suit) { this.texts.push({ x: c.x, y: c.y - 30, text: '🦺 0', color: '#ffd43b', life: 40 }); continue; }
+      const got = this.hurt(c, Math.max(1, Math.round(dmg)));
+      this.texts.push({ x: c.x, y: c.y - 30, text: `☣ -${got}`, color: '#8ce99a', life: 80 });
+      this.burst(c.x, c.y, '#8ce99a', 10);
       if (c.hp <= 0) this.kill(c, false);
     }
+    this.gassed.clear();
   }
 
   addSmoke(x, y) {
@@ -401,6 +426,7 @@ class Game {
     this.ropeKickCd = 0;
     this.dazedNow = this.active.dazed > 0;
     if (this.dazedNow) this.active.dazed--;
+    if (this.active.wet > 0) this.active.wet--;
     if (!(team.ammo[this.active.weapon] > 0)) this.active.weapon = 'bazooka';
     Sound.play('turn');
     this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
@@ -416,6 +442,7 @@ class Game {
     const every = (CRATE_AMOUNTS[this.settings.crates] || CRATE_AMOUNTS.normal).every;
     this.dropPending = every > 0 && this.turnNumber % every === 0;
     this.state = 'settle';
+    this.weatherPending = true;
     this.charging = false;
     this.settleTimer = 0;
     this.hooks.onWeaponsChanged && this.hooks.onWeaponsChanged();
@@ -617,7 +644,7 @@ class Game {
       if (w.id === 'smoke') p.smoke = true;
       if (w.id === 'flashbang') p.flash = true;
       if (w.id === 'gas') p.gas = true;
-      if (w.id === 'magnet') Object.assign(p, { magnet: true, pullRadius: w.pullRadius, stickRadius: w.stickRadius, armTicks: w.armTicks, maxFuse: p.fuse, stuck: [] });
+      if (w.id === 'magnet') Object.assign(p, { magnet: true, throwerId: c.id, pullRadius: w.pullRadius, stickRadius: w.stickRadius, armTicks: w.armTicks, maxFuse: p.fuse, stuck: [] });
       this.projectiles.push(p);
       Sound.play(w.bounce ? 'throw' : 'launch');
     } else if (w.kind === 'drop') {
@@ -684,12 +711,18 @@ class Game {
       this.mines.push(m);
       Sound.play('throw');
     } else if (w.kind === 'blaster') {
-      const { dx, dy } = c.aimVector();
-      this.projectiles.push({
-        weapon: 'blaster', blaster: true, x: c.x + dx * 14, y: c.y + dy * 14, vx: dx * w.speed, vy: dy * w.speed, life: w.life,
-        damage: w.damage * mult, radius: w.radius, bigDamage: w.bombletDamage * mult, hit: new Set(),
-        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
-      });
+      const { dx: ax, dy: ay } = c.aimVector();
+      const n = w.bolts || 1;
+      for (let k = 0; k < n; k++) { // a fan of bolts, boltSpread degrees apart
+        const a = (k - (n - 1) / 2) * (w.boltSpread || 0) * Math.PI / 180;
+        const dx = ax * Math.cos(a) - ay * Math.sin(a), dy = ax * Math.sin(a) + ay * Math.cos(a);
+        this.projectiles.push({
+          weapon: 'blaster', blaster: true, x: c.x + dx * 14, y: c.y + dy * 14, vx: dx * w.speed, vy: dy * w.speed, life: w.life,
+          damage: w.damage * mult, radius: w.radius, bigDamage: w.bombletDamage * mult, hit: new Set(),
+          dropEvery: w.dropEvery, dropFrags: w.dropFrags, fragDamage: w.fragDamage * mult, fragRadius: w.fragRadius,
+          owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+        });
+      }
       Sound.play('blaster');
     } else if (w.kind === 'boulder') {
       const { dx, dy } = c.aimVector();
@@ -1277,6 +1310,7 @@ class Game {
         }
       }
     }
+    if (c.alive && c.wet > 0 && !c.airborne) this.slideWet(c);
     if (c.y > WATER_Y + 6) {
       if (c.alive) {
         this.splash(c.x);
@@ -1720,6 +1754,14 @@ class Game {
         ownerTeam: p.ownerTeam, dmg: 1, toxic: p.age % 8 === 0, seed: Math.random() * 10 });
     }
     this.particles.push({ x: p.x, y: p.y, vx: rand(-0.4, 0.4), vy: rand(-0.4, 0.4), life: 16, max: 16, color: '#7dff5a', size: 2.5, grav: 0 });
+    if (p.dropEvery && p.age % p.dropEvery === 0 && p.y < WATER_Y) { // sheds small green frags along its path
+      for (let k = 0; k < p.dropFrags; k++) {
+        this.projectiles.push({
+          weapon: 'greenlet', x: p.x, y: p.y, vx: rand(-1.6, 1.6) + p.vx * 0.08, vy: rand(-2.5, 0.5), wind: false, bounce: false,
+          fuse: null, radius: p.fragRadius, damage: p.fragDamage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0,
+        });
+      }
+    }
     if (p.x < -100 || p.x > WORLD_W + 100 || p.y < -500 || p.y > WATER_Y) return 'gone';
     if (p.age >= p.life) {
       this.explode(p.x, p.y, p.radius, p.bigDamage, p.ownerTeam, 1.3, 'plasma');
@@ -2009,6 +2051,150 @@ class Game {
     return null;
   }
 
+  // --- weather -----------------------------------------------------------------
+
+  // Once per turn (between turns): storms count down, ripe ones start raining, maybe a new one forms.
+  // Returns true if something started, so the turn waits for it.
+  weatherTurn() {
+    let started = false;
+    for (const s of this.storms) {
+      if (s.phase !== 'wait') continue;
+      if (--s.count <= 0) { this.startStorm(s); started = true; }
+    }
+    const chance = WEATHER[this.settings.weather || 'sometimes'] || 0;
+    if (this.turnNumber >= 2 && this.storms.filter(s => s.phase === 'wait').length < 2 && Math.random() < chance) {
+      const type = WEATHER_TYPES[randInt(0, WEATHER_TYPES.length - 1)];
+      const s = { type, x: rand(STORM_WIDTH / 2 + 40, WORLD_W - STORM_WIDTH / 2 - 40), y: 0, w: STORM_WIDTH, count: randInt(3, 5), phase: 'wait', t: 0, age: 0, seed: rand(0, 100) };
+      s.y = this.stormHeight(s);
+      this.storms.push(s);
+      this.texts.push({ x: s.x, y: s.y + 50, text: `${type.icon} ${type.name} in ${s.count} turns`, color: '#fff', life: 160 });
+      Sound.play('wind');
+    }
+    return started;
+  }
+
+  // Clouds float well above the highest ground beneath them
+  stormHeight(s) {
+    let top = WATER_Y;
+    for (let x = s.x - s.w / 2; x <= s.x + s.w / 2; x += 10) top = Math.min(top, this.groundBelow(clamp(x, 0, WORLD_W - 1), 0));
+    return Math.max(70, top - 190);
+  }
+
+  startStorm(s) {
+    s.phase = 'rain'; s.t = 0; s.dur = s.type.dur;
+    Sound.play(s.type.id === 'tornado' ? 'wind' : 'thud');
+  }
+
+  // Is this character out in the open under the storm (no roof over it)?
+  underStorm(s, c) {
+    if (!c.alive || Math.abs(c.x - s.x) > s.w / 2 || c.y < s.y) return false;
+    for (let y = s.y + 30; y < c.y - CHAR_R - 2; y += 4) if (this.terrain.isSolid(c.x, y)) return false;
+    return true;
+  }
+
+  updateStorms() {
+    for (const s of this.storms) {
+      s.age++;
+      s.x = clamp(s.x + this.wind * 0.22, s.w / 2, WORLD_W - s.w / 2);
+      if (s.age % 30 === 0) s.y += (this.stormHeight(s) - s.y) * 0.5;
+      if (s.phase !== 'rain') continue;
+      s.t++;
+      const X = () => s.x + rand(-s.w / 2, s.w / 2) * 0.9, Y = s.y + 26;
+      const id = s.type.id;
+      // falling drops (just for show)
+      if (id === 'water' || id === 'acid' || (id === 'fire' && s.t % 2 === 0) || (id === 'cluster' && s.t % 3 === 0)) {
+        for (let k = 0; k < (id === 'water' || id === 'acid' ? 4 : 1); k++) {
+          this.particles.push({ x: X(), y: Y + rand(0, 10), vx: this.wind * 0.6, vy: rand(7, 9), life: 70, max: 70, color: s.type.drop, size: id === 'water' || id === 'acid' ? 2.5 : 3, grav: 0.05, rain: true, streak: true });
+        }
+      }
+      if (id === 'water') {
+        if (s.t % 10 === 0) for (const c of this.chars) if (this.underStorm(s, c)) {
+          if (!(c.wet > 0)) this.texts.push({ x: c.x, y: c.y - 40, text: '💧 Slippery!', color: '#8ec5ff', life: 80 });
+          c.wet = 2;
+        }
+        if (s.t % 15 === 0) this.fires = this.fires.filter(f => Math.abs(f.x - s.x) > s.w / 2); // puts out fires
+      } else if (id === 'acid') {
+        if (s.t % 30 === 0) for (const c of this.chars) if (this.underStorm(s, c)) this.damageChar(c, 2, 0, 0, -1, 'toxic');
+        if (s.t % 3 === 0 && Math.random() < 0.5) { const x = X(); const gy = this.groundBelow(x, Y); if (gy < WATER_Y && !this.terrain.isHard(x, gy + 2)) this.terrain.carve(x, gy, 4); }
+      } else if (id === 'fire') {
+        if (s.t % 5 === 0) this.fires.push({ x: X(), y: Y, vx: rand(-0.3, 0.3) + this.wind * 0.5, vy: rand(1, 2.5), life: randInt(200, 280), airborne: true, ownerTeam: -1, dmg: 2, seed: Math.random() * 10 });
+      } else if (id === 'cluster') {
+        if (s.t % 9 === 0) this.projectiles.push({ weapon: 'greenlet', x: X(), y: Y, vx: rand(-0.6, 0.6), vy: rand(1, 3), wind: false, bounce: false, fuse: null,
+          radius: WEAPON.plasmagrenade.clusterRadius, damage: WEAPON.plasmagrenade.clusterDamage, cluster: 0, ownerId: -1, ownerTeam: -1, age: 20, spin: 0 });
+      } else if (id === 'crate') {
+        if (s.t === 1) for (let k = 0; k < 3; k++) {
+          const r = Math.random();
+          this.crates.push(this.makeCrate(s.x + (k - 1) * s.w * 0.33 + rand(-15, 15), Y, this.crateType(r < 0.6 ? 'wood' : r < 0.93 ? 'steel' : 'alien'), true));
+        }
+      } else if (id === 'mine') {
+        if (s.t === 1 || s.t === 45) for (let k = 0; k < 3; k++) {
+          const m = this.makeMine(X(), Y, -1, 90);
+          m.airborne = true; m.vx = rand(-0.5, 0.5); m.vy = rand(0, 1.5);
+          this.mines.push(m);
+        }
+      } else if (id === 'tornado') {
+        if (s.t === 1) {
+          const T = WEAPON.tornado;
+          this.projectiles.push({
+            weapon: 'tornado', tornado: true, x: s.x, y: this.groundBelow(s.x, s.y + 60), dir: Math.random() < 0.5 ? -1 : 1, r: 12, maxR: T.radius * 3,
+            speed: T.speed * 1.1, life: T.life * 1.25, damage: T.damage * 1.5, owner: null, ownerId: -1, ownerTeam: -1,
+            caught: [], recent: new Map(), age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null, storm: true,
+          });
+          Sound.play('wind');
+        }
+      }
+      if (s.t >= s.dur) s.done = true;
+    }
+    if (this.storms.some(s => s.done)) this.storms = this.storms.filter(s => !s.done);
+  }
+
+  // Wet ground: a character on a slope slowly slides down it
+  slideWet(c) {
+    if (c === this.active && this.state === 'turn' && (this.keys.ArrowLeft || this.keys.ArrowRight || this.keys.KeyA || this.keys.KeyD)) { c.slideV = 0; return; }
+    const t = this.terrain;
+    const dropAt = dir => {
+      const nx = c.x + dir * 2;
+      if (t.collides(nx, c.y)) return -1;
+      let d = 0;
+      while (d < 8 && !t.collides(nx, c.y + d + 1)) d++;
+      return d;
+    };
+    const l = dropAt(-1), r = dropAt(1);
+    const dir = r > l ? 1 : l > r ? -1 : 0, drop = Math.max(l, r);
+    if (!dir || drop < 1) { c.slideV = 0; return; }   // flat (or a dip): stays put
+    c.slideV = Math.min(2.6, (c.slideDir === dir ? c.slideV || 0 : 0) + 0.06 + drop * 0.02);
+    c.slideDir = dir;
+    if (drop >= 8) { c.airborne = true; c.vx = dir * c.slideV; c.slideV = 0; return; } // slid off an edge
+    const nx = c.x + dir * c.slideV;
+    if (t.collides(nx, c.y)) { c.slideV = 0; return; }
+    c.x = nx;
+    for (let k = 0; k < 10 && !t.collides(c.x, c.y + 1); k++) c.y++;
+    if (this.tick % 6 === 0) this.particles.push({ x: c.x, y: c.y + CHAR_R, vx: -dir * rand(0.3, 1), vy: rand(-1, 0), life: 14, max: 14, color: '#8ec5ff', size: 2, grav: 0.1 });
+  }
+
+  drawStorms(ctx) {
+    for (const s of this.storms) {
+      const [r, g, b] = s.type.tint;
+      const rain = s.phase === 'rain';
+      const flash = rain && (s.t % 37 < 3) && s.type.id !== 'crate';
+      const dark = rain ? 0.85 : 1;
+      for (let k = 0; k < 9; k++) {   // a lumpy dark cloud
+        const px = s.x + (k - 4) * s.w / 9 + Math.sin(s.seed + k * 1.7) * 8 + Math.sin(this.tick * 0.01 + k) * 3;
+        const py = s.y + Math.cos(s.seed + k * 2.3) * 9;
+        const pr = 28 + Math.abs(Math.sin(s.seed * 0.7 + k)) * 18 - Math.abs(k - 4) * 2;
+        ctx.fillStyle = flash ? 'rgba(235,240,255,0.95)' : `rgba(${r * dark | 0},${g * dark | 0},${b * dark | 0},0.93)`;
+        ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = flash ? 'rgba(235,240,255,0.95)' : `rgba(${r * 0.72 * dark | 0},${g * 0.72 * dark | 0},${b * 0.72 * dark | 0},0.95)`;
+      for (let k = 0; k < 7; k++) { // darker, rain-heavy underside
+        const px = s.x + (k - 3) * s.w / 8 + Math.sin(s.seed + k) * 5;
+        ctx.beginPath(); ctx.ellipse(px, s.y + 16, 26, 14, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      const label = rain ? `${s.type.icon} ${s.type.name}!` : `${s.type.icon} ${s.count}`;
+      this.outlinedText(ctx, label, s.x, s.y - 34, `bold ${rain ? 15 : 20}px system-ui, sans-serif`, '#fff');
+    }
+  }
+
   // Magnet grenade: a heavy bouncing grenade. After armTicks it turns red and pulls everything within
   // pullRadius towards itself (harder and faster the closer it is); inside stickRadius things snap onto it
   // and ride along. When the timer runs out it implodes with a small blast.
@@ -2021,7 +2207,7 @@ class Game {
       if (p.age % 14 === 0) Sound.play('zap');
       const t = this.terrain, R = p.pullRadius, S = p.stickRadius;
       const objs = [];
-      for (const c of this.chars) if (c.alive && !c.inTornado) objs.push({ o: c, size: CHAR_R + 7, kind: 'char' });
+      for (const c of this.chars) if (c.alive && !c.inTornado && c.id !== p.throwerId) objs.push({ o: c, size: CHAR_R + 7, kind: 'char' });
       for (const k of this.crates) if (!k.dead && !k.inTornado) objs.push({ o: k, size: 16, kind: 'crate' });
       for (const m of this.mines) if (!m.dead && !m.inTornado) objs.push({ o: m, size: 11, kind: 'mine' });
       for (const e of objs) {
@@ -2255,6 +2441,7 @@ class Game {
           if (c.alive && Math.abs(c.x - (r.x + r.w / 2)) < CHAR_R + r.w / 2 && Math.abs(c.y - (r.y + r.h / 2)) < CHAR_R + r.h / 2) {
             r.hit = true;
             this.damageChar(c, 4, r.vx * 0.4, -1, -1);
+            if (!c.dazed) this.daze(c);
             break;
           }
         }
@@ -2286,7 +2473,7 @@ class Game {
   }
 
   worldIsCalm() {
-    return this.projectiles.length === 0 && this.fires.length === 0 && this.deathBlasts.length === 0 && this.rubble.length === 0 &&
+    return this.projectiles.length === 0 && this.fires.length === 0 && this.deathBlasts.length === 0 && this.rubble.length === 0 && this.gases.length === 0 && !this.storms.some(s => s.phase === 'rain') &&
       this.crates.every(k => !k.airborne) &&
       this.chars.every(c => !(c.alive || c.grave) || !c.airborne) &&
       this.mines.every(m => m.fuse == null && !m.airborne);
@@ -2305,17 +2492,25 @@ class Game {
       else this.explode(b.c.x, b.c.y, DEATH_BLAST.radius, DEATH_BLAST.damage, -1);
     }
     if (this.deathBlasts.length) this.deathBlasts = this.deathBlasts.filter(b => b.t > 0);
-    for (const sm of this.smokes) sm.age++;
+    for (const sm of this.smokes) {
+      sm.age++;
+      if (sm.age <= SMOKE_GROW) { // caught inside as it bursts: dazed for a turn
+        sm.dazedSet = sm.dazedSet || new Set();
+        for (const c of this.chars) if (c.alive && !sm.dazedSet.has(c) && dist(c.x, c.y, sm.x, sm.y) < sm.r * Math.min(1, sm.age / SMOKE_GROW)) { sm.dazedSet.add(c); this.daze(c); }
+      }
+    }
     this.updateGas();
     for (const k of this.crates) if (!k.dead) this.updateCrate(k);
     if (this.crates.some(k => k.dead)) this.crates = this.crates.filter(k => !k.dead);
     this.updateFires();
     if (this.terrain.dirty) for (const b of this.terrain.checkCollapse()) this.collapseBuilding(b);
     if (this.rubble.length) this.updateRubble();
+    if (this.storms.length) this.updateStorms();
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
       p.x += p.vx; p.y += p.vy; p.vy += p.grav;
+      if (p.rain && (p.y > WATER_Y || this.terrain.isSolid(p.x, p.y))) p.life = 0; // raindrops stop at the ground
       if (--p.life <= 0) this.particles.splice(i, 1);
     }
     for (let i = this.effects.length - 1; i >= 0; i--) if (--this.effects[i].life <= 0) this.effects.splice(i, 1);
@@ -2381,6 +2576,8 @@ class Game {
       case 'settle':
         this.settleTimer++;
         if ((this.worldIsCalm() && this.settleTimer > 40) || this.settleTimer > 60 * 15) {
+          if (this.gassed.size) { this.applyGas(); this.settleTimer = 0; break; }
+          if (this.weatherPending) { this.weatherPending = false; if (this.weatherTurn()) { this.settleTimer = 0; break; } }
           if (this.dropPending && this.aliveTeams().length > 1 && this.crates.length < 25) {
             this.dropPending = false;
             this.dropCrates();
@@ -2406,6 +2603,8 @@ class Game {
 
   cameraTarget() {
     if (this.camManual) return null;
+    const st = this.storms.find(s => s.phase === 'rain');
+    if (st && st.t < 150) return { x: st.x, y: st.y + 160 };
     if (this.projectiles.length) return this.projectiles[0];
     const m = this.mines.find(x => x.fuse != null);
     if (m) return m;
@@ -2772,14 +2971,16 @@ class Game {
     this.slingOffset = this.slingPullOffset();
     this.drawSlingFrame(ctx, false);
     this.drawGas(ctx);
+    if (this.storms.length) this.drawStorms(ctx);
     for (const c of this.chars) if (c.alive && this.visibleChar(c)) this.drawChar(ctx, c);
     this.drawSlingFrame(ctx, true);
     if (this.state === 'turn' && this.active.alive && !this.hasFired) this.drawAim(ctx, this.active);
 
     for (const p of this.particles) {
-      ctx.globalAlpha = Math.max(0, p.life / p.max);
+      ctx.globalAlpha = p.streak ? 0.85 : Math.max(0, p.life / p.max);
       ctx.fillStyle = p.color;
-      ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      if (p.streak) ctx.fillRect(p.x - p.size / 2, p.y - p.size * 3, p.size * 0.8, p.size * 4); // raindrop streak
+      else ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
     }
     ctx.globalAlpha = 1;
     for (const e of this.effects) this.drawEffect(ctx, e);
@@ -3011,7 +3212,7 @@ class Game {
       const team = TEAMS[c.team];
       const y = s.y - 12;
       this.outlinedText(ctx, String(Math.max(0, Math.round(c.shownHp))), s.x, y, 'bold 13px system-ui, sans-serif', team.color);
-      const buffs = (c.powerUp ? ' ⚡' : '') + (c.armor > 0 ? ' 🛡' : '') + (c.restArmor > 0 ? ' 🩹' : '') + (c.suit ? ' 🦺' : '') + (c.dazed > 0 || (c === this.active && this.dazedNow) ? ' 😵' : '');
+      const buffs = (c.powerUp ? ' ⚡' : '') + (c.armor > 0 ? ' 🛡' : '') + (c.restArmor > 0 ? ' 🩹' : '') + (c.suit ? ' 🦺' : '') + (c.wet > 0 ? ' 💧' : '') + (c.dazed > 0 || (c === this.active && this.dazedNow) ? ' 😵' : '');
       this.outlinedText(ctx, c.name + (c.isCPU ? ' 🤖' : '') + buffs, s.x, y - 15, '12px system-ui, sans-serif', team.color);
       if (c === this.active && (this.state === 'turn' || this.state === 'banner')) {
         const by = y - 30 + Math.sin(this.tick * 0.12) * 4;
@@ -3189,10 +3390,10 @@ class Game {
       else if (w.id === 'gas') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · leaves a toxic gas cloud that never clears`;
       else if (w.kind === 'smg') hint = `${press} fires a 3-round burst · ${w.shots} bursts per turn · the red dot shows a hit within ${w.laser}`;
       else if (w.kind === 'claymore') hint = `${press} plants a claymore facing ${c.facing > 0 ? 'right' : 'left'} · it goes off as soon as an enemy touches it`;
-      else if (w.kind === 'blaster') hint = `${press} fires a bolt that goes through everything and bursts into fire and plasma`;
+      else if (w.kind === 'blaster') hint = `${press} fires 3 bolts in a fan · they go through everything, shed green frags and burst into fire and plasma`;
       else if (w.kind === 'suit') hint = c.suit ? `${press} takes the suit off (no more tunnel vision)` : `${press} puts on the suit: no toxic, plasma or fire damage, but you only see through the mask`;
       else if (w.kind === 'skip') hint = `${press} rests: +${w.heal} health and 20% less damage for 3 rounds (ends your turn)`;
-      else if (w.id === 'magnet') hint = `Heavy grenade, 4 s timer · after 1 s it turns red and pulls in everything within ${w.pullRadius} px · within ${w.stickRadius} px things stick to it · then it implodes`;
+      else if (w.id === 'magnet') hint = `Heavy grenade, 4 s timer · from the moment it's thrown it pulls in everything (except you) within ${w.pullRadius} px · within ${w.stickRadius} px things stick to it · then it implodes`;
       else if (w.id === 'flashbang') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · blinds and dazes everyone near it for their next turn`;
       else if (w.id === 'smoke') hint = `Timer ${c.fuse} s · ${this.isTouch ? 'the ⏱ button' : 'F'} changes it · makes a smoke cloud that hides anyone inside from other teams`;
       else if (w.kind === 'tornado') hint = `${press} unleashes a tornado that moves the way you face, grows and lasts ${Math.round(w.life / TICK_RATE)} s`;
@@ -3385,6 +3586,7 @@ class Game {
   drawGas(ctx) {
     for (const g0 of this.gases) {
       const grow = Math.min(1, g0.age / SMOKE_GROW);
+      ctx.globalAlpha = Math.max(0, Math.min(1, (g0.life - g0.age) / 60)); // fades out over its last second
       for (const pf of g0.puffs) {
         const wob = Math.sin(this.tick * 0.025 + pf.ph) * 4;
         const cx = g0.x + pf.dx * grow + wob, cy = g0.y + pf.dy * grow, rr = (pf.r + wob) * grow + 1;
@@ -3395,6 +3597,7 @@ class Game {
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.globalAlpha = 1;
     }
   }
 

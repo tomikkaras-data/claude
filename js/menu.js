@@ -23,6 +23,7 @@ const App = {
       version: SETTINGS_VERSION,
       crates: 'normal',
       crateLabels: false,
+      weather: 'sometimes',
       weapons: {},
       arsenal: 'standard',
       players: DEFAULT_NAMES.map((name, i) => ({ name, cpu: i !== 0, team: i % 2 })),
@@ -74,6 +75,8 @@ const App = {
     }
     $('crateLabels').value = s.crateLabels ? 'on' : 'off';
     $('crateLabels').onchange = () => { s.crateLabels = $('crateLabels').value === 'on'; this.save(); };
+    $('weather').value = s.weather || 'sometimes';
+    $('weather').onchange = () => { s.weather = $('weather').value; this.save(); };
     $('friendlyFire').value = s.friendlyFire ? 'on' : 'off';
     $('friendlyFire').onchange = () => { s.friendlyFire = $('friendlyFire').value === 'on'; this.save(); };
     $('weaponsBtn').onclick = () => this.showWeaponConfig(true);
@@ -190,6 +193,7 @@ const App = {
       friendlyFire: s.friendlyFire,
       crates: s.crates,
       crateLabels: !!s.crateLabels,
+      weather: s.weather || 'sometimes',
       weapons: s.weapons,
       arsenal: s.arsenal,
     }, {

@@ -31,6 +31,7 @@ python3 -m http.server 8000
 | Weapon settings | Damage, blast radius and starting ammo for every weapon (see below) |
 | Friendly fire | On (default: anyone can be hurt, including yourself) or Off (teammates and yourself are safe) |
 | Theme | Random, Grassy land, Sand, Winter, Volcanic or City (mixed) |
+| Weather | Clear skies, Sometimes stormy or Often stormy (see Weather) |
 | Crate labels | Hidden (surprise) or show what's inside each crate as small text above it |
 
 You need at least two different teams to start. The menu remembers your setup.
@@ -60,7 +61,7 @@ Every map is generated randomly. The theme changes both the look and the shape o
 | Sand | Smooth, low dunes with few caves | |
 | Winter | Tall snowy ridges | Falling snow |
 | Volcanic | Jagged basalt peaks with lots of caves and a glowing crust | Lava instead of water, rising embers |
-| City (mixed) | Indestructible concrete and steel buildings, loose blocks and girders on top of normal grass and soil, which can still be blown up. Dig or blast away more than half of the ground under a building and it collapses into chunks of concrete (or steel) that fall (a few damage to anyone underneath) and stay on the map as ordinary, destructible rubble | A skyline in the background, wind-blown leaves |
+| City (mixed) | Indestructible concrete and steel buildings, loose blocks and girders on top of normal grass and soil, which can still be blown up. Dig or blast away more than half of the ground under a building and it collapses into chunks of concrete (or steel) that fall (a few damage to anyone underneath, who is also dazed for a turn) and stay on the map as ordinary, destructible rubble | A skyline in the background, wind-blown leaves |
 
 Leaves (grassy land, city), sand (desert), snow (winter) and embers (volcanic) blow across the screen with the wind, so you can see how strong it is; the clouds move with it too.
 
@@ -88,6 +89,22 @@ The **Weapon settings** button in the menu opens a table of every weapon. You ca
 
 Tick **All weapons unlimited** at the top of that screen to give every team every weapon, the special crate weapons included, with unlimited ammo from the start. While it's on, wooden crates hand out health, power-ups and armor instead of ammo. Special weapons start at 1 each; change that here too.
 
+## Weather
+
+With **Weather** set to *Sometimes stormy* (default) or *Often stormy*, dark storm clouds now and then drift in. Each shows its kind and a countdown of turns (e.g. 💧 3); when it reaches zero, between turns, the storm breaks over the area below it (anything with a roof over its head is safe from the rain):
+
+| Storm | What happens |
+|---|---|
+| 💧 Rain | Everyone it soaks gets wet ground for their next 2 turns: standing on a slope they slowly slide down it (and off edges). It also puts out fires |
+| 🧪 Acid rain | Burns everyone in the open (toxic – a Hazmat suit protects) and eats small holes in the ground |
+| 🔥 Fire rain | Burning drops fall and keep burning where they land |
+| 🟢 Plasma rain | Small green plasma clusters rain down and explode |
+| 📦 Crate rain | Three crates float down on parachutes |
+| 💣 Mine rain | Six mines drop out of the sky |
+| 🌪️ Tornado storm | The cloud spins down into a giant tornado, three times the size of a normal one |
+
+Clouds drift slowly with the wind. *Clear skies* turns weather off.
+
 ## Crates
 
 * Wooden and steel crates lie around the map at the start. Supply drops parachute in more crates every few turns.
@@ -107,12 +124,12 @@ Tick **All weapons unlimited** at the top of that screen to give every team ever
 | 🦅 Desert Eagle | 2 | Single high-damage pistol shot with strong knockback |
 | ☢️ Nuka Bomb | 1 | Launched like the bazooka; enormous blast (75 damage, very wide radius) |
 | 💀 Tsar Bomb | 1 | Like the Nuka Bomb with twice the blast radius (250) |
-| 🧲 Magnet Grenade | 1 | Big, heavy bouncing grenade with a 4 s timer. After 1 s of flight it turns red and pulls in everything within 100 px (characters, crates, barrels, mines) – the closer they are, the harder and faster the pull. Anything within 50 px snaps onto the magnet and rides along with it. When the timer runs out it implodes with a small blast (radius 40, 40 damage) |
+| 🧲 Magnet Grenade | 1 | Big, heavy bouncing grenade with a 4 s timer. From the moment it's thrown it pulls in everything within 100 px (characters, crates, barrels, mines – but never the one who threw it) – the closer they are, the harder and faster the pull. Anything within 50 px snaps onto the magnet and rides along with it. When the timer runs out it implodes with a small blast (radius 40, 40 damage) |
 | 🐸 Frog Clone Bomb | 2 | Big frog that hops forward (high hops) – press FIRE again to set it off early – turns at walls and explodes after 5 seconds or when it reaches an enemy. The blast releases 5 frog clones that hop around at random and go off after 1–3 seconds each |
 | 🔥 Napalm Strike | 1 | Click a target; burning napalm sticks to the ground and hurts anyone standing in it |
 | 🔨 Lava Anvil | 2 | Click a target; a red-hot anvil drops straight down, melts its way down through rock leaving fire along the shaft, and explodes at the bottom (or when it hits someone) |
 | 🟢 Star Cannon | 1 | Fires a toxic green plasma ball (radius 25) straight along your aim: slow, no gravity, no wind. It eats through rock and zaps anyone it passes through 5 times a second. Press FIRE again while it flies to detonate it: the ball stops, swells until it fills the whole blast area and the whole screen goes white. When the light fades it goes off: a huge blast (radius 180), a gush of toxic plasma from the centre in every direction, fire across the area, a shower of 20 green cluster bomblets, and 25 small plasma balls shooting off in random directions. Each small ball bursts when it hits rock, a character, a crate or a mine and splits into 5 more green cluster bomblets. If you don't, it goes off by itself after 15 seconds |
-| 👽 Alien Blaster | 1 | A small green bolt that flies straight through rock and characters, burning and zapping everyone it passes (25 each) and leaving a trail of fire and toxic plasma; it ends in a fire-and-plasma blast |
+| 👽 Alien Blaster | 1 | Fires 3 green bolts in a fan, 15° apart. Each flies straight through rock and characters, burning and zapping everyone it passes (25 each), leaves a trail of fire and toxic plasma, drops 3 small green frags every 0.2 s and ends in a fire-and-plasma blast |
 | 🧱 Concrete Block | 3 | Click to place a slab of new ground; `R` rotates it. It's a tool, so it doesn't use up your attack |
 
 ## Controls (human players)
@@ -161,13 +178,13 @@ Several human players share one keyboard (hot-seat).
 | N | Drone | 2 | Launches along your aim and flies forward; steer it with ←/→ for 3 seconds, then its motor cuts out and it drops. Explodes on contact and scatters 5 cluster bomblets |
 | Z | Plasma Frag Grenade | 2 | Bouncy grenade (timer 1–5 s). When it goes off, 10 big green plasma frags fly out; each bursts on impact and splits into 5 green cluster bomblets, and each of those splits once more into 3 tiny ones |
 | H | Lava Boulder | 2 | Hold to charge the throw. The glowing boulder explodes (radius 50) every time it hits the ground, a character or a crate, sets fire all around, and bounces on – 6 times in all |
-| L | Smoke Grenade | 2 | No damage, no crater. Makes a smoke cloud of radius 100 that stays for the rest of the game. Characters inside it are invisible to the other teams (and the CPU can't target them) |
+| L | Smoke Grenade | 2 | No damage, no crater. Makes a smoke cloud of radius 100 that stays for the rest of the game. Characters inside it are invisible to the other teams (and the CPU can't target them). Anyone caught in it as it bursts is dazed on their next turn (like a flashbang) |
 | E | Boomerang | 2 | Hold to charge the throw. It flies out, curves back to you and can be caught. Anyone it passes through takes 20 damage and is knocked a long way |
 | Y | Mine Mouse | 1 | Scurries along the ground for 6.5 seconds. From 1.5 s on it lays one of your mines every 0.5 s, then it bursts with 35 pellets in every direction |
-| O | Flashbang | 2 | Bouncy grenade (timer 1–5 s). A huge white flash, no damage and no crater. Everyone within its radius (160) is dazed on their next turn: their screen keeps washing out white and their aim drifts up and down by itself |
+| O | Flashbang | 2 | Bouncy grenade (timer 1–5 s). A huge white flash and a strong shove (harder the closer you are), no damage and no crater. Everyone within its radius (160) is dazed on their next turn: their screen keeps washing out white and their aim drifts up and down by itself |
 | I | H&K MP5 | 2 | Laser sight: a red line, and a red dot on whatever it points at within 300. Each press fires a 3-round burst (5 damage per round); 4 bursts per turn, and you can move between them |
 | — | Claymore | 2 | Planted facing the way you look. Goes off the instant an enemy touches it, with a blast and a fan of shrapnel thrown forward |
-| — | Gas Grenade | 2 | Bouncy grenade (timer 1–5 s). Leaves a green toxic gas cloud (radius 90) that never clears and hurts anyone inside it 3 times a second |
+| — | Gas Grenade | 2 | Bouncy grenade (timer 1–5 s). Leaves a big green toxic gas cloud (radius 135) that lasts 5 s. Breathing it doesn't hurt straight away: everyone who was in it loses 25 health at the end of the thrower's turn (a Hazmat suit protects) |
 | 4 | Shotgun | ∞ | 6 spreading pellets per shot, **two shots per turn**; you can move between them |
 | G | Flamethrower | 3 | Sprays fire for 1.5 s and pushes targets back a little; you can keep aiming while it burns. Some flames stick and keep burning |
 | B | Baseball Bat | 2 | Hits someone right next to you for 30 damage and sends them flying |
