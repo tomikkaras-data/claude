@@ -314,7 +314,7 @@ class Game {
   }
 
   updateCrate(k) {
-    if (k.inTornado || k.onMagnet) return;
+    if (k.inTornado || k.onMagnet || k.inVacuum) return;
     const t = this.terrain;
     if (!k.airborne && !t.isSolid(k.x, k.y + 10)) k.airborne = true;
     if (k.airborne) {
@@ -521,6 +521,8 @@ class Game {
     if (dozer) { dozer.detonate = true; return; }
     const ball = this.projectiles.find(p => p.plasma && p.owner === c);
     if (ball) { ball.detonate = true; return; }
+    const vac = this.projectiles.find(p => p.vacuum && p.owner === c);
+    if (vac) { vac.mode = vac.mode === 'in' ? 'out' : 'in'; vac.ejectT = 0; this.texts.push({ x: vac.x, y: vac.y - 30, text: vac.mode === 'in' ? '⬆ SUCK' : '⬇ BLOW', color: '#fff', life: 50 }); Sound.play('whoosh'); if (vac.mode === 'out') this.vacRelease(vac, true); return; }
     const bomber = this.projectiles.find(p => p.drone && p.bomber && p.owner === c && p.ctrl > 0);
     if (bomber) { if (!bomber.bombing) { bomber.bombing = true; bomber.bombT = 0; Sound.play('beep'); } return; }
     if (w.kind === 'rope') { this.fireRope(); return; }
@@ -752,6 +754,26 @@ class Game {
         });
       }
       Sound.play('blaster');
+    } else if (w.kind === 'vacuum') {
+      const { dx, dy } = c.aimVector();
+      const x0 = c.x + dx * 18, y0 = c.y - 40;
+      this.projectiles.push({
+        weapon: 'vacuum', vacuum: true, x: x0, y: y0, heading: Math.atan2(Math.min(dy, -0.2), dx), speed: w.speed, ctrl: w.life, mode: 'in',
+        suckR: w.suckRadius, blowR: w.blowRadius, radius: w.radius, damage: w.damage * mult, stuck: [], stored: [], ejectT: 0,
+        hose: Array.from({ length: 12 }, (_, i) => ({ x: x0, y: y0 + 8 + i * 7, px: x0, py: y0 + 8 + i * 7 })),
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      Sound.play('drone');
+    } else if (w.kind === 'cannon') {
+      const { dx, dy } = c.aimVector();
+      const sp = Math.max(0.12, power) * MAX_POWER_SPEED;
+      this.projectiles.push({
+        weapon: 'cannonball', cannonball: true, phase: 'fly', x: c.x + dx * 26, y: c.y - 2 + dy * 26, vx: dx * sp, vy: dy * sp, v: 0, still: 0,
+        r: w.bombletRadius || 9, radius: w.radius, damage: w.damage * mult, blastKnock: w.blastKnock, rollDamage: w.bombletDamage * mult, hits: new Map(),
+        owner: c, ownerId: c.id, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null,
+      });
+      for (let i = 0; i < 18; i++) this.particles.push({ x: c.x + dx * 30, y: c.y - 2 + dy * 30, vx: dx * rand(1, 3) + rand(-0.8, 0.8), vy: dy * rand(1, 3) + rand(-0.8, 0.3), life: randInt(25, 50), max: 50, color: 'rgba(200,200,200,0.7)', size: rand(3, 6), grav: -0.02 });
+      Sound.play('explosion', 0.6); Sound.play('launch');
     } else if (w.kind === 'boulder') {
       const { dx, dy } = c.aimVector();
       const sp = Math.max(0.1, power) * MAX_POWER_SPEED * 0.85;
@@ -1023,6 +1045,13 @@ class Game {
             vx: dir * 2, vy: 5, wind: true, radius: w.radius, damage: 10 * mult, burn: w.damage * mult });
         }
         Sound.play('launch');
+      } else if (w.id === 'armageddon') {
+        const startX = x - dir * 900;
+        this.projectiles.push({ weapon: 'bomber', armaPlane: true, x: startX, y: clamp(y - 520, -260, 70), vx: dir * 7, vy: 0, dir, tx: x, ty: y, area: w.area,
+          bombs: w.bombs, nukes: w.nukes, dropped: 0, nukesDropped: 0, radius: w.radius, damage: w.damage * mult,
+          bombletDamage: w.bombletDamage * mult, bombletRadius: w.bombletRadius, ownerId: -1, ownerTeam: c.team, age: 0, spin: 0, bounce: false, wind: false, cluster: 0, fuse: null });
+        this.texts.push({ x, y: y - 40, text: '☄️ Armageddon incoming!', color: '#ff6b6b', life: 120 });
+        Sound.play('drone'); Sound.play('wind');
       } else if (w.id === 'anvil') {
         this.projectiles.push({ ...base, weapon: 'anvil', lava: true, x, y: top, vx: 0, vy: 7, wind: false, radius: w.radius, damage: w.damage * mult, drilled: 0 });
         Sound.play('drop');
@@ -1423,7 +1452,7 @@ class Game {
   }
 
   updateMine(m) {
-    if (m.inTornado || m.onMagnet) return;
+    if (m.inTornado || m.onMagnet || m.inVacuum) return;
     const t = this.terrain;
     if (!m.airborne && !t.isSolid(m.x, m.y + 5)) m.airborne = true;
     if (m.airborne) {
@@ -1482,6 +1511,20 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (p.vacuum) {
+        const r = this.stepVacuum(p);
+        if (r) { this.projectiles.splice(i, 1); this.endVacuum(p, r); }
+        continue;
+      }
+      if (p.cannonball) {
+        const r = this.stepCannonball(p);
+        if (r) { this.projectiles.splice(i, 1); if (r === 'water') this.splash(p.x); }
+        continue;
+      }
+      if (p.armaPlane) {
+        if (this.stepBomber(p)) this.projectiles.splice(i, 1);
+        continue;
+      }
       if (p.plane) {
         const r = this.stepPlane(p);
         if (r) { this.projectiles.splice(i, 1); if (r === 'water') this.splash(p.x); }
@@ -1960,6 +2003,315 @@ class Game {
     for (const d of this.toxic) ctx.fillRect(d.x - 1.6, d.y - 1.6, 3.2, 3.2);
     ctx.fillStyle = 'rgba(200,255,170,0.7)';
     for (let i = 0; i < this.toxic.length; i += 5) { const d = this.toxic[i]; ctx.fillRect(d.x - 0.8, d.y - 1.2, 1.4, 1.4); }
+  }
+
+  // --- vacuum robot -------------------------------------------------------------
+
+  vacNozzle(p) { const h = p.hose[p.hose.length - 1]; return { x: h.x, y: h.y }; }
+
+  stepVacuum(p) {
+    p.age++; p.ctrl--; p.spin += 0.8;
+    const t = this.terrain, own = p.owner;
+    // steering (like the drone)
+    let turn = 0;
+    if (own && own.alive && !own.isCPU && own === this.active) {
+      const k = this.keys;
+      turn = ((k.ArrowRight || k.KeyD) ? 1 : 0) - ((k.ArrowLeft || k.KeyA) ? 1 : 0);
+    }
+    p.heading += turn * 0.05;
+    let nx = p.x + Math.cos(p.heading) * p.speed, ny = p.y + Math.sin(p.heading) * p.speed;
+    if (t.isSolid(nx, ny) || t.isSolid(nx, ny + 7) || t.isSolid(nx + Math.cos(p.heading) * 12, ny) || ny < 20 || ny > WATER_Y - 30 || nx < 10 || nx > WORLD_W - 10) {
+      p.heading += Math.PI;                          // bumps off walls and turns round
+      nx = p.x; ny = p.y;
+    }
+    p.x = nx; p.y = ny;
+    if (p.age % 16 === 0) Sound.play('drone');
+    // the hose: a loose chain hanging under it
+    const H = p.hose, SEG = 7;
+    H[0].x = p.x; H[0].y = p.y + 8; H[0].px = H[0].x; H[0].py = H[0].y;
+    for (let i = 1; i < H.length; i++) {
+      const q = H[i], vx = (q.x - q.px) * 0.94, vy = (q.y - q.py) * 0.94;
+      q.px = q.x; q.py = q.y;
+      q.x += vx; q.y += vy + 0.3;
+      if (p.mode === 'out' && i === H.length - 1) q.y -= 0.25;   // blowing makes the nozzle kick a little
+    }
+    for (let it = 0; it < 5; it++) {
+      for (let i = 1; i < H.length; i++) {
+        const a = H[i - 1], q = H[i], dx = q.x - a.x, dy = q.y - a.y, d = Math.hypot(dx, dy) || 0.01, f = (d - SEG) / d;
+        if (i === 1) { q.x -= dx * f; q.y -= dy * f; } else { a.x += dx * f * 0.5; a.y += dy * f * 0.5; q.x -= dx * f * 0.5; q.y -= dy * f * 0.5; }
+      }
+      for (let i = 1; i < H.length; i++) { const q = H[i]; for (let k = 0; k < 8 && t.isSolid(q.x, q.y); k++) q.y -= 1; }
+    }
+    const nz = this.vacNozzle(p);
+    // what's around the nozzle
+    const objs = [];
+    for (const c of this.chars) if (c.alive && c !== own && !c.inTornado && !(c.onMagnet && c.onMagnet !== p) && !(t.bunkers.length && t.shelterAt(c.x, c.y))) objs.push({ o: c, kind: 'char' });
+    for (const k of this.crates) if (!k.dead && !k.inVacuum && !k.inTornado && !k.onMagnet) objs.push({ o: k, kind: 'crate' });
+    for (const m of this.mines) if (!m.dead && !m.inVacuum && !m.inTornado && !m.onMagnet) objs.push({ o: m, kind: 'mine' });
+    if (p.mode === 'in') {
+      const R = p.suckR;
+      for (const e of objs) {
+        const o = e.o;
+        if (o.onMagnet === p) continue;
+        const dx = nz.x - o.x, dy = nz.y - o.y, d = Math.hypot(dx, dy) || 0.01;
+        if (d > R) continue;
+        if (d < (e.kind === 'char' ? CHAR_R + 6 : 12)) {
+          if (e.kind === 'char') { o.onMagnet = p; o.noFall = true; if (o === this.active) this.releaseRope(); p.stuck.push(o); Sound.play('hook'); }
+          else { o.inVacuum = p; o.chute = false; p.stored.push({ o, kind: e.kind }); Sound.play('pickup'); }
+          continue;
+        }
+        const near = 1 - d / R, acc = 0.12 + 0.7 * near * near, vmax = 1.5 + 7 * near;
+        if (!o.pull || o.pull.tick !== this.tick - 1) o.pull = { x: 0, y: 0 };
+        o.pull.tick = this.tick;
+        o.pull.x += dx / d * acc; o.pull.y += dy / d * acc;
+        const sp = Math.hypot(o.pull.x, o.pull.y);
+        if (sp > vmax) { o.pull.x *= vmax / sp; o.pull.y *= vmax / sp; }
+        const hit = (x, y) => e.kind === 'char' ? t.collides(x, y) : t.isSolid(x, y + (e.kind === 'mine' ? 3 : 8));
+        const n = Math.max(1, Math.ceil(sp / 2));
+        for (let k = 0; k < n; k++) {
+          const ax = o.x + o.pull.x / n;
+          if (!hit(ax, o.y)) o.x = ax; else if (!hit(ax, o.y - 4)) { o.x = ax; o.y -= 4; } else o.pull.x = 0;
+          const ay = o.y + o.pull.y / n;
+          if (!hit(o.x, ay)) o.y = ay; else o.pull.y = 0;
+        }
+        if (o.pull.y < -0.4) { o.airborne = true; if (o.vy > 0) o.vy = 0; }
+        if (e.kind === 'char') o.noFall = true;
+        if (!o.airborne && !hit(o.x, o.y + 2)) o.airborne = true;
+      }
+      // anyone caught dangles from the nozzle
+      for (const c of p.stuck) {
+        if (!c.alive || c.onMagnet !== p) continue;
+        // hang under the nozzle, or beside / above it when the nozzle is dragging on the ground
+        const spots = [[nz.x, nz.y + CHAR_R + 3], [nz.x - CHAR_R - 3, nz.y], [nz.x + CHAR_R + 3, nz.y], [nz.x, nz.y - CHAR_R - 3], [p.x, p.y + CHAR_R + 10]];
+        const spot = spots.find(([x, y]) => !t.collides(x, y));
+        if (spot) {
+          const mx = c.x + (spot[0] - c.x) * 0.45, my = c.y + (spot[1] - c.y) * 0.45;
+          if (!t.collides(mx, my)) { c.x = mx; c.y = my; } else { c.x = spot[0]; c.y = spot[1]; }
+        }
+        c.vx = 0; c.vy = 0; c.airborne = true;
+      }
+      for (const s of p.stored) { s.o.x = p.x; s.o.y = p.y; }
+      if (p.age % 2 === 0) {
+        const a = rand(0, Math.PI * 2), rr = rand(25, R * 0.8);
+        this.particles.push({ x: nz.x + Math.cos(a) * rr, y: nz.y + Math.sin(a) * rr, vx: -Math.cos(a) * rr / 16, vy: -Math.sin(a) * rr / 16, life: 16, max: 16, color: 'rgba(210,200,180,0.8)', size: 2, grav: 0 });
+      }
+    } else {
+      // blowing: everything near the nozzle is shoved away, hardest close up; swallowed things shoot back out
+      const R = p.blowR;
+      for (const e of objs) {
+        const o = e.o;
+        const dx = o.x - nz.x, dy = o.y - nz.y, d = Math.hypot(dx, dy) || 0.01;
+        if (d > R) continue;
+        const near = 1 - d / R, acc = 0.1 + 0.45 * near;
+        o.vx = clamp((o.vx || 0) + dx / d * acc, -6.5, 6.5);
+        o.vy = clamp((o.vy || 0) + dy / d * acc - 0.1, -6.5, 6.5);
+        o.airborne = true;
+        if (e.kind === 'crate') o.chute = false;
+        if (e.kind === 'char' && o === this.active) this.releaseRope();
+      }
+      if (p.stored.length && p.ejectT++ % 8 === 0) {
+        const s = p.stored.shift(), o = s.o;
+        o.inVacuum = null; o.x = nz.x; o.y = nz.y; o.airborne = true;
+        const a = Math.atan2(nz.y - p.y, nz.x - p.x) + rand(-0.4, 0.4);
+        o.vx = Math.cos(a) * 6; o.vy = Math.sin(a) * 6;
+        Sound.play('throw');
+      }
+      if (p.age % 2 === 0) {
+        const a = Math.atan2(nz.y - p.y, nz.x - p.x) + rand(-0.6, 0.6), sp = rand(3, 6);
+        this.particles.push({ x: nz.x, y: nz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 18, max: 18, color: 'rgba(230,235,240,0.8)', size: 2.5, grav: 0 });
+      }
+    }
+    if (p.ctrl <= 0) return 'done';
+    return null;
+  }
+
+  // Let go of everyone stuck to the nozzle (and, when the robot ends, everything it swallowed)
+  vacRelease(p, onlyChars) {
+    for (const c of p.stuck) if (c.onMagnet === p) { c.onMagnet = null; c.airborne = true; c.noFall = false; c.vx = rand(-1, 1); c.vy = -1; }
+    p.stuck = [];
+    if (onlyChars) return;
+    for (const s of p.stored) { s.o.inVacuum = null; s.o.x = p.x + rand(-8, 8); s.o.y = p.y; s.o.airborne = true; s.o.vx = rand(-3, 3); s.o.vy = rand(-3, -1); }
+    p.stored = [];
+  }
+
+  endVacuum(p, r) {
+    this.vacRelease(p, false);
+    this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, 1);
+  }
+
+  // --- pirate cannon ----------------------------------------------------------------
+
+  // Top of the ground under (x) near height y, or null if there's a big drop
+  rollSurface(x, y) {
+    const t = this.terrain;
+    if (t.isSolid(x, y)) { for (let k = 1; k <= 14; k++) if (!t.isSolid(x, y - k)) return y - k + 1; return null; }
+    for (let k = 1; k <= 14; k++) if (t.isSolid(x, y + k)) return y + k;
+    return Infinity;
+  }
+
+  stepCannonball(p) {
+    p.age++;
+    const t = this.terrain, r = p.r;
+    p.spin += (p.phase === 'roll' ? p.v : p.vx) / r;
+    if (p.phase === 'fly' || p.phase === 'fall') {
+      p.vy = Math.min(p.vy + GRAVITY, 12);
+      const steps = Math.max(1, Math.ceil(Math.hypot(p.vx, p.vy) / 2));
+      for (let i = 0; i < steps; i++) {
+        const px = p.x, py = p.y;
+        p.x += p.vx / steps; p.y += p.vy / steps;
+        const victim = p.phase === 'fly' && this.chars.find(c => c.alive && (c !== p.owner || p.age > 20) && dist(c.x, c.y, p.x, p.y) < CHAR_R + r);
+        const ground = t.isSolid(p.x, p.y + r) || t.isSolid(p.x + Math.sign(p.vx) * r, p.y);
+        if (!victim && !ground) continue;
+        if (p.phase === 'fly') {
+          // the big hit, then it carries on rolling; a flat shot keeps most of its speed, a steep one hardly any
+          this.explode(p.x, p.y, p.radius, p.damage, p.ownerTeam, p.blastKnock);
+          const sp = Math.hypot(p.vx, p.vy) || 1, flat = Math.abs(p.vx) / sp;
+          p.v = clamp(p.vx * (0.35 + 0.55 * flat), -9, 9);
+          if (victim) p.hits.set(victim, p.age);
+          Sound.play('thud');
+        }
+        p.x = px; p.y = py;
+        p.phase = 'roll'; p.vy = 0;
+        break;
+      }
+    } else {
+      // rolling along the ground: slopes speed it up or slow it down
+      const hL = this.rollSurface(p.x - 5, p.y + r), hR = this.rollSurface(p.x + 5, p.y + r);
+      if (hL != null && hR != null && isFinite(hL) && isFinite(hR)) p.v += (hR - hL) / 10 * 0.3;
+      p.v *= 0.988;
+      const n = Math.max(1, Math.ceil(Math.abs(p.v) / 1.5));
+      for (let i = 0; i < n; i++) {
+        const nx = p.x + p.v / n;
+        const s = this.rollSurface(nx, p.y + r);
+        if (s === null) { p.v = -p.v * 0.35; Sound.play('thud'); break; }  // a wall: bounce back
+        if (s === Infinity) { p.x = nx; p.phase = 'fall'; p.vx = p.v; p.vy = 0; break; } // rolled off an edge
+        p.x = nx; p.y = s - r;
+      }
+      if (p.phase === 'roll' && !t.isSolid(p.x, p.y + r + 2) && !t.isSolid(p.x, p.y + r + 6)) { p.phase = 'fall'; p.vx = p.v; p.vy = 0; }
+      if (Math.abs(p.v) < 0.12) p.still++; else p.still = 0;
+      if (p.age % 9 === 0 && Math.abs(p.v) > 0.5) Sound.play('dig');
+    }
+    // anything in its way gets run over
+    const speed = p.phase === 'roll' ? Math.abs(p.v) : Math.hypot(p.vx, p.vy);
+    if (p.phase !== 'fly' && speed > 0.4) {
+      for (const c of this.chars) {
+        if (!c.alive || dist(c.x, c.y, p.x, p.y) > CHAR_R + r + 1) continue;
+        if ((p.hits.get(c) || -99) > p.age - 30) continue;
+        p.hits.set(c, p.age);
+        const dir = Math.sign(p.phase === 'roll' ? p.v : p.vx) || 1;
+        this.damageChar(c, Math.max(4, Math.round(Math.min(1, speed / 7) * p.rollDamage)), dir * (2 + speed * 0.8), -2.5 - speed * 0.3, p.ownerTeam);
+        if (p.phase === 'roll') p.v *= 0.8;
+        Sound.play('bat');
+      }
+      for (const k of this.crates) if (!k.dead && dist(k.x, k.y, p.x, p.y) < r + 10) this.destroyCrate(k);
+      for (const m of this.mines) if (!m.dead && dist(m.x, m.y, p.x, p.y) < r + 5) this.triggerMine(m);
+    }
+    if (p.y > WATER_Y) return 'water';
+    if (p.x < -50 || p.x > WORLD_W + 50) return 'lost';
+    if (p.still > 45 || p.age > 1200) { // comes to rest and crumbles
+      for (let i = 0; i < 14; i++) this.particles.push({ x: p.x, y: p.y, vx: rand(-1.5, 1.5), vy: rand(-2, 0), life: 30, max: 30, color: '#4b4f55', size: rand(2, 4), grav: 0.15 });
+      return 'done';
+    }
+    return null;
+  }
+
+  drawCannon(ctx) {
+    const c = this.active;
+    if (!c || !c.alive || this.state !== 'turn' || this.hasFired || c.weapon !== 'cannon' || c.airborne) return;
+    const { dx, dy } = c.aimVector();
+    ctx.save();
+    ctx.translate(c.x + c.facing * 4, c.y + 2);
+    ctx.fillStyle = '#6b4226';                                   // wooden carriage
+    ctx.fillRect(-12, 2, 24, 6);
+    ctx.fillStyle = '#4a2c17';
+    for (const wx of [-8, 8]) { ctx.beginPath(); ctx.arc(wx, 8, 4.5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.rotate(Math.atan2(dy, dx));
+    ctx.fillStyle = '#25282c';                                   // iron barrel
+    ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(24, -4.5); ctx.lineTo(24, 4.5); ctx.lineTo(-8, 6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#3d4248';
+    ctx.fillRect(22, -5.5, 4, 11); ctx.fillRect(4, -6, 3, 12);
+    ctx.beginPath(); ctx.arc(-8, 0, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // --- armageddon strike -----------------------------------------------------------
+
+  stepBomber(p) {
+    p.age++;
+    p.x += p.vx;
+    if (p.age % 14 === 0) Sound.play('drone');
+    const prog = (p.x - (p.tx - p.dir * p.area)) * p.dir / (p.area * 2); // 0..1 across the target zone
+    if (prog >= 0 && prog <= 1) {
+      const want = Math.min(p.bombs, Math.floor(prog * p.bombs) + 1);
+      while (p.dropped < want) {
+        p.dropped++;
+        this.projectiles.push({
+          weapon: 'cluster', x: p.x + rand(-14, 14), y: p.y + 12, vx: rand(-1.1, 1.1), vy: rand(0, 2), wind: false, bounce: false, fuse: null,
+          radius: p.radius, damage: p.damage, cluster: 3, bombletDamage: p.bombletDamage, bombletRadius: p.bombletRadius,
+          ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: rand(0, 6),
+        });
+      }
+      const nukeWant = Math.min(p.nukes, Math.floor((prog + 0.17) * p.nukes));
+      while (p.nukesDropped < nukeWant) {
+        p.nukesDropped++;
+        this.projectiles.push({ weapon: 'nuke', x: p.x, y: p.y + 14, vx: p.vx * 0.05, vy: 1.5, wind: false, bounce: false, fuse: null,
+          radius: WEAPON.nuke.radius, damage: WEAPON.nuke.damage, cluster: 0, ownerId: -1, ownerTeam: p.ownerTeam, age: 20, spin: 0 });
+        Sound.play('beep');
+      }
+      if (p.age % 3 === 0) Sound.play('throw');
+    }
+    return prog > 1.8;
+  }
+
+  drawBomber(ctx, p) {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    if (p.dir < 0) ctx.scale(-1, 1);
+    ctx.fillStyle = '#495057';                                   // fuselage
+    ctx.beginPath(); ctx.ellipse(0, 0, 46, 9, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#343a40';
+    ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(10, 0); ctx.lineTo(-18, 34); ctx.lineTo(-30, 34); ctx.closePath(); ctx.fill();   // wing (near)
+    ctx.beginPath(); ctx.moveTo(-8, -2); ctx.lineTo(8, -2); ctx.lineTo(-14, -24); ctx.lineTo(-24, -24); ctx.closePath(); ctx.fill(); // wing (far)
+    ctx.beginPath(); ctx.moveTo(-36, -2); ctx.lineTo(-46, -22); ctx.lineTo(-38, -22); ctx.lineTo(-28, -2); ctx.fill();              // tail fin
+    ctx.fillStyle = '#c92a2a'; ctx.fillRect(-26, -3, 8, 6);
+    ctx.fillStyle = '#a5d8ff'; ctx.beginPath(); ctx.ellipse(36, -3, 7, 4, 0, 0, Math.PI * 2); ctx.fill();                           // cockpit
+    ctx.fillStyle = '#212529';
+    for (const ex of [-12, 2]) { ctx.fillRect(ex, 8, 10, 5); }                                                                    // engines
+    ctx.restore();
+  }
+
+  drawVacuum(ctx, p) {
+    const H = p.hose;
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#495057'; ctx.lineWidth = 5;              // hose
+    ctx.beginPath(); ctx.moveTo(H[0].x, H[0].y); for (let i = 1; i < H.length; i++) ctx.lineTo(H[i].x, H[i].y); ctx.stroke();
+    ctx.strokeStyle = '#868e96'; ctx.lineWidth = 2;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(H[0].x, H[0].y); for (let i = 1; i < H.length; i++) ctx.lineTo(H[i].x, H[i].y); ctx.stroke();
+    ctx.setLineDash([]);
+    const a = H[H.length - 2], z = H[H.length - 1], ang = Math.atan2(z.y - a.y, z.x - a.x);
+    ctx.translate(z.x, z.y); ctx.rotate(ang);                    // nozzle
+    ctx.fillStyle = p.mode === 'in' ? '#2b8a3e' : '#c92a2a';
+    ctx.fillRect(-2, -4, 9, 8);
+    ctx.fillStyle = '#212529'; ctx.fillRect(6, -5, 3, 10);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.fillStyle = '#343a40';                                   // round robot vacuum body
+    ctx.beginPath(); ctx.ellipse(0, 2, 16, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5c636a';
+    ctx.beginPath(); ctx.ellipse(0, 0, 16, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#adb5bd';
+    ctx.beginPath(); ctx.ellipse(0, -1, 7, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = p.mode === 'in' ? '#51cf66' : '#ff6b6b';     // status light
+    ctx.beginPath(); ctx.arc(10, -1, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#343a40'; ctx.lineWidth = 1.5;            // rotors
+    ctx.beginPath(); ctx.moveTo(-12, -4); ctx.lineTo(-12, -9); ctx.moveTo(12, -4); ctx.lineTo(12, -9); ctx.stroke();
+    ctx.strokeStyle = 'rgba(220,225,235,0.9)';
+    for (const rx of [-12, 12]) { const r = 7 * Math.abs(Math.cos(p.spin + rx)); ctx.beginPath(); ctx.moveTo(rx - r, -9); ctx.lineTo(rx + r, -9); ctx.stroke(); }
+    ctx.restore();
+    this.outlinedText(ctx, `${p.mode === 'in' ? 'SUCK' : 'BLOW'} ${(p.ctrl / TICK_RATE).toFixed(1)}`, p.x, p.y - 18, 'bold 11px system-ui, sans-serif', p.mode === 'in' ? '#8ce99a' : '#ffa8a8');
   }
 
   dozerBoom(p) {
@@ -2872,6 +3224,8 @@ class Game {
     if (this.camManual) return null;
     const st = this.storms.find(s => (s.phase === 'rain' && s.t < 180) || s.intro > 0);
     if (st) return { x: st.x, y: st.y + 160 };
+    const bomber = this.projectiles.find(p => p.armaPlane);
+    if (bomber) return { x: bomber.tx, y: bomber.ty - 140 }; // watch the target area, not the plane
     if (this.projectiles.length) return this.projectiles[0];
     const m = this.mines.find(x => x.fuse != null);
     if (m) return m;
@@ -2957,7 +3311,7 @@ class Game {
       if (left || right || up || down) this.camManual = false;
       return;
     }
-    if (this.projectiles.some(p => (p.drone && p.ctrl > 0 || p.dozer) && p.owner === c)) return; // arrows steer the drone / dozer
+    if (this.projectiles.some(p => (p.drone && p.ctrl > 0 || p.vacuum || p.dozer) && p.owner === c)) return; // arrows steer the drone / vacuum / dozer
     if (this.jet) {
       const j = this.jet;
       const grounded = !c.airborne;
@@ -3237,6 +3591,7 @@ class Game {
     this.drawSmoke(ctx);
     this.slingOffset = this.slingPullOffset();
     this.drawSlingFrame(ctx, false);
+    this.drawCannon(ctx);
     this.drawGas(ctx);
     if (this.storms.length) this.drawStorms(ctx);
     if (this.toxic.length) this.drawToxic(ctx);
@@ -3361,6 +3716,7 @@ class Game {
   }
 
   drawMine(ctx, m) {
+    if (m.inVacuum) return;
     if (m.claymore) {
       ctx.save();
       ctx.translate(m.x, m.y - 2);
@@ -3540,6 +3896,10 @@ class Game {
       ctx.restore();
       return;
     }
+    if (w.id === 'armageddon') { // the area the bombs will cover
+      ctx.save(); ctx.strokeStyle = 'rgba(255,90,90,0.8)'; ctx.lineWidth = 2 / this.zoom; ctx.setLineDash([10 / this.zoom, 8 / this.zoom]);
+      ctx.beginPath(); ctx.arc(x, y, w.area, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
     const ok = w.id !== 'teleport' || (!this.terrain.collides(x, y) && y < WATER_Y - CHAR_R * 2);
     ctx.strokeStyle = ok ? '#fff' : '#f55';
     ctx.lineWidth = 2 / this.zoom;
@@ -3661,7 +4021,7 @@ class Game {
     });
 
     // Contextual hint for the active human player
-    const myDrone = this.isHumanTurn() && this.projectiles.find(p => (p.drone && p.ctrl > 0 || p.dozer && !p.detonate || p.plasma && p.phase === 'fly' && !p.detonate) && p.owner === c);
+    const myDrone = this.isHumanTurn() && this.projectiles.find(p => (p.drone && p.ctrl > 0 || p.vacuum || p.dozer && !p.detonate || p.plasma && p.phase === 'fly' && !p.detonate) && p.owner === c);
     if (this.isHumanTurn() && (!this.hasFired || myDrone)) {
       const w = WEAPON[c.weapon];
       let hint = '';
@@ -3669,13 +4029,18 @@ class Game {
       const lr = this.isTouch ? '◀ ▶' : '←/→';
       const myBall = this.projectiles.find(p => p.plasma && p.owner === c && p.phase === 'fly' && !p.detonate);
       const myDozer = this.projectiles.find(p => p.dozer && p.owner === c && !p.detonate);
-      if (myDozer) hint = `${lr} steer the dozer · ${press} stops it and blows it up · ${((myDozer.life - myDozer.age) / TICK_RATE).toFixed(1)} s left`;
+      const myVac = this.projectiles.find(p => p.vacuum && p.owner === c);
+      if (myVac) hint = `${lr} steer · ${press} switches to ${myVac.mode === 'in' ? 'BLOW (push away)' : 'SUCK (pull in)'} · now: ${myVac.mode === 'in' ? 'sucking' : 'blowing'} · ${(myVac.ctrl / TICK_RATE).toFixed(1)} s left`;
+      else if (myDozer) hint = `${lr} steer the dozer · ${press} stops it and blows it up · ${((myDozer.life - myDozer.age) / TICK_RATE).toFixed(1)} s left`;
       else if (myBall) hint = `Press ${press} to detonate the plasma ball`;
       else if (myDrone) hint = `${lr} steer the drone · ${(myDrone.ctrl / TICK_RATE).toFixed(1)} s of control left`;
       else if (w.kind === 'plasma') hint = `${press} fires a slow plasma ball straight along your aim · press ${press} again while it flies to detonate it`;
       else if (w.kind === 'slingplane') hint = `Drag your character back like a catapult (or aim and hold ${press}) and let go to launch the kamikaze plane · it drops dynamite every time it hits`;
       else if (w.kind === 'sling') hint = `Drag your character back like a catapult (or aim and hold ${press}) and let go · you fly the opposite way, no fall damage`;
       else if (w.kind === 'dozer') hint = `${press} sends the robo dozer the way you face · steer it with ${lr} · ${press} again blows it up`;
+      else if (w.kind === 'vacuum') hint = `${press} launches the vacuum robot · steer it with ${lr} for ${Math.round(w.life / TICK_RATE)} s · ${press} switches between sucking and blowing`;
+      else if (w.kind === 'cannon') hint = `Hold ${press} to charge the cannon · huge blast where the ball lands, then it rolls on (a flat shot and a downhill slope make it roll fast)`;
+      else if (w.id === 'armageddon') hint = `${this.isTouch ? 'Tap' : 'Click'} the target · a bomber drops 100 cluster grenades and 3 Nuka Bombs within ${w.area} px of it`;
       else if (w.kind === 'boulder') hint = `Hold ${press} to charge the throw · it explodes and spreads fire on each of its ${w.bounces} bounces`;
       else if (w.kind === 'boomerang') hint = `Hold ${press} to charge the throw · it curves back to you and sends anyone it hits flying`;
       else if (w.kind === 'mouse') hint = `${press} lets the mine mouse go · it lays a mine every 0.5 s for 5 s, then bursts`;
@@ -3913,6 +4278,7 @@ class Game {
   }
 
   drawCrate(ctx, k) {
+    if (k.inVacuum) return; // swallowed by the vacuum robot
     if (this.isBarrel(k)) {
       const toxic = k.type === 'toxicbarrel';
       ctx.save();
@@ -4333,6 +4699,22 @@ class Game {
         ctx.globalAlpha = 1;
         break;
       }
+      case 'vacuum':
+        ctx.restore();
+        this.drawVacuum(ctx, p);
+        return;
+      case 'bomber':
+        ctx.restore();
+        this.drawBomber(ctx, p);
+        return;
+      case 'cannonball':
+        ctx.rotate(p.spin);
+        ctx.fillStyle = '#2b2f33';
+        ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.beginPath(); ctx.arc(-p.r * 0.35, -p.r * 0.35, p.r * 0.35, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#16181b'; ctx.fillRect(-1, p.r * 0.4, 2, p.r * 0.5);
+        break;
       case 'kamikaze':
         ctx.restore();
         this.drawPlane(ctx, p.x, p.y, p.heading);

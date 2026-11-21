@@ -553,4 +553,10 @@ body.touch .weapon .key { display: none; }
 }
 
 /* medium screens: slightly narrower weapon buttons so a full category still fits on one row */
-@media (min-width: 701px) and (max-width: 1100px) and (min-height: 561px) { .weapon { width: 60px; } }
+@media (min-width: 701px) and (max-width: 1100px) and (min-height: 561px) {
+  .weapon { width: 60px; }
+  /* a long category scrolls sideways instead of wrapping onto a second row */
+  #weaponBar { flex-wrap: nowrap; justify-content: flex-start; }
+  #weaponBar .wgroup.active { min-width: 0; flex: 1 1 auto; }
+  #weaponBar .wgroup-items { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; max-width: none !important; padding-bottom: 2px; }
+}
