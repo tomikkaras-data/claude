@@ -135,7 +135,7 @@ const WEAPONS = [
   { id: 'tsar',      name: 'Tsar Bomb',    icon: '💀', group: 'legendary', fam: 'bomb', kind: 'projectile', charge: true, wind: true, radius: 250, damage: 75, blastKnock: 1.3, ammo: 1, crate: 1,
     note: 'like the Nuka Bomb with twice the blast radius' },
   { id: 'plasmagatling', name: 'Plasma Gatling', icon: '🔋', group: 'legendary', fam: 'alien', kind: 'burst', laser: true, bullets: 100, spread: 1.5, damage: 1, radius: 3,
-    ammo: 1, crate: 1, alien: true, note: 'per laser · 100 green lasers that cross the whole map through rock and everyone in the way · only bunker walls stop them' },
+    ammo: 1, crate: 1, alien: true, note: 'per laser · 100 green lasers that cross the whole map, burning thin tunnels through rock and hitting everyone in the way · radius = tunnel width · only bunkers stop them' },
   { id: 'aliendrone', name: 'Alien Bomber Drone', icon: '🛰️', group: 'legendary', fam: 'alien', kind: 'drone', flightSelect: true, bomber: true, speed: 3.2, ctrlTicks: 300,
     radius: 45, damage: 45, blastKnock: 1.3, ammo: 1, crate: 1, alien: true, dropEvery: 12, bombClusters: 5,
     bombletDamage: 22, bombletRadius: 30, subLabel: 'Alien bombs', subNote: 'dropped every 0.2 s once you press FIRE in flight · each bursts into 5 small green clusters',

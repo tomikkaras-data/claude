@@ -849,6 +849,7 @@ class Game {
         for (const m of this.mines) if (!m.dead && Math.abs(m.x - x) < 6 && Math.abs(m.y - y) < 6) this.triggerMine(m);
       }
     }
+    t.carveLine(ox, oy, x, y, w.radius || 3);   // burns a thin tunnel through everything soft it crossed
     this.effects.push({ type: 'laser', x: ox, y: oy, x2: x, y2: y, life: 8, max: 8 });
   }
 

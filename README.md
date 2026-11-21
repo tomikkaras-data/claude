@@ -111,7 +111,7 @@ When a storm forms (between turns) the camera shows it first. Storm clouds stay 
 |---|---|---|
 | 🛩️ Kamikaze Plane | Epic | Pull it back in the slingshot (drag your character, or aim and hold Space) and let go. The plane flies like a thrown stone; the first hit drops 5 dynamites, and a shallow hit bounces it on for 1–2 more hits that drop 2–3 more each. A steep hit crashes it. The dynamites go off after 2–5 s |
 | ⛲ Toxic Waterfall | Epic | Click anywhere to drop a green boulder; toxic water pours out of it for 10 s, falls and runs downhill. Anyone standing in it takes toxic damage (a Hazmat suit protects) |
-| 🔋 Plasma Gatling | Legendary (alien crates) | 100 green lasers with a 3° spread that cross the whole map, straight through rock and everyone in the way (1 damage each). Only bunkers stop them |
+| 🔋 Plasma Gatling | Legendary (alien crates) | 100 green lasers with a 3° spread that cross the whole map, straight through rock and everyone in the way (1 damage each), burning a thin tunnel through all the ground they cross – together they cut a wedge right through hills. Only bunkers stop them (and the indestructible city buildings aren't burned) |
 | 🛰️ Alien Bomber Drone | Legendary (alien crates) | Flies and steers like the Drone. Press FIRE in flight and it drops a big green plasma bomb every 0.2 s; each bursts into 5 small green clusters |
 
 ## Crates

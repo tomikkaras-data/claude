@@ -269,6 +269,37 @@ class Terrain {
     }
   }
 
+  // A thin straight tunnel (plasma laser): clears every soft pixel within r of the segment
+  carveLine(x0, y0, x1, y1, r) {
+    const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(len / 1.5)), r2 = r * r, { w, h } = this;
+    let any = false;
+    for (let k = 0; k <= n; k++) {
+      const cx = x0 + (x1 - x0) * k / n, cy = y0 + (y1 - y0) * k / n;
+      if (cx < -r || cx > w + r || cy < -r || cy > h + r) continue;
+      for (let y = Math.max(0, Math.floor(cy - r)); y <= Math.min(h - 1, cy + r); y++) {
+        for (let x = Math.max(0, Math.floor(cx - r)); x <= Math.min(w - 1, cx + r); x++) {
+          const i = y * w + x;
+          if (this.mask[i] && !this.hard[i] && (x - cx) ** 2 + (y - cy) ** 2 <= r2) { this.mask[i] = 0; any = true; }
+        }
+      }
+    }
+    if (!any) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.globalCompositeOperation = 'source-atop';      // a scorched green rim
+    ctx.strokeStyle = 'rgba(40,90,30,0.85)';
+    ctx.lineWidth = r * 2 + 4;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.globalCompositeOperation = 'destination-out';  // the hole itself
+    ctx.strokeStyle = '#000';
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = r * 2;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.restore();
+    this.dirty = true;
+  }
+
   ensureHardCanvas() {
     if (this.hardCanvas) return this.hardCanvas;
     this.hardCanvas = document.createElement('canvas');
