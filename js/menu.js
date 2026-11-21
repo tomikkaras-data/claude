@@ -368,7 +368,10 @@ const App = {
       sec.innerHTML = `<span class="wgroup-label">${label}</span>`;
       const row = document.createElement('div');
       row.className = 'wgroup-items';
+      let fam = null;
       for (const w of items) {
+        if (fam && w.fam !== fam) { const sep = document.createElement('span'); sep.className = 'wsep'; row.appendChild(sep); }
+        fam = w.fam;
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'weapon' + (c.weapon === w.id ? ' on' : '');
@@ -404,7 +407,7 @@ const App = {
   balanceWeaponRows() {
     for (const row of document.querySelectorAll('#weaponBar .wgroup-items')) {
       row.style.maxWidth = '';
-      const btns = [...row.children];
+      const btns = [...row.children].filter(b => b.classList.contains('weapon'));
       if (btns.length < 2 || !btns[0].offsetWidth) continue;
       const rows = new Set(btns.map(b => b.offsetTop)).size;
       if (rows < 2) continue;

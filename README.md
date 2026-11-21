@@ -70,7 +70,17 @@ Red **fire barrels** and green **toxic barrels** are scattered around every map.
 
 ## Weapon categories
 
-Weapons are grouped into **Basic**, **Rare**, **Epic**, **Legendary** and **Tools & items**, with similar things next to each other. On desktop the weapon bar shows one category at a time with tabs to switch (it follows the weapon you pick by key); on phones the picker lists them all by category; the Weapon settings table uses the same groups.
+Weapons are grouped by how strong and how easy to get they are, and inside each category similar things sit together (thin dividers in the weapon bar separate the families):
+
+| Category | What belongs there | Families (in bar order) |
+|---|---|---|
+| **Basic** | Everyday weapons: always available or plentiful, simple to use | Bazooka, Grenade · Shotgun, MP5 · Baseball Bat, Boomerang · Dynamite, Mine |
+| **Rare** | Stronger or trickier weapons with a few uses each | Cluster Bomb, Drilling Rocket, Lava Boulder · Flashbang, Smoke, Gas (tactical grenades) · Desert Eagle, Sniper Rifle, Flamethrower · Claymore, Mine Mouse (traps) |
+| **Epic** | Big area damage, strikes from the sky and remote-controlled gadgets | Plasma Frag Grenade, Magnet Grenade · Gatling Gun · Air Strike, Napalm Strike, Lava Anvil · Drone, Robo Dozer, Frog Clone Bomb · Tornado |
+| **Legendary** | Game changers, only from steel and alien crates | Nuka Bomb, Tsar Bomb · Star Cannon, Alien Blaster |
+| **Tools & items** | Moving, digging, protection and support | Ninja Rope, Jetpack, Slingshot, Parachute, Teleport · Drill, Pickaxe · Concrete Block, Hazmat Suit · Supply Call, Rest & Heal |
+
+On desktop the weapon bar shows one category at a time with tabs to switch (it follows the weapon you pick by key); on phones the picker lists them all by category; the Weapon settings table uses the same groups. A Supply Call brings something from Epic or Legendary.
 
 ## Weapon settings
 

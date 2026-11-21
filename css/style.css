@@ -386,7 +386,7 @@ kbd {
   flex: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  gap: 4px 10px;
   align-items: center;
   justify-content: center;
   padding: 5px max(8px, env(safe-area-inset-right)) max(5px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
@@ -420,6 +420,7 @@ kbd {
   transform: rotate(180deg);
 }
 .wgroup-items { display: flex; flex-wrap: wrap; gap: 3px; }
+.wsep { width: 1px; align-self: stretch; margin: 6px 0; background: rgba(255, 255, 255, 0.3); }
 .weapon {
   position: relative;
   flex: none;
@@ -477,6 +478,7 @@ kbd {
   #weaponBar .wtabs { display: none; }
   #weaponBar .wgroup:not(.active) { display: flex; }
   #weaponBar .wgroup .wgroup-label { display: block; }
+  #weaponBar .wsep { display: none; }
   .wpanel-head { display: flex; align-items: center; justify-content: space-between; font-weight: 700; }
   .wpanel-head button {
     width: 40px; height: 40px; border: 0; border-radius: 10px;
