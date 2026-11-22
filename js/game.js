@@ -921,6 +921,23 @@ class Game {
   }
 
   // A crate that gets hit bursts: small blast plus shrapnel flying in every direction
+  // Drones, frogs, mine mice and dozers open any crate they touch, for the player who sent them
+  robotPickup(p) {
+    const id = p.owner ? p.owner.id : p.ownerId >= 0 ? p.ownerId : p.pickerId;
+    const own = p.owner || this.chars.find(c => c.id === id);
+    if (!own || !own.alive) return;
+    const reach = p.dozer ? 24 : p.walker && !p.baby ? 18 : 14;
+    for (const k of this.crates) {
+      if (k.dead || k.inVacuum || this.isBarrel(k)) continue;
+      // hopping frogs snatch a crate they jump over (their hops are high), not only one they land on
+      const touch = p.walker ? Math.abs(k.x - p.x) < reach && k.y - p.y < (p.baby ? 55 : 95) && p.y - k.y < 16 : dist(k.x, k.y, p.x, p.y) <= reach;
+      if (!touch) continue;
+      k.dead = true;
+      this.openCrate(k, own);
+      this.texts.push({ x: p.x, y: p.y - 28, text: `📦 for ${own.name}`, color: '#ffe066', life: 70 });
+    }
+  }
+
   destroyCrate(k) {
     if (k.dead) return;
     k.dead = true;
@@ -1318,7 +1335,7 @@ class Game {
     for (const k of this.crates) {
       if (k.dead) continue;
       const d = dist(x, y, k.x, k.y);
-      if (d < radius * 0.75) {
+      if (d < radius + 10) {   // any blast that reaches a crate destroys it
         this.destroyCrate(k);
       } else if (d < reach + 10) {
         const ang = Math.atan2(k.y - y, k.x - x);
@@ -1502,6 +1519,7 @@ class Game {
     const env = this.env;
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
+      if (this.crates.length && (p.drone || p.walker || p.mouse || p.dozer)) this.robotPickup(p);
       if (p.vacuum) {
         const r = this.stepVacuum(p);
         if (r) { this.projectiles.splice(i, 1); this.endVacuum(p, r); }
@@ -1626,7 +1644,7 @@ class Game {
         this.projectiles.push({
           weapon: 'frog', walker: true, baby: true, x: p.x + rand(-6, 6), y: p.y - 8, vx: rand(-2.6, 2.6), vy: rand(-5.5, -3),
           dir: Math.random() < 0.5 ? -1 : 1, fuse: randInt(60, 180), foot: 4, radius: p.bombletRadius, damage: p.bombletDamage,
-          ownerId: -1, ownerTeam: p.ownerTeam, age: 0, hop: randInt(0, 10), bounce: false, wind: false, cluster: 0, spin: 0,
+          ownerId: -1, pickerId: p.ownerId, ownerTeam: p.ownerTeam, age: 0, hop: randInt(0, 10), bounce: false, wind: false, cluster: 0, spin: 0,
         });
       }
       for (let k = 0; k < p.cluster; k++) {
@@ -2000,6 +2018,7 @@ class Game {
       if (d.y > WATER_Y || d.x < 0 || d.x > WORLD_W) d.life = 0;
     }
     if (this.toxic.some(d => d.life <= 0)) this.toxic = this.toxic.filter(d => d.life > 0);
+    if (this.tick % 10 === 0 && this.toxic.length) for (const k of this.crates) if (!k.dead && !k.inVacuum && this.toxic.some(d => Math.abs(d.x - k.x) < 11 && Math.abs(d.y - k.y) < 12)) this.destroyCrate(k); // acid sludge eats crates
     if (this.tick % 20 === 0 && this.toxic.length) {
       for (const c of this.chars) {
         if (!c.alive) continue;
@@ -2742,6 +2761,7 @@ class Game {
         if (s.t % 15 === 0) this.fires = this.fires.filter(f => Math.abs(f.x - s.x) > s.w / 2); // puts out fires
       } else if (id === 'acid') {
         if (s.t % 30 === 0) for (const c of this.chars) if (this.underStorm(s, c)) this.damageChar(c, 2, 0, 0, -1, 'toxic');
+        if (s.t % 10 === 0) for (const k of this.crates) if (!k.dead && !k.inVacuum && this.underStorm(s, { alive: true, x: k.x, y: k.y + CHAR_R - 10 })) this.destroyCrate(k); // acid eats crates
         if (s.t % 2 === 0) { const x = X(); const gy = this.groundBelow(x, Y); if (gy < WATER_Y && !this.terrain.isHard(x, gy + 2)) this.terrain.carve(x, gy, 4); }
       } else if (id === 'fire') {
         if (s.t % 3 === 0) this.fires.push({ x: X(), y: Y, vx: rand(-0.3, 0.3) + this.wind * 0.5, vy: rand(1, 2.5), life: randInt(200, 280), airborne: true, ownerTeam: -1, dmg: 2, seed: Math.random() * 10 });
@@ -3004,6 +3024,7 @@ class Game {
       f.life--;
       if (f.y > WATER_Y || f.x < -20 || f.x > WORLD_W + 20) f.life = 0;
       if (f.life % 45 === 0) t.carve(f.x, f.y + 2, 3);
+      if (f.life % 6 === 0) for (const k of this.crates) if (!k.dead && !k.inVacuum && dist(k.x, k.y, f.x, f.y) < 14) this.destroyCrate(k); // fire burns crates
     }
     this.fires = this.fires.filter(f => f.life > 0);
     if (this.tick % 10 !== 0 || !this.fires.length) return;

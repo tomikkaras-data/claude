@@ -120,7 +120,8 @@ When a storm forms (between turns) the camera shows it first. Storm clouds stay 
 ## Crates
 
 * Wooden and steel crates lie around the map at the start. Supply drops parachute in more crates every few turns.
-* Walk into a crate to open it. A crate that gets hit by an explosion, a bullet, a flame or a projectile bursts with a small blast and sprays 10–20 pieces of shrapnel in every direction, like shotgun pellets. Bullets stop at crates. Steel crates also spray burning fuel all around when they burst.
+* Walk into a crate to open it. Your robots collect crates for you too: a Drone, Alien Bomber Drone, Vacuum Robot, Robo Dozer, Mine Mouse or Frog (big or baby – frogs even snatch a crate they hop over) opens any crate it touches for the player who sent it.
+* Everything destructive destroys crates instead: a crate reached by any explosion, a bullet or laser, fire (flamethrower, napalm, burning drops), acid rain or toxic sludge – or hit by a projectile – bursts with a small blast and sprays 10–20 pieces of shrapnel in every direction, like shotgun pellets. Bullets stop at crates. Steel crates also spray burning fuel all around when they burst.
 * **Wooden crates** hold one of:
   * +35 health
   * ⚡ a power-up (your next attack does +50% damage)
